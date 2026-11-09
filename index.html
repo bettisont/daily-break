@@ -54,10 +54,14 @@
   .mlabels{position:relative;height:15px;margin:5px 2px 8px;font-size:11px;color:var(--muted)}
   .mlabels span{position:absolute;top:0}
   #lEase{left:0} #lOver{right:0} #lPin{transform:translateX(-50%)}
-  .actrow{display:flex;gap:8px;align-items:stretch}
-  .nudge{width:46px;flex:none;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);font:700 20px 'DM Sans',sans-serif;cursor:pointer;touch-action:none;transition:opacity .2s}
-  .nudge:disabled{opacity:.3;cursor:default}
-  #act{flex:1;min-width:0;height:50px;touch-action:none;border:0;border-radius:14px;background:var(--green);color:#f4f6ef;font:800 20px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 0 var(--green-dark);transition:transform .08s,box-shadow .08s,background .2s}
+  #chips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+  .chip{position:relative;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);padding:6px 0 5px;font:700 14px 'DM Sans',sans-serif;cursor:pointer;touch-action:manipulation;transition:background .15s,border-color .15s}
+  .chip small{display:block;margin-top:1px;font:400 9.5px 'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .chip.on{border:2px solid var(--green);background:#e9f0e2;padding:5px 0 4px}
+  .chip.bad small{color:var(--red)}
+  .chip.sug::after{content:'★';position:absolute;top:2px;right:6px;font-size:10px;color:var(--gold)}
+  .chip:disabled{opacity:.45;cursor:default}
+  #act{width:100%;height:50px;touch-action:none;border:0;border-radius:14px;background:var(--green);color:#f4f6ef;font:800 20px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 0 var(--green-dark);transition:transform .08s,box-shadow .08s,background .2s}
   #act:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--green-dark)}
   #act:disabled{opacity:.5;cursor:default}
   #act.stop{background:#b5603f;box-shadow:0 3px 0 #7d3f28}
@@ -98,26 +102,36 @@
   <div id="info"><div id="iHole"></div><div id="iLie"></div><div id="iTilt"></div></div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">
+    <div id="chips"></div>
     <div id="meter"><div id="mFill"></div><div id="mOver"></div><div id="mPin"></div><div id="mNeedle"></div></div>
     <div class="mlabels mono"><span id="lEase">Ease</span><span id="lPin">Pin</span><span id="lOver">Over</span></div>
-    <div class="actrow"><button class="nudge" id="nL" title="Fine aim (← key)">‹</button><button id="act">Lock the line</button><button class="nudge" id="nR" title="Fine aim (→ key)">›</button></div>
+    <button id="act">Lining up…</button>
     <div id="hint" class="mono"></div>
   </div>
 </div>
 <div id="overlay"><div class="card" id="card"></div></div>
 
 <script>
-/* =================== core: holes, physics, solver (no DOM) =================== */
+/* =================== core: racks, physics, solver (no DOM) =================== */
 
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
-const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1500, ARRIVE = 160;
+const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1500;
 const HOLES = 9, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 9);
+const RACK_SIZES = [2, 2, 3, 3, 3, 4, 4, 5, 5];
 const COLORS = ['#f4efe2', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b', '#24221f', '#e2b13c'];
 const POCKETS = [
   { x: 0, y: 0, cap: R * 2.0 }, { x: W, y: 0, cap: R * 2.0 },
   { x: -5, y: H / 2, cap: R * 1.8 }, { x: W + 5, y: H / 2, cap: R * 1.8 },
   { x: 0, y: H, cap: R * 2.0 }, { x: W, y: H, cap: R * 2.0 },
+];
+// Shot types, the "clubs": how fast the object ball should reach the pocket, and cue-ball spin.
+const SHOTS = [
+  { id: 'soft', name: 'Soft', arrive: 110, spin: 0.25, hint: 'gentle' },
+  { id: 'stun', name: 'Stun', arrive: 320, spin: 0, hint: 'stops' },
+  { id: 'follow', name: 'Follow', arrive: 320, spin: 0.75, hint: 'rolls on' },
+  { id: 'draw', name: 'Draw', arrive: 380, spin: -0.75, hint: 'back' },
+  { id: 'power', name: 'Power', arrive: 750, spin: 0, hint: 'firm' },
 ];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -168,61 +182,41 @@ function lieAt(hole, x, y) {
   return 'felt';
 }
 
-// A hole: get the target ball into the flagged pocket. Everything is seeded by date + hole number.
+// A hole is a small seeded rack to clear: everything is seeded by date + hole number.
 function makeHole(seed, i) {
-  const rnd = rngFor(`${seed}:hole:${i}`);
-  const flag = Math.floor(rnd() * 6), F = pocketAim(flag);
-  const closed = [];
-  if (rnd() < 0.12 + i * 0.05) closed.push(...shuffle(rnd, [0, 1, 2, 3, 4, 5]).filter(p => p !== flag).slice(0, rnd() < 0.35 ? 2 : 1));
+  const rnd = rngFor(`${seed}:rack:${i}`);
+  const closed = rnd() < 0.08 + i * 0.04 ? [Math.floor(rnd() * 6)] : [];
   const placed = [];
   const ok = (x, y, rad, gap) => x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6 &&
     placed.every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + gap) &&
     POCKETS.every(p => Math.hypot(p.x - x, p.y - y) > rad + R * 3.2);
-  const place = (gen, rad, gap, extra = () => true) => {
+  const place = (gen, rad, gap) => {
     for (let k = 0; k < 500; k++) {
       const [x, y] = gen();
-      if (ok(x, y, rad, gap) && extra(x, y)) { const o = { x, y, r: rad }; placed.push(o); return o; }
+      if (ok(x, y, rad, gap)) { const o = { x, y, r: rad }; placed.push(o); return o; }
     }
     return null;
   };
-  const reach = 260 + i * 55;
-  const target = place(() => { const a = rnd() * TAU, d = 150 + rnd() * reach; return [F.x + Math.cos(a) * d, F.y + Math.sin(a) * d]; }, R, R)
-    || place(() => [W / 2, H / 2], R, 0);
-  const cue = place(() => [40 + rnd() * (W - 80), 40 + rnd() * (H - 80)], R, R * 2,
-    (x, y) => { const d = Math.hypot(x - target.x, y - target.y); return d > 220 && d < 260 + i * 60; })
-    || place(() => [40 + rnd() * (W - 80), 40 + rnd() * (H - 80)], R, R * 2) || { x: W / 2, y: H * 0.85 };
+  const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || { x: W / 2, y: H * 0.8 };
   const bumpers = [];
-  const nBump = rnd() < 0.22 + i * 0.07 ? 1 + Math.floor(rnd() * 2) : 0;
+  const nBump = rnd() < 0.12 + i * 0.05 ? 1 + (i > 5 && rnd() < 0.4 ? 1 : 0) : 0;
   for (let k = 0; k < nBump; k++) {
-    const o = place(() => [90 + rnd() * (W - 180), 120 + rnd() * (H - 240)], 18 + rnd() * 12, R * 1.5);
+    const o = place(() => [100 + rnd() * (W - 200), 160 + rnd() * (H - 420)], 18 + rnd() * 10, R * 2.5);
     if (o) bumpers.push({ x: o.x, y: o.y, r: o.r });
   }
-  const nums = shuffle(rnd, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  const balls = [{ x: target.x, y: target.y, n: nums[0], target: true }];
-  const nBlock = Math.min(7, Math.floor(rnd() * 2 + i * 0.75));
-  for (let k = 0; k < nBlock; k++) {
-    const onLine = rnd() < 0.3 + i * 0.05;
-    const o = place(() => {
-      if (!onLine) return [30 + rnd() * (W - 60), 30 + rnd() * (H - 60)];
-      // in the way of the cue, or narrowing (never shutting) the target's lane to the pocket
-      const lane = rnd() < 0.5, [ax, ay, bx, by] = lane ? [target.x, target.y, F.x, F.y] : [cue.x, cue.y, target.x, target.y];
-      const u = 0.3 + rnd() * 0.4, L = Math.hypot(bx - ax, by - ay) || 1;
-      const off = lane ? (rnd() < 0.5 ? -1 : 1) * R * (2.15 + rnd()) : (rnd() - 0.5) * R * 3;
-      return [ax + (bx - ax) * u - (by - ay) / L * off, ay + (by - ay) * u + (bx - ax) / L * off];
-    }, R, R * 0.6);
-    if (o) balls.push({ x: o.x, y: o.y, n: nums[balls.length] });
+  const nums = shuffle(rnd, [1, 2, 3, 4, 5, 6, 7, 8, 9]), balls = [];
+  for (let k = 0; k < RACK_SIZES[i]; k++) {
+    const o = place(() => [40 + rnd() * (W - 80), 40 + rnd() * (H * 0.72 - 40)], R, R * 0.8);
+    if (o) balls.push({ x: o.x, y: o.y, n: nums[k] });
   }
   const patches = [];
-  const nPatch = rnd() < 0.35 + i * 0.05 ? 1 + (rnd() < 0.3 ? 1 : 0) : 0;
-  for (let k = 0; k < nPatch; k++) {
-    patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 70, ry: 45 + rnd() * 50, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
-  }
+  if (rnd() < 0.22 + i * 0.05) patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 60, ry: 45 + rnd() * 45, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
   let tilt = { x: 0, y: 0, mag: 0, dir: 0 };
-  if (rnd() < 0.28 + i * 0.06) {
-    const dir = Math.floor(rnd() * 8), mag = 12 + rnd() * (14 + i * 4), a = dir * Math.PI / 4;
+  if (rnd() < 0.18 + i * 0.06) {
+    const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (10 + i * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
-  return { i, seed, flag, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, par: null };
+  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, par: null };
 }
 
 class Table {
@@ -230,17 +224,17 @@ class Table {
     this.hole = hole; this.ev = onEvent;
     this.cue = { x: hole.cue.x, y: hole.cue.y, vx: 0, vy: 0, n: 0, m: 1, potted: false, isCue: true };
     this.balls = hole.balls.map(b => ({ ...b, vx: 0, vy: 0, m: 1, potted: false }));
-    this.target = this.balls[0];
     this.shot = null;
   }
   openPocket(i) { return !this.hole.closed.includes(i); }
   live() { return [this.cue, ...this.balls].filter(b => !b.potted); }
   moving() { return this.live().some(b => b.vx || b.vy); }
+  remaining() { return this.balls.filter(b => !b.potted).length; }
 
-  shoot(angle, power) {
+  shoot(angle, power, spin = 0) {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
-    this.shot = { pots: [], targetPocket: -1, scratch: false, rattles: 0, cushions: 0, touchedTarget: false, firstHit: null };
+    this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false };
   }
 
   step() {
@@ -263,7 +257,7 @@ class Table {
         if (!a.vx && !a.vy && !b.vx && !b.vy) continue;
         const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy, min = 2 * R;
         if (d2 >= min * min || d2 === 0) continue;
-        // rewind to the exact moment of contact so the collision normal is precise
+        // rewind the pair to the exact moment of contact so the collision normal is precise
         const rvx = b.vx - a.vx, rvy = b.vy - a.vy, dv = dx * rvx + dy * rvy, vv = rvx * rvx + rvy * rvy;
         const back = dv < 0 && vv > 0 ? Math.min(DT * 2, (dv + Math.sqrt(dv * dv - vv * (d2 - min * min))) / vv) : 0;
         a.x -= a.vx * back; a.y -= a.vy * back; b.x -= b.vx * back; b.y -= b.vy * back;
@@ -271,10 +265,18 @@ class Table {
         if (d < min) { const ov = (min - d) / inv; a.x -= nx * ov / a.m; a.y -= ny * ov / a.m; b.x += nx * ov / b.m; b.y += ny * ov / b.m; }
         const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
         if (vn < 0) {
+          const cueA = a === this.cue, cueB = b === this.cue;
+          const cueVn = cueA ? a.vx * nx + a.vy * ny : cueB ? -(b.vx * nx + b.vy * ny) : 0;
           const jmp = -(1 + BALL_E) * vn / inv;
           a.vx -= jmp * nx / a.m; a.vy -= jmp * ny / a.m; b.vx += jmp * nx / b.m; b.vy += jmp * ny / b.m;
-          if (s && ((a === this.cue && b === this.target) || (b === this.cue && a === this.target))) s.touchedTarget = true;
-          if (s && !s.firstHit && (a === this.cue || b === this.cue)) s.firstHit = a === this.cue ? b : a;
+          if (s && (cueA || cueB)) {
+            if (!s.firstHit) s.firstHit = cueA ? b : a;
+            // spin takes hold on the first contact: follow carries on through, draw comes back
+            if (!s.spinUsed) {
+              s.spinUsed = true;
+              if (s.spin) { const k = s.spin * 0.7 * Math.max(0, cueVn), sx = cueA ? nx : -nx, sy = cueA ? ny : -ny; this.cue.vx += sx * k; this.cue.vy += sy * k; }
+            }
+          }
           this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
         }
         a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
@@ -321,8 +323,7 @@ class Table {
     b.potted = true; b.vx = b.vy = 0;
     const s = this.shot;
     if (!s) return;
-    if (b.isCue) s.scratch = true;
-    else { s.pots.push(b); if (b === this.target) s.targetPocket = i; }
+    if (b.isCue) s.scratch = true; else s.pots.push({ ball: b, pocket: i });
   }
 
   // put a ball back near (x, y) without overlapping anything
@@ -346,7 +347,6 @@ function cloneTable(t) {
   c.ev = () => {};
   c.cue = { ...t.cue };
   c.balls = t.balls.map(b => ({ ...b }));
-  c.target = c.balls[t.balls.indexOf(t.target)];
   c.shot = t.shot ? { ...t.shot, pots: [...t.shot.pots] } : null;
   return c;
 }
@@ -382,96 +382,109 @@ function trace(t, px, py, dx, dy, skip = null) {
   if (Math.min(tx, ty) < best.t) best = { t: Math.min(tx, ty), wall: true };
   return best;
 }
-// The "pin": power that does what the aim asks for (ignores tilt and felt, like wind in golf).
-function pinFor(t, angle, dist) {
-  const c = t.cue, dx = Math.cos(angle), dy = Math.sin(angle), hit = trace(t, c.x, c.y, dx, dy);
-  if (hit.ball && hit.t <= dist + 2 * R) {
-    const b = hit.ball, gx = c.x + dx * hit.t, gy = c.y + dy * hit.t;
-    const nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R), cos = Math.max(0.12, dx * nx + dy * ny);
-    let pocket = -1, best = Infinity;
-    for (let i = 0; i < 6; i++) {
-      if (!t.openPocket(i)) continue;
-      const P = pocketAim(i), along = (P.x - b.x) * nx + (P.y - b.y) * ny, perp = Math.abs((P.x - b.x) * ny - (P.y - b.y) * nx);
-      if (along > 0 && perp < POCKETS[i].cap * 0.7 && along < best) { best = along; pocket = i; }
-    }
-    const d2 = pocket >= 0 ? best : Math.min(trace(t, b.x, b.y, nx, ny, b).t, 900) * 0.6, vf = pocket >= 0 ? ARRIVE : 40;
-    const vC = launchSpeed(d2, vf) / (cos * (1 + BALL_E) / 2);
-    return { power: Math.min(1, launchSpeed(hit.t, vC) / MAX_SPEED), hit, pocket };
-  }
-  return { power: Math.min(1, launchSpeed(Math.min(dist, hit.t), 15) / MAX_SPEED), hit };
-}
 
-// ---- par: a perfect-execution bot plays the hole; par is its score + 1 ----
-function directShot(t, from = t.cue) {
-  const b = t.target, P = pocketAim(t.hole.flag), d2 = Math.hypot(P.x - b.x, P.y - b.y);
-  const ux = (P.x - b.x) / d2, uy = (P.y - b.y) / d2, gx = b.x - ux * 2 * R, gy = b.y - uy * 2 * R;
+// ---- called shots ----
+
+// The geometric line for potting ball bi into pocket i: where the cue ball must strike (the ghost ball).
+function potLine(t, bi, i, from = t.cue) {
+  const ball = t.balls[bi];
+  if (ball.potted || !t.openPocket(i)) return null;
+  const P = pocketAim(i), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
+  if (d2 < 1) return null;
+  const ux = (P.x - ball.x) / d2, uy = (P.y - ball.y) / d2, gx = ball.x - ux * 2 * R, gy = ball.y - uy * 2 * R;
   if (gx < R || gx > W - R || gy < R || gy > H - R) return null;
   const d1 = Math.hypot(gx - from.x, gy - from.y);
   if (d1 < 1) return null;
   const dx = (gx - from.x) / d1, dy = (gy - from.y) / d1, cos = dx * ux + dy * uy;
   if (cos < 0.42) return null;
-  const blocked = pathBlocked(t, from.x, from.y, gx, gy, b) || pathBlocked(t, b.x, b.y, P.x, P.y, b);
-  const power = launchSpeed(d1, launchSpeed(d2, ARRIVE) / (cos * (1 + BALL_E) / 2)) / MAX_SPEED;
-  return { angle: Math.atan2(dy, dx), power: Math.min(1, power), blocked, q: cos ** 1.5 / (1 + (d1 + d2) / 1400) * (blocked ? 0.2 : 1) * (power > 1 ? 0.3 : 1) };
+  const blocked = pathBlocked(t, from.x, from.y, gx, gy, ball) || pathBlocked(t, ball.x, ball.y, P.x, P.y, ball);
+  const q = cos ** 1.5 / (1 + (d1 + d2) / 1400) * (blocked ? 0.15 : 1);
+  return { bi, pocket: i, angle: Math.atan2(dy, dx), cos, d1, d2, blocked, q, ghost: { x: gx, y: gy } };
 }
-function simulate(t, angle, power) {
+function allLines(t) {
+  const out = [];
+  t.balls.forEach((b, bi) => { if (!b.potted) for (let i = 0; i < 6; i++) { const l = potLine(t, bi, i); if (l) out.push(l); } });
+  return out;
+}
+// No pot on for this ball: just play it full, at medium pace.
+function safeLine(t, bi) {
+  const b = t.balls[bi], c = t.cue, d = Math.hypot(b.x - c.x, b.y - c.y) || 1;
+  return { bi, pocket: -1, angle: Math.atan2(b.y - c.y, b.x - c.x), cos: 1, d1: Math.max(1, d - 2 * R), d2: 260, blocked: true, q: 0, ghost: { x: b.x - (b.x - c.x) / d * 2 * R, y: b.y - (b.y - c.y) / d * 2 * R } };
+}
+function shotPower(line, type) {
+  const vObj = launchSpeed(line.d2, type.arrive);
+  return Math.min(1, launchSpeed(line.d1, vObj / (line.cos * (1 + BALL_E) / 2)) / MAX_SPEED);
+}
+function simulate(t, angle, power, spin = 0, path = null) {
   const s = cloneTable(t);
-  s.shoot(angle, power);
-  for (let n = 0; n < 9000 && s.moving(); n++) s.step();
+  s.shoot(angle, power, spin);
+  for (let n = 0; n < 9000 && s.moving(); n++) {
+    s.step();
+    if (path && n % 6 === 0 && !s.cue.potted) path.push([s.cue.x, s.cue.y]);
+  }
+  if (path && !s.cue.potted) path.push([s.cue.x, s.cue.y]);
   return s;
 }
-// The best move from here with perfect execution: a pot verified by simulation (so it allows for
-// tilt and felt), otherwise the shot that leaves the cleanest pot next. Also used to set par.
-function bestMove(t) {
-  const flag = t.hole.flag, d = directShot(t);
-  // a clean pot: the cue ball hits the target first and the target drops in the flag
-  const clean = s => s.shot.targetPocket === flag && !s.shot.scratch && s.shot.firstHit === s.target;
-  if (d && !d.blocked) {
-    for (const da of [0, -0.004, 0.004, -0.01, 0.01, -0.02, 0.02]) for (const pm of [1, 1.15, 0.9, 1.3]) {
-      const angle = d.angle + da, power = Math.min(1, d.power * pm), s = simulate(t, angle, power);
-      if (clean(s)) return { kind: 'pot', angle, power, holed: true, state: s };
+// A clean pot: no scratch, the called ball is hit first and drops in the called pocket.
+function clean(s, line) {
+  const b = s.balls[line.bi];
+  return !s.shot.scratch && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b && p.pocket === line.pocket);
+}
+// Play a called shot as well as it can be played: nudge the line a hair to allow for tilt and felt.
+function playCall(t, line, type, withPath = false) {
+  const base = shotPower(line, type);
+  if (line.pocket >= 0) for (const pm of [1, 1.15]) for (const da of [0, -0.003, 0.003, -0.007, 0.007, -0.012, 0.012]) {
+    const power = Math.min(1, base * pm), angle = line.angle + da, s = simulate(t, angle, power, type.spin);
+    if (clean(s, line)) {
+      if (!withPath) return { ok: true, angle, power, state: s };
+      const path = []; return { ok: true, angle, power, state: simulate(t, angle, power, type.spin, path), path };
     }
   }
-  // no pot on: play the target ball like a person would (fairly full contact, sensible weight),
-  // either leaving a clean pot or at least working it towards the flag
-  let best = null, fallback = null;
-  const F = pocketAim(flag);
-  const consider = (angle, power, thin, needFirst = true) => {
-    const s = simulate(t, angle, power);
-    if (needFirst ? s.shot.firstHit !== s.target : !s.shot.touchedTarget) return null;
-    if (clean(s)) return { kind: 'pot', angle, power, holed: true, state: s };
-    if (s.shot.scratch || s.target.potted) return null;
-    const nat = (1 - 0.4 * thin) * (1 - 0.35 * power), q = directShot(s);
-    if (q && !q.blocked && (!best || q.q * nat > best.score)) best = { kind: 'position', angle, power, q: q.q, score: q.q * nat, state: s };
-    const near = -Math.hypot(s.target.x - F.x, s.target.y - F.y) - 120 * thin - 150 * power;
-    if (!fallback || near > fallback.near) fallback = { kind: 'position', angle, power, q: 0, near, state: s };
-    return null;
-  };
-  const tb = t.target, c = t.cue, d0 = Math.hypot(tb.x - c.x, tb.y - c.y);
-  const base = Math.atan2(tb.y - c.y, tb.x - c.x), half = Math.asin(Math.min(1, 2 * R / d0)) * 0.75;
-  for (let k = -4; k <= 4; k++) for (const p of [0.2, 0.3, 0.42, 0.56, 0.72]) {
-    const r = consider(base + half * k / 4, p, Math.abs(k) / 4);
-    if (r) return r;
+  const path = withPath ? [] : null;
+  return { ok: false, angle: line.angle, power: base, state: simulate(t, line.angle, base, type.spin, path), path };
+}
+// How good is the leave? The best clean pot available from where everything stopped.
+function nextQ(s) {
+  if (s.shot?.scratch || s.cue.potted) return -1;
+  if (!s.remaining()) return 3;
+  let q = 0;
+  s.balls.forEach((b, bi) => { if (!b.potted) for (let i = 0; i < 6; i++) { const l = potLine(s, bi, i); if (l && !l.blocked) q = Math.max(q, l.q); } });
+  return q;
+}
+// The best call from here: ball, pocket and shot type, judged by the leave.
+function bestCall(t) {
+  let best = null;
+  for (const l of allLines(t).filter(l => !l.blocked).sort((a, b) => b.q - a.q).slice(0, 4)) {
+    for (const ti of [1, 2, 3, 0]) {
+      const r = playCall(t, l, SHOTS[ti]);
+      if (!r.ok) continue;
+      const v = nextQ(r.state);
+      if (!best || v > best.v) best = { v, line: l, ti, state: r.state };
+    }
   }
-  // target hidden behind other balls: only then try a kick off a cushion
-  if (!best && !fallback) for (let k = 0; k < 36; k++) for (const p of [0.45, 0.75]) { const r = consider(k / 36 * TAU, p, 1, false); if (r) return r; }
-  return best || fallback;
+  return best;
 }
-function solveHole(hole) {
-  let t = new Table(hole);
-  for (let stroke = 1; stroke <= 4; stroke++) {
-    const m = bestMove(t);
-    if (!m) return 5;
-    if (m.holed) return stroke;
-    m.state.shot = null; t = m.state;
+// Par: a perfect-execution bot clears the rack; par is its score + 1.
+function solveRack(hole) {
+  let t = new Table(hole), strokes = 0;
+  while (t.remaining() && strokes < 12) {
+    strokes++;
+    const b = bestCall(t);
+    let s;
+    if (b) s = b.state;
+    else {
+      // nothing clean: roll into the nearest ball and try again
+      let bi = -1, bd = Infinity;
+      t.balls.forEach((ball, k) => { if (!ball.potted) { const d = Math.hypot(ball.x - t.cue.x, ball.y - t.cue.y); if (d < bd) { bd = d; bi = k; } } });
+      const l = safeLine(t, bi);
+      s = simulate(t, l.angle, shotPower(l, SHOTS[1]));
+    }
+    if (s.cue.potted) s.respot(s.cue, t.cue.x, t.cue.y);
+    s.shot = null; t = s;
   }
-  return 5;
+  return strokes;
 }
-function parFor(hole) {
-  const t = new Table(hole), d = directShot(t);
-  const extra = (hole.tilt.mag >= 24 ? 1 : 0) + (hole.balls.length >= 5 && (!d || d.blocked) ? 1 : 0);
-  return clamp(solveHole(hole) + 1 + extra, 2, 5);
-}
+function parFor(hole) { const n = hole.balls.length; return clamp(solveRack(hole) + 1, n + 1, n + 3); }
 
 /* =================== browser =================== */
 
@@ -483,10 +496,11 @@ function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 const STRIKE_T = 0.1, FILL_T = 1.4, PIN_AT = 0.62, PERF_A = 0.075, PERF_P = 0.035, CONE_VIS = 3;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 
-let round = null, hole = null, table = null, phase = 'aim', strokes = 0, acc = 0;
-let aim = null, aimRaw = 0, snaps = [], plan = null, drag = null, pin = null, swayT = 0, locked = null, meter = null, strike = null, strokeStart = null;
+let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
+let call = null, previews = [], lines = [], swayT = 0, locked = null, meter = null, strike = null, strokeStart = null;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null, flagPop = 0;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0 };
+
 
 /* ----- audio: effects, rain + vinyl ambience, lazy keys ----- */
 
@@ -589,6 +603,7 @@ function sparkle(x, y, color, n, speed = 120) {
 }
 function float(x, y, text, color, size = 20, life = 1.4) { fx.floats.push({ x, y, text, color, size, life, max: life }); }
 function ring(x, y, color, grow = 50, life = 0.6, r = R) { fx.rings.push({ x, y, r, grow, life, max: life, color }); }
+const calledBall = () => call ? table.balls[call.line.bi] : null;
 
 function onEvent(type, e) {
   if (type === 'hit') {
@@ -603,7 +618,11 @@ function onEvent(type, e) {
     ensureSpin(b);
     fx.sinks.push({ x: e.x, y: e.y, tx, ty, b: { n: b.n, spot: b.spot, pole: b.pole }, t: 0 });
     ring(tx, ty, '255,250,235', 46, 0.6);
-    if (b === table.target && e.pocket === hole.flag) { ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18, 160); flagPop = 1; }
+    if (!b.isCue) {
+      const fy = clamp(ty, 60, H - 60) + (ty < H / 2 ? 40 : -40), fxp = clamp(tx, 60, W - 60);
+      if (b === calledBall() && e.pocket === call.line.pocket) { ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18, 160); flagPop = 1; float(fxp, fy, 'Called it', '#2f6b4f', 18); }
+      else float(fxp, fy, `Bonus ${b.n}`, '#7a6a3a', 16);
+    }
   }
 }
 
@@ -615,10 +634,10 @@ function newRound(seed, ranked) {
   // par needs a solver run per hole: do the first now and the rest in the background
   r.holes[0].par = parFor(r.holes[0]);
   let k = 1;
-  const more = () => { if (round !== r || k >= HOLES) return; if (r.holes[k].par == null) r.holes[k].par = parFor(r.holes[k]); k++; renderCard9(); setTimeout(more, 40); };
-  setTimeout(more, 700);
+  const more = () => { if (round !== r || k >= HOLES) return; if (r.holes[k].par == null) r.holes[k].par = parFor(r.holes[k]); k++; renderCard9(); setTimeout(more, 60); };
+  setTimeout(more, 900);
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? `#${dayNumber(seed)}` : 'practice'}`;
-  const saved = ranked ? ls('dailybreak:round:' + seed) : null;
+  const saved = ranked ? ls('dailybreak:rack:' + seed) : null;
   startHole(0);
   if (saved) { try { round.scores = JSON.parse(saved).scores; round.done = true; ensurePars(); renderCard9(); showFinal(true); } catch {} }
 }
@@ -631,74 +650,51 @@ function startHole(i) {
   strokes = 0; marks = []; trails = []; curTrail = null; stamp = null; locked = null; meter = null; strike = null;
   fx.sinks = []; fx.confetti = [];
   lineUp();
-  banner = { title: `Hole ${i + 1}`, sub: `Par ${hole.par} · sink the ${hole.balls[0].n} at the flag`, life: 2.4, max: 2.4 };
+  banner = { title: `Hole ${i + 1}`, sub: `Par ${hole.par} · clear ${hole.balls.length} balls`, life: 2.4, max: 2.4 };
   renderCard9(); updateUI();
 }
 
-// Aim lines worth snapping to: the pot line for the target into the flag, and one-cushion banks.
-function computeSnaps() {
-  const t = table, b = t.target, c = t.cue, F = pocketAim(hole.flag), out = [];
-  const add = (P, kind) => {
-    const d2 = Math.hypot(P.x - b.x, P.y - b.y);
-    if (d2 < 1) return;
-    const ux = (P.x - b.x) / d2, uy = (P.y - b.y) / d2, gx = b.x - ux * 2 * R, gy = b.y - uy * 2 * R;
-    if (gx < R || gx > W - R || gy < R || gy > H - R) return;
-    const d1 = Math.hypot(gx - c.x, gy - c.y);
-    if (d1 < 1) return;
-    const dx = (gx - c.x) / d1, dy = (gy - c.y) / d1;
-    if (dx * ux + dy * uy < 0.2 || pathBlocked(t, c.x, c.y, gx, gy, b)) return;
-    out.push({ angle: Math.atan2(dy, dx), kind });
-  };
-  if (!b.potted) {
-    add(F, 'pot');
-    for (const [axis, v] of [['x', R], ['x', W - R], ['y', R], ['y', H - R]]) {
-      const M = axis === 'x' ? { x: 2 * v - F.x, y: F.y } : { x: F.x, y: 2 * v - F.y };
-      if (Math.hypot(M.x - F.x, M.y - F.y) > 4 * R) add(M, 'bank');
-    }
-  }
-  return out;
-}
-const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; };
-const SNAP_IN = 1.5 * Math.PI / 180, SNAP_OUT = 2.5 * Math.PI / 180;
-
-// Work out the best shot a frame later, so the table never freezes while it thinks.
+// Work out the suggested call a frame later, so the table never freezes while it thinks.
 function lineUp() {
-  phase = 'lining'; aim = null; locked = null; updateUI();
-  setTimeout(() => { if (phase !== 'lining') return; defaultAim(); phase = 'aim'; updateUI(); }, 30);
+  phase = 'lining'; call = null; previews = []; locked = null; meter = null; updateUI();
+  setTimeout(() => { if (phase !== 'lining') return; suggestCall(); phase = 'aim'; swayT = Math.random() * 10; updateUI(); }, 30);
 }
-function defaultAim() {
-  const c = table.cue, b = table.target, m = bestMove(table);
-  plan = m ? { kind: m.kind, angle: m.angle, power: m.power } : null;
-  snaps = computeSnaps().filter(sn => !plan || Math.abs(angDiff(sn.angle, plan.angle)) > 0.6 * Math.PI / 180);
-  aim = null;
-  if (plan) {
-    snaps.unshift({ angle: plan.angle, kind: 'plan' });
-    const hit = trace(table, c.x, c.y, Math.cos(plan.angle), Math.sin(plan.angle));
-    setAimAngle(plan.angle, Math.min(hit.t, 900));
-  } else setAimAngle(Math.atan2(b.y - c.y, b.x - c.x), Math.hypot(b.x - c.x, b.y - c.y));
-  swayT = Math.random() * 10;
+function suggestCall() {
+  lines = allLines(table);
+  const b = bestCall(table);
+  if (b) return selectLine(b.line, b.ti);
+  const l = lines.slice().sort((a, b2) => b2.q - a.q)[0];
+  if (l) return selectLine(l, 1);
+  let bi = -1, bd = Infinity;
+  table.balls.forEach((ball, k) => { if (!ball.potted) { const d = Math.hypot(ball.x - table.cue.x, ball.y - table.cue.y); if (d < bd) { bd = d; bi = k; } } });
+  selectLine(safeLine(table, bi), 1);
 }
-const onPlan = () => aim?.snap?.kind === 'plan' && plan;
-function setAim(x, y) {
-  const c = table.cue;
-  setAimAngle(Math.atan2(y - c.y, x - c.x), Math.hypot(x - c.x, y - c.y));
-}
-function setAimAngle(raw, dist) {
-  aimRaw = raw;
-  // magnetic: catch a line within SNAP_IN, and keep hold of it until you drag past SNAP_OUT
-  let snap = aim?.snap && snaps.includes(aim.snap) && Math.abs(angDiff(raw, aim.snap.angle)) < SNAP_OUT ? aim.snap : null;
-  if (!snap) for (const sn of snaps) { const d = Math.abs(angDiff(raw, sn.angle)); if (d < SNAP_IN && (!snap || d < Math.abs(angDiff(raw, snap.angle)))) snap = sn; }
-  if (snap && aim && aim.snap?.angle !== snap.angle) { tone(snap.kind === 'bank' ? 1175 : 1568, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
-  const ang = snap ? snap.angle : raw, c = table.cue;
-  dist = clamp(dist, 2 * R, 1400);
-  aim = { angle: ang, dist, x: c.x + Math.cos(ang) * dist, y: c.y + Math.sin(ang) * dist, snap };
-  pin = onPlan() ? { power: plan.power } : pinFor(table, aim.angle, aim.dist);
+// Calling a line works out every shot type for it: does it pot, and where does the cue ball finish?
+function selectLine(line, ti) {
+  previews = SHOTS.map(type => { const r = playCall(table, line, type, true); return { ok: r.ok, angle: r.angle, power: r.power, path: r.path, v: r.ok ? nextQ(r.state) : -1 }; });
+  let sug = -1;
+  previews.forEach((p, k) => { if (p.ok && (sug < 0 || p.v > previews[sug].v)) sug = k; });
+  call = { line, ti: ti ?? (sug >= 0 ? sug : 1), sug };
   updateUI();
 }
-function nudgeAim(dir, big) { if (phase === 'aim') setAimAngle(aimRaw + dir * (big ? 1 : 0.1) * Math.PI / 180, aim.dist); }
+function selectBall(bi) {
+  const mine = lines.filter(l => l.bi === bi).sort((a, b) => (a.blocked - b.blocked) || (b.q - a.q));
+  selectLine(mine[0] || safeLine(table, bi), null);
+  tone(1175, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6);
+}
+function selectPocket(i) {
+  const l = lines.find(l => l.bi === call.line.bi && l.pocket === i);
+  if (!l) { tone(220, 0.08, 0.05, 'triangle', 1, 0, 0); return; }
+  selectLine(l, call.ti);
+  tone(1568, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6);
+}
+function selectType(ti) {
+  if (phase !== 'aim' || !call) return;
+  call.ti = ti; sfx.click(); updateUI();
+}
+const pv = () => call ? previews[call.ti] : null;
 
-// Accuracy: once aimed, the line swings evenly across your aim and a needle sweeps the gauge.
-// Tap Lock while the needle is in the gold PERFECT band and the shot goes exactly on your line.
+// The line: a pendulum swing inside the cone; lock as it crosses the bullseye.
 function swingAmp() {
   const lie = lieAt(hole, table.cue.x, table.cue.y);
   return (3 + 0.12 * hole.i) * (lie === 'rough' ? 1.5 : 1) * Math.PI / 180;
@@ -710,11 +706,10 @@ function swingPeriod() {
 function swingPos() { return 0.5 - 0.5 * Math.cos(TAU * swayT / swingPeriod()); }
 const aimOffset = () => (swingPos() - 0.5) * 2 * swingAmp();
 function lockLine() {
-  if (phase !== 'aim') return;
+  if (phase !== 'aim' || !call) return;
   const pos = swingPos(), d = pos - 0.5, perfect = Math.abs(d) <= PERF_A;
   const off = perfect ? 0 : Math.sign(d) * (Math.abs(d) - PERF_A) / (0.5 - PERF_A) * swingAmp();
-  locked = { angle: aim.angle + off, off, perfect, pos, best: !!onPlan() };
-  pin = locked.best ? { power: plan.power } : pinFor(table, locked.angle, aim.dist);
+  locked = { angle: pv().angle + off, off, perfect };
   const deg = off * 180 / Math.PI, a = Math.abs(deg), side = deg > 0 ? 'right' : 'left';
   const c = table.cue, fy = c.y - 46 < 30 ? c.y + 46 : c.y - 46;
   const [txt, col] = perfect ? ['Perfect line', '#b88a2e'] : a < 0.5 ? [`A touch ${side}`, '#7a6a3a'] : [`Pulled ${side}!`, '#b8553f'];
@@ -730,8 +725,8 @@ function act() {
   ensureAudio();
   if (phase === 'aim') { lockLine(); return; }
   if (phase === 'locked') {
-    const barMax = clamp(pin.power / PIN_AT, 0.12, 1);
-    meter = { b: 0, barMax, pinPos: pin.power / barMax, tick: -1 };
+    const p = pv().power, barMax = clamp(p / PIN_AT, 0.12, 1);
+    meter = { b: 0, barMax, pinPos: p / barMax, tick: -1 };
     phase = 'power'; sfx.click();
   } else if (phase === 'power') stopPower();
   else if (phase === 'holed') {
@@ -743,14 +738,14 @@ function act() {
 
 function stopPower() {
   const m = meter, diff = m.b - m.pinPos, c = table.cue, perfect = Math.abs(diff) <= PERF_P;
-  const power = perfect ? pin.power : clamp(m.b * m.barMax, 0.02, 1);
+  const power = perfect ? pv().power : clamp(m.b * m.barMax, 0.02, 1);
   if (perfect) { sfx.chime(); buzz(12); }
   flashMeter(perfect);
-  if (perfect && locked.perfect && locked.best) float(c.x, c.y - 90 < 30 ? c.y + 110 : c.y - 90, plan.kind === 'pot' ? 'Best shot!' : 'Perfect position play', '#b88a2e', 24, 1.8);
+  if (perfect && locked.perfect && pv().ok) float(c.x, c.y - 90 < 30 ? c.y + 110 : c.y - 90, 'Perfect shot!', '#b88a2e', 24, 1.8);
   const [txt, col] = perfect ? ['Perfect power', '#b88a2e'] : diff < 0 ? (diff < -0.08 ? ['Way short', '#b8553f'] : ['Soft', '#7a6a3a']) : (diff > 0.08 ? ['Heavy!', '#b8553f'] : ['Firm', '#7a6a3a']);
   float(c.x, c.y + (c.y + 70 > H ? -70 : 70), txt, col, 18);
   m.stopped = m.b;
-  strike = { angle: locked.angle, power, t: 0 };
+  strike = { angle: locked.angle, power, spin: SHOTS[call.ti].spin, t: 0 };
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
@@ -760,32 +755,26 @@ function stopPower() {
 }
 
 function resolveShot() {
-  const s = table.shot, holedIt = s.targetPocket === hole.flag;
+  const s = table.shot, called = calledBall(), c = table.cue;
   let pen = 0;
-  if (s.targetPocket >= 0 && !holedIt) {
-    pen++; table.respot(table.target, hole.balls[0].x, hole.balls[0].y);
-    float(table.target.x, table.target.y - 34, 'Wrong pocket +1', '#b8553f', 18, 1.8);
-  }
-  if (!s.touchedTarget && !holedIt) {
-    pen++; float(table.cue.x, table.cue.y + 40 > H ? table.cue.y - 60 : table.cue.y + 40, `Missed the ${table.target.n} +1`, '#b8553f', 18, 1.8);
-  }
-  if (s.scratch) {
-    pen++; table.respot(table.cue, strokeStart.x, strokeStart.y);
-    float(table.cue.x, table.cue.y - 34, 'Scratch +1', '#b8553f', 18, 1.8);
-  }
+  const say = (t, y) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, '#b8553f', 18, 1.8);
+  if (!s.firstHit) { pen++; say('No contact +1', c.y + 44); }
+  else if (s.firstHit !== called) { pen++; say(`Hit the ${s.firstHit.n} first +1`, c.y + 44); }
+  if (s.scratch) { pen++; table.respot(table.cue, strokeStart.x, strokeStart.y); say('Scratch +1', table.cue.y - 40); }
   if (pen) { strokes += pen; sfx.penalty(); }
-  table.shot = null; curTrail = null; locked = null;
-  if (holedIt) finishHole(false);
-  else if (strokes >= hole.par + 3) finishHole(true);
-  else { meter = null; lineUp(); }
+  table.shot = null; curTrail = null; locked = null; meter = null;
+  if (!table.remaining()) finishHole(false);
+  else if (strokes >= hole.par + 4) finishHole(true);
+  else lineUp();
   renderCard9(); updateUI();
 }
 
 const SCORE_NAMES = { '-3': 'Albatross', '-2': 'Eagle', '-1': 'Birdie', '0': 'Par', '1': 'Bogey', '2': 'Double bogey' };
 function finishHole(pickedUp) {
   round.scores[hole.i] = strokes;
+  call = null;
   const diff = strokes - hole.par;
-  const name = strokes === 1 ? 'Hole in one' : pickedUp ? 'Picked up' : SCORE_NAMES[diff] ?? (diff < 0 ? 'Albatross' : 'Triple bogey');
+  const name = pickedUp ? 'Picked up' : SCORE_NAMES[diff] ?? (diff < 0 ? 'Albatross' : 'Triple bogey');
   const color = diff < 0 ? '#2f6b4f' : diff === 0 ? '#3c4a3f' : '#b8553f';
   const forHole = hole;
   setTimeout(() => {
@@ -798,7 +787,7 @@ function finishHole(pickedUp) {
   phase = 'holed';
   if (hole.i === HOLES - 1) {
     round.done = true;
-    if (round.ranked) ls('dailybreak:round:' + round.seed, JSON.stringify({ scores: round.scores }));
+    if (round.ranked) ls('dailybreak:rack:' + round.seed, JSON.stringify({ scores: round.scores }));
   }
 }
 function confettiBurst(n) {
@@ -817,19 +806,27 @@ function renderCard9() {
     return `<div class="c ${h === hole ? 'cur' : ''}"><div class="n">${i + 1}</div><div class="m">${mark}</div><div class="p">${h.par ?? '·'}</div></div>`;
   }).join('');
 }
+function renderChips() {
+  const on = phase === 'aim' && call;
+  $('chips').innerHTML = SHOTS.map((s, i) => {
+    const p = previews[i], cls = [i === call?.ti ? 'on' : '', p && !p.ok ? 'bad' : '', i === call?.sug ? 'sug' : ''].join(' ');
+    return `<button class="chip ${cls}" data-chip="${i}" ${on ? '' : 'disabled'}>${s.name}<small>${p && !p.ok ? 'risky' : s.hint}</small></button>`;
+  }).join('');
+}
 function updateUI() {
   if (!table) return;
-  const t = table.target, F = pocketAim(hole.flag), lie = lieAt(hole, table.cue.x, table.cue.y);
-  $('iHole').innerHTML = `Hole ${hole.i + 1} · Par ${hole.par}<b>${t.n} ball<small>${t.potted ? 0 : Math.round(Math.hypot(F.x - t.x, F.y - t.y) / PX_PER_IN)} in</small></b>`;
+  const left = table.remaining(), lie = lieAt(hole, table.cue.x, table.cue.y);
+  $('iHole').innerHTML = `Hole ${hole.i + 1} · Par ${hole.par}<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Shot ${Math.min(strokes + (phase === 'holed' || phase === 'over' ? 0 : 1), 99)}<b>${lie[0].toUpperCase() + lie.slice(1)}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = { lining: 'Lining up…', aim: 'Lock the line', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
   b.textContent = labels[phase];
   b.disabled = phase === 'strike' || phase === 'moving' || phase === 'lining';
   b.classList.toggle('stop', phase === 'power');
-  $('nL').disabled = $('nR').disabled = phase !== 'aim';
-  const hints = { lining: '', aim: innerWidth < 460 ? 'Lock as the line crosses the bullseye' : 'Lock as the swinging line crosses the bullseye', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
+  const narrow = innerWidth < 460;
+  const hints = { lining: '', aim: narrow ? 'Tap ball or pocket to change · lock on the bullseye'.replace('Tap ball or pocket to change · ', innerWidth < 400 ? '' : 'Tap ball or pocket to change · ') : 'Tap a ball or pocket to change the call · lock as the line crosses the bullseye', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
   $('hint').textContent = hints[phase];
+  renderChips();
   updateMeter();
 }
 function updateMeter() {
@@ -842,11 +839,12 @@ function updateMeter() {
     $('mPin').style.left = pct(0.5 - PERF_A); $('mPin').style.width = pct(2 * PERF_A); $('mPin').style.opacity = 1;
     $('lPin').style.left = '50%'; $('lPin').style.opacity = 1;
     $('mOver').style.opacity = 0; $('mFill').style.width = '0%';
-    $('mNeedle').style.opacity = drag ? 0.35 : 1; $('mNeedle').style.left = pct(swingPos());
+    $('mNeedle').style.opacity = 1; $('mNeedle').style.left = pct(swingPos());
     return;
   }
-  const barMax = meter ? meter.barMax : clamp((pin?.power ?? 0.3) / PIN_AT, 0.12, 1);
-  const pinPos = meter ? meter.pinPos : clamp((pin?.power ?? 0.3) / barMax, 0, 1);
+  const p = pv()?.power ?? 0.3;
+  const barMax = meter ? meter.barMax : clamp(p / PIN_AT, 0.12, 1);
+  const pinPos = meter ? meter.pinPos : clamp(p / barMax, 0, 1);
   const showPin = ['locked', 'power', 'strike', 'moving'].includes(phase);
   $('mPin').style.left = pct(pinPos - PERF_P); $('mPin').style.width = pct(2 * PERF_P); $('mPin').style.opacity = showPin ? 1 : 0;
   $('lPin').style.left = pct(pinPos); $('lPin').style.opacity = showPin ? 1 : 0;
@@ -858,7 +856,7 @@ function updateMeter() {
 
 function shareText() {
   const pars = round.holes.map(h => h.par), total = round.scores.reduce((a, b) => a + (b ?? 0), 0), parT = pars.reduce((a, b) => a + b, 0);
-  const em = round.scores.map((s, i) => s == null ? '⬜' : s === 1 ? '⭐' : ['🦅', '🐦', '🟩', '🟨', '🟧', '🟥'][clamp(s - pars[i] + 2, 0, 5)]).join('');
+  const em = round.scores.map((s, i) => s == null ? '⬜' : ['🦅', '🐦', '🟩', '🟨', '🟧', '🟥'][clamp(s - pars[i] + 2, 0, 5)]).join('');
   const title = isDailySeed(round.seed) && round.ranked ? `Daily Break #${dayNumber(round.seed)} 🎱` : `Daily Break · ${courseName(round.seed)} 🎱`;
   return `${title}\n${em}\n${total} (${toPar(total - parT)})`;
 }
@@ -890,15 +888,16 @@ function showFinal(already) {
 function showHelp() {
   $('card').innerHTML = `
     <div class="k mono">How to play</div>
-    <h2>Sink it in par</h2>
+    <h2>Clear the rack in par</h2>
     <div class="howto">
-      <p>🎯 Get the <b>target ball</b> (gold ring) into the <b>flagged pocket</b> in as few shots as you can. Other balls are obstacles, and knocking them in is fine.</p>
-      <p>1 · <b>Line up:</b> each shot starts lined up on the <b>best shot</b>: a cone runs from the cue ball to a <b>bullseye</b> where the cue ball needs to strike. (You can drag to play your own line; it snaps to pot and bank lines.)</p>
-      <p>2 · <b>Lock the line:</b> a line swings back and forth inside the cone. Tap while it crosses the bullseye's gold centre for a perfect line.</p>
-      <p>3 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the <b>pin</b> for perfect power. Perfect line + perfect power plays the best shot exactly. The pin is the power your shot needs; past it the ball runs too hot and can rattle out.</p>
-      <p>⛰️ Read the table: <b>tilt</b> bends every roll, worn <b>rough</b> felt slows the ball and shakes your aim, <b>slick</b> felt runs fast. The pin ignores all three.</p>
-      <p>⚠️ Every shot must touch the target ball. Missing it, scratching the cue ball or sinking the target in the wrong pocket: <b>+1 shot</b>.</p>
-      <p>📅 Everyone plays the same nine tables each day. One ranked round per day.</p>
+      <p>🎱 Each hole is a small rack. Pot every ball in as few shots as you can.</p>
+      <p>1 · <b>Call your shot:</b> the game suggests one. Tap a <b>ball</b> to call it and tap a <b>pocket</b> to send it there (the flag moves to it).</p>
+      <p>2 · <b>Pick a shot type</b>, like choosing a club: <b>Soft</b>, <b>Stun</b> (cue ball stops), <b>Follow</b> (rolls on), <b>Draw</b> (comes back) or <b>Power</b>. The dotted path shows where the cue ball will finish, so play for your next ball. ★ marks the best leave; “risky” means it may not drop.</p>
+      <p>3 · <b>Lock the line:</b> a line swings inside the cone. Tap as it crosses the bullseye's gold centre.</p>
+      <p>4 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the pin. Perfect line + perfect power plays exactly the previewed shot.</p>
+      <p>⛰️ Tilt, worn <b>rough</b> felt and <b>slick</b> felt change every roll. The preview already allows for them.</p>
+      <p>⚠️ Fouls cost <b>+1</b>: scratching the cue ball, or not hitting your called ball first. Other balls that drop are a bonus.</p>
+      <p>📅 Everyone plays the same nine racks each day. One ranked round per day.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
   $('overlay').classList.add('show');
@@ -925,46 +924,26 @@ function toWorld(e) {
   const r = canvas.getBoundingClientRect();
   return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
 }
-// Drag anywhere to turn the line (left/right) and set its length (up/down); a quick tap aims at that spot.
+// Tap a ball to call it, or a pocket to send the called ball there.
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
-  if (phase === 'aim') {
-    drag = { x: e.clientX, y: e.clientY, raw: aimRaw, dist: aim.dist, moved: false };
-    stage.setPointerCapture(e.pointerId);
-  } else if (phase === 'power') act();
+  if (phase === 'power') return act();
+  if (phase !== 'aim' || !call) return;
+  const p = toWorld(e);
+  let bi = -1, bd = R * 2.2;
+  table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; bi = k; } } });
+  if (bi >= 0) return selectBall(bi);
+  let pi = -1, pd = R * 3.5;
+  POCKETS.forEach((pk, k) => { const d = Math.hypot(pk.x - p.x, pk.y - p.y); if (d < pd) { pd = d; pi = k; } });
+  if (pi >= 0) selectPocket(pi);
 });
-stage.addEventListener('pointermove', e => {
-  if (!drag || phase !== 'aim') return;
-  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  if (!drag.moved && Math.hypot(dx, dy) < 6) return;
-  drag.moved = true;
-  setAimAngle(drag.raw + dx * 0.0035, drag.dist - dy / view.s * 1.2);
-});
-const endDrag = e => {
-  if (drag && !drag.moved && phase === 'aim' && e?.type === 'pointerup') { const p = toWorld(e); setAim(p.x, p.y); }
-  drag = null;
-};
-stage.addEventListener('pointerup', endDrag);
-stage.addEventListener('pointercancel', () => { drag = null; });
-
+$('chips').addEventListener('pointerdown', e => { const b = e.target.closest('[data-chip]'); if (b && !b.disabled) { e.preventDefault(); ensureAudio(); selectType(+b.dataset.chip); } });
 const actBtn = $('act');
 actBtn.addEventListener('pointerdown', e => { e.preventDefault(); if (!actBtn.disabled) act(); });
-let nudgeTimer = null;
-for (const [id, dir] of [['nL', -1], ['nR', 1]]) {
-  const btn = $(id);
-  btn.addEventListener('pointerdown', e => {
-    e.preventDefault(); ensureAudio(); nudgeAim(dir); tone(900, 0.02, 0.02, 'sine', 1, 0, 0);
-    let n = 0; clearInterval(nudgeTimer);
-    nudgeTimer = setInterval(() => { if (++n > 6) nudgeAim(dir, n > 30); }, 50);
-    btn.setPointerCapture(e.pointerId);
-  });
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(ev, () => clearInterval(nudgeTimer));
-}
 addEventListener('keydown', e => {
   if ($('overlay').classList.contains('show')) return;
   if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat && !actBtn.disabled) act(); }
-  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); nudgeAim(e.key === 'ArrowLeft' ? -1 : 1, e.shiftKey); }
-  else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && phase === 'aim') { e.preventDefault(); setAimAngle(aimRaw, aim.dist + (e.key === 'ArrowUp' ? 20 : -20)); }
+  else if (/^[1-5]$/.test(e.key)) selectType(+e.key - 1);
 });
 function setSoundBtns() {
   $('snd').textContent = muted ? '🔇' : '🔊';
@@ -982,6 +961,7 @@ function resize() {
   view = { s, dpr, cw: r.width, ch: r.height, ox: r.width / 2 - W / 2 * s, oy: r.height / 2 - H / 2 * s };
 }
 addEventListener('resize', resize);
+
 
 /* ----- sprites & patterns ----- */
 
@@ -1272,9 +1252,11 @@ function drawTable(t, dt) {
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
     }
   });
-  const fp = POCKETS[hole.flag];
-  ctx.save(); ctx.setLineDash([6, 6]); ctx.lineDashOffset = -t * 14; ctx.strokeStyle = 'rgba(255,244,215,.85)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(fp.x, fp.y, R * 2.9, 0, TAU); ctx.stroke(); ctx.restore();
+  if (call && call.line.pocket >= 0 && ['aim', 'locked', 'power'].includes(phase)) {
+    const fp = POCKETS[call.line.pocket];
+    ctx.save(); ctx.setLineDash([6, 6]); ctx.lineDashOffset = -t * 14; ctx.strokeStyle = 'rgba(255,244,215,.85)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(fp.x, fp.y, R * 2.9, 0, TAU); ctx.stroke(); ctx.restore();
+  }
   for (const o of hole.bumpers) {
     o.flash = Math.max(0, (o.flash || 0) - dt * 3);
     ctx.drawImage(SOFT_SHADOW, o.x - o.r * 1.3 + 3, o.y - o.r * 1.3 + 6, o.r * 2.6, o.r * 2.6);
@@ -1287,7 +1269,8 @@ function drawTable(t, dt) {
 }
 
 function drawFlag(t, dt) {
-  const p = POCKETS[hole.flag], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H);
+  if (!call || call.line.pocket < 0 || !['aim', 'locked', 'power', 'strike', 'moving'].includes(phase)) return;
+  const p = POCKETS[call.line.pocket], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H);
   flagPop = Math.max(0, flagPop - dt);
   const lift = 46 + flagPop * 24, lean = x < W / 2 ? 1 : -1;
   const topX = x + lean * 10, topY = y - lift;
@@ -1302,20 +1285,44 @@ function drawFlag(t, dt) {
 }
 
 function wedge(x, y, a0, a1, r) { ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, a0, a1); ctx.closePath(); }
-function drawAim(t) {
-  const c = table.cue, base = aim.angle, A = swingAmp() * CONE_VIS, aiming = phase === 'aim';
-  const bh = trace(table, c.x, c.y, Math.cos(base), Math.sin(base));
-  const L = bh.ball && bh.t <= aim.dist + 2 * R ? bh.t : Math.min(bh.t, aim.dist);
-  const bx = c.x + Math.cos(base) * L, by = c.y + Math.sin(base) * L;
-  const inPerfect = aiming && !drag && Math.abs(swingPos() - 0.5) <= PERF_A;
-  // snap markers round the cue ball
-  if (aiming) for (const sn of snaps) {
-    const on = aim.snap === sn, mx = c.x + Math.cos(sn.angle) * (R + 24), my = c.y + Math.sin(sn.angle) * (R + 24);
-    ctx.fillStyle = sn.kind === 'plan' ? '#e2b13c' : sn.kind === 'pot' ? 'rgba(226,177,60,.7)' : 'rgba(251,248,240,.65)';
-    ctx.beginPath(); ctx.arc(mx, my, on ? 5 : 3.2, 0, TAU); ctx.fill();
-    if (sn.kind === 'plan') { ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(mx, my, on ? 9 : 7, 0, TAU); ctx.stroke(); }
+function arrowTo(a, b, col) {
+  const ang = Math.atan2(b.y - a.y, b.x - a.x);
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(a.x + Math.cos(ang) * (R + 3), a.y + Math.sin(ang) * (R + 3)); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x - Math.cos(ang - 0.45) * 13, b.y - Math.sin(ang - 0.45) * 13);
+  ctx.lineTo(b.x - Math.cos(ang + 0.45) * 13, b.y - Math.sin(ang + 0.45) * 13); ctx.fill();
+}
+// The call: the called ball's route to the pocket, the cue ball's path after contact,
+// and the cone with its bullseye and swinging line.
+function drawCall(t) {
+  if (!call) return;
+  const c = table.cue, l = call.line, p = pv(), ball = table.balls[l.bi], aiming = phase === 'aim';
+  // hint dots: balls that have a clean pot on
+  if (aiming) table.balls.forEach((b, bi) => {
+    if (b.potted || bi === l.bi || !lines.some(x => x.bi === bi && !x.blocked)) return;
+    ctx.fillStyle = 'rgba(127,224,168,.95)'; ctx.beginPath(); ctx.arc(b.x + R * 0.85, b.y - R * 0.85, 4, 0, TAU); ctx.fill();
+  });
+  // called ball
+  ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = t * 12; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(ball.x, ball.y, R + 7, 0, TAU); ctx.stroke(); ctx.restore();
+  if (l.pocket >= 0) arrowTo(ball, pocketAim(l.pocket), p.ok ? 'rgba(127,224,168,.9)' : 'rgba(240,160,100,.95)');
+  // where the cue ball finishes with this shot type
+  if (p.path && p.path.length > 1 && (aiming || phase === 'locked' || phase === 'power')) {
+    let start = 0;
+    while (start < p.path.length - 1 && Math.hypot(p.path[start][0] - c.x, p.path[start][1] - c.y) < l.d1 - R) start++;
+    ctx.fillStyle = 'rgba(251,248,240,.75)';
+    for (let k = start; k < p.path.length; k += 2) { ctx.beginPath(); ctx.arc(p.path[k][0], p.path[k][1], 2, 0, TAU); ctx.fill(); }
+    const [ex, ey] = p.path[p.path.length - 1];
+    ctx.save(); ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.fillStyle = 'rgba(251,248,240,.18)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(ex, ey, R, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
   }
-  // the cone of possible lines, with the perfect sliver in gold
+  if (!(aiming || phase === 'locked' || phase === 'power')) return;
+  const base = p.angle, A = swingAmp() * CONE_VIS;
+  const bh = trace(table, c.x, c.y, Math.cos(base), Math.sin(base));
+  const L = bh.ball ? bh.t : Math.min(bh.t, l.d1);
+  const bx = c.x + Math.cos(base) * L, by = c.y + Math.sin(base) * L;
+  const inPerfect = aiming && Math.abs(swingPos() - 0.5) <= PERF_A;
   if (aiming) {
     const far = L + R * 1.4, pA = 2 * PERF_A * A;
     wedge(c.x, c.y, base - A, base + A, far);
@@ -1331,27 +1338,22 @@ function drawAim(t) {
   ctx.strokeStyle = 'rgba(251,248,240,.7)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.62, 0, TAU); ctx.stroke();
   ctx.fillStyle = inPerfect || locked?.perfect ? '#e2b13c' : 'rgba(226,177,60,.85)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.28 * pulse, 0, TAU); ctx.fill();
   if (inPerfect) { ctx.strokeStyle = 'rgba(226,177,60,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bx, by, R * 1.5 * pulse, 0, TAU); ctx.stroke(); }
-  // the swinging (or locked) line and where it would really send the ball
-  const angle = aiming ? base + (drag ? 0 : aimOffset() * CONE_VIS) : locked.angle;
+  // the swinging (or locked) line
+  const angle = aiming ? base + aimOffset() * CONE_VIS : locked.angle;
   const dx = Math.cos(angle), dy = Math.sin(angle), hit = trace(table, c.x, c.y, dx, dy), LL = Math.min(hit.t, L + 2 * R);
   const col = aiming ? (inPerfect ? '#e2b13c' : '#c4472f') : locked.perfect ? '#e2b13c' : '#d08a2e';
   ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(c.x + dx * LL, c.y + dy * LL); ctx.stroke();
   ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x + dx * LL, c.y + dy * LL, 4, 0, TAU); ctx.fill();
-  if (!aiming && hit.ball && hit.t <= L + 3 * R) {
-    const gx = c.x + dx * hit.t, gy = c.y + dy * hit.t, b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R);
-    ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gx, gy, R, 0, TAU); ctx.stroke();
-    ctx.setLineDash([3, 6]); ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(b.x + nx * R, b.y + ny * R); ctx.lineTo(b.x + nx * 120, b.y + ny * 120); ctx.stroke(); ctx.setLineDash([]);
-  }
   // label
-  const label = aim.snap?.kind === 'plan' ? (plan.kind === 'pot' ? 'Best shot · pot' : 'Best shot · position') : aim.snap?.kind === 'pot' ? 'Pot line' : aim.snap?.kind === 'bank' ? 'Bank line' : `${Math.round(aim.dist / PX_PER_IN)} in`;
-  ctx.font = "500 13px 'DM Mono', monospace"; const tw = ctx.measureText(label).width;
-  const lx = bx + 28 + tw + 18 > W + RAIL ? bx - 28 - tw - 18 : bx + 28, ly = by - 34;
+  const label = `${SHOTS[call.ti].name}${l.pocket < 0 ? ' · no pot' : p.ok ? '' : ' · risky'}`;
+  ctx.font = "500 19px 'DM Mono', monospace"; const tw = ctx.measureText(label).width;
+  const lx = bx + 34 + tw + 22 > W + RAIL ? bx - 34 - tw - 22 : bx + 34, ly = clamp(by - 52, -RAIL, H);
   ctx.fillStyle = 'rgba(251,248,240,.95)'; ctx.strokeStyle = 'rgba(120,100,70,.35)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.roundRect(lx, ly, tw + 18, 24, 12); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#2d3a30'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx + 9, ly + 12.5);
+  ctx.beginPath(); ctx.roundRect(lx, ly, tw + 22, 32, 16); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#2d3a30'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx + 11, ly + 16.5);
 }
+
 
 function drawCue(angle, pull, sk) {
   const c = table.cue, gap = (6 + pull * 80) * (1 - sk) ** 2, tip = R + 2 + gap, len = 420;
@@ -1397,7 +1399,6 @@ function drawBanner(dt) {
   ctx.restore();
   if (banner.life <= 0) banner = null;
 }
-
 function draw(t, dt) {
   const { s, dpr, cw, ch, ox, oy } = view;
   fx.shake = Math.max(0, fx.shake - dt * 25);
@@ -1425,7 +1426,7 @@ function draw(t, dt) {
     ctx.fillStyle = '#2d3a30'; ctx.font = "500 11px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(m.n, m.x, m.y + 0.5);
   }
 
-  if (phase === 'aim' || phase === 'locked' || phase === 'power') drawAim(t);
+  drawCall(t);
 
   for (const b of table.live()) updateSpin(b, dt);
   for (const sk of fx.sinks) {
@@ -1434,11 +1435,6 @@ function draw(t, dt) {
     drawBall(sk.b, lerp(sk.x, sk.tx, k), lerp(sk.y, sk.ty, k), 1 - 0.55 * k, 1 - k);
   }
   fx.sinks = fx.sinks.filter(sk => sk.t < 1);
-  const tb = table.target;
-  if (!tb.potted) {
-    ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = t * 12; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(tb.x, tb.y, R + 7 + Math.sin(t * 3) * 1.5, 0, TAU); ctx.stroke(); ctx.restore();
-  }
   for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
   if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
   drawFlag(t, dt);
@@ -1512,11 +1508,9 @@ function frame(now) {
   const t = now / 1000, dt = Math.min(0.05, t - (frame.last ?? t));
   frame.last = t;
   if (phase === 'aim') {
-    if (!drag) {
-      const was = Math.abs(swingPos() - 0.5) <= PERF_A;
-      swayT += dt;
-      if (!was && Math.abs(swingPos() - 0.5) <= PERF_A) tone(1046, 0.03, 0.015, 'sine', 1, 0, 0);
-    }
+    const was = Math.abs(swingPos() - 0.5) <= PERF_A;
+    swayT += dt;
+    if (!was && Math.abs(swingPos() - 0.5) <= PERF_A) tone(1046, 0.03, 0.015, 'sine', 1, 0, 0);
     updateMeter();
   }
   if (phase === 'power') {
@@ -1529,7 +1523,7 @@ function frame(now) {
   if (phase === 'strike') {
     strike.t += dt;
     if (strike.t >= STRIKE_T) {
-      table.shoot(strike.angle, strike.power);
+      table.shoot(strike.angle, strike.power, strike.spin);
       sfx.strike(strike.power); buzz(8);
       const c = table.cue;
       for (let k = 0; k < 8; k++) fx.particles.push({ x: c.x - Math.cos(strike.angle) * R, y: c.y - Math.sin(strike.angle) * R, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, life: 0.5, color: '#7fa0d8', r: 1.5 });
