@@ -12,9 +12,9 @@ Each table is a "hole": sink the **target ball** (gold ring) into the
 A shot has three steps:
 
 1. **Aim.** Drag anywhere on the table: left/right turns the line around the
-   cue ball (relative, 0.26° per px), up/down sets its length (the crosshair
+   cue ball (relative, 0.2° per px), up/down sets its length (the crosshair
    distance, which sets the pin for shots that don't hit a ball). A quick tap
-   aims straight at that spot. The line snaps (gold, with a tick and a haptic
+   aims straight at that spot. The line snaps (within 1.5°, and holds on until 2.5°; gold, with a tick and a haptic
    tap) onto the pot line for the target into the flag and onto one-cushion
    bank lines (`computeSnaps`); gold and cream dots round the cue ball show
    where they are. The ‹ › buttons and arrow keys nudge by 0.1° (Shift: 1°).

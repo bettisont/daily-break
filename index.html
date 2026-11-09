@@ -647,7 +647,7 @@ function computeSnaps() {
   return out;
 }
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; };
-const SNAP = 0.5 * Math.PI / 180;
+const SNAP_IN = 1.5 * Math.PI / 180, SNAP_OUT = 2.5 * Math.PI / 180;
 
 function defaultAim() {
   snaps = computeSnaps();
@@ -661,8 +661,9 @@ function setAim(x, y) {
 }
 function setAimAngle(raw, dist) {
   aimRaw = raw;
-  let snap = null;
-  for (const sn of snaps) { const d = Math.abs(angDiff(raw, sn.angle)); if (d < SNAP && (!snap || d < Math.abs(angDiff(raw, snap.angle)))) snap = sn; }
+  // magnetic: catch a line within SNAP_IN, and keep hold of it until you drag past SNAP_OUT
+  let snap = aim?.snap && snaps.includes(aim.snap) && Math.abs(angDiff(raw, aim.snap.angle)) < SNAP_OUT ? aim.snap : null;
+  if (!snap) for (const sn of snaps) { const d = Math.abs(angDiff(raw, sn.angle)); if (d < SNAP_IN && (!snap || d < Math.abs(angDiff(raw, snap.angle)))) snap = sn; }
   if (snap && aim?.snap?.angle !== snap.angle) { tone(snap.kind === 'pot' ? 1568 : 1175, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
   const ang = snap ? snap.angle : raw, c = table.cue;
   dist = clamp(dist, 2 * R, 1400);
@@ -675,7 +676,7 @@ function nudgeAim(dir, big) { if (phase === 'aim' && !steady) setAimAngle(aimRaw
 // Hold to steady: the wobble calms, holds still for a moment, then your hands start to shake.
 function swayAmp() {
   const lie = lieAt(hole, table.cue.x, table.cue.y);
-  return (2.2 + 0.1 * hole.i) * (lie === 'rough' ? 1.8 : lie === 'slick' ? 1.2 : 1) * Math.PI / 180;
+  return (1.5 + 0.08 * hole.i) * (lie === 'rough' ? 1.7 : lie === 'slick' ? 1.15 : 1) * Math.PI / 180;
 }
 function sway(t) {
   const w = TAU * 0.5 * (1 + 0.04 * hole.i);
@@ -683,7 +684,7 @@ function sway(t) {
 }
 function steadyTimes() {
   const rough = lieAt(hole, table.cue.x, table.cue.y) === 'rough';
-  return { settle: rough ? 1.25 : 0.8, hold: Math.max(0.3, 0.75 - hole.i * 0.05) * (rough ? 0.7 : 1), shake: 1.3 };
+  return { settle: rough ? 0.9 : 0.55, hold: Math.max(0.6, 1.15 - hole.i * 0.05) * (rough ? 0.75 : 1), shake: 1.8 };
 }
 function steadyMul() {
   if (!steady) return 1;
@@ -914,7 +915,7 @@ stage.addEventListener('pointermove', e => {
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (!drag.moved && Math.hypot(dx, dy) < 6) return;
   drag.moved = true;
-  setAimAngle(drag.raw + dx * 0.0045, drag.dist - dy / view.s * 1.2);
+  setAimAngle(drag.raw + dx * 0.0035, drag.dist - dy / view.s * 1.2);
 });
 const endDrag = e => {
   if (drag && !drag.moved && phase === 'aim' && !steady && e?.type === 'pointerup') { const p = toWorld(e); setAim(p.x, p.y); }
