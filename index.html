@@ -417,41 +417,51 @@ function simulate(t, angle, power) {
   for (let n = 0; n < 30000 && s.moving(); n++) s.step();
   return s;
 }
+// The best move from here with perfect execution: a pot verified by simulation (so it allows for
+// tilt and felt), otherwise the shot that leaves the cleanest pot next. Also used to set par.
+function bestMove(t) {
+  const flag = t.hole.flag, d = directShot(t);
+  if (d && !d.blocked) {
+    for (const da of [0, -0.004, 0.004, -0.01, 0.01, -0.02, 0.02]) for (const pm of [1, 1.15, 0.9, 1.35]) {
+      const angle = d.angle + da, power = Math.min(1, d.power * pm), s = simulate(t, angle, power);
+      if (s.shot.targetPocket === flag && !s.shot.scratch) return { kind: 'pot', angle, power, holed: true, state: s };
+    }
+  }
+  let best = null;
+  const consider = (angle, power, to) => {
+    const s = simulate(t, angle, power);
+    if (s.shot.targetPocket === flag && !s.shot.scratch) return { kind: 'pot', angle, power, holed: true, state: s };
+    if (s.shot.scratch || s.target.potted) return null;
+    const q = directShot(s);
+    if (q && !q.blocked && (!best || q.q > best.q)) best = { kind: 'position', angle, power, q: q.q, state: s, to };
+    return null;
+  };
+  const cands = [];
+  for (let k = 0; k < 96; k++) {
+    const x = 40 + ((k % 8) + 0.5) / 8 * (W - 80), y = 40 + (Math.floor(k / 8) + 0.5) / 12 * (H - 80);
+    if (pathBlocked(t, t.cue.x, t.cue.y, x, y, null)) continue;
+    const q = directShot(t, { x, y });
+    if (q && !q.blocked) cands.push({ x, y, q: q.q });
+  }
+  cands.sort((a, b) => b.q - a.q);
+  for (const c of cands.slice(0, 8)) {
+    const dist = Math.hypot(c.x - t.cue.x, c.y - t.cue.y), ang = Math.atan2(c.y - t.cue.y, c.x - t.cue.x), p = launchSpeed(dist, 15) / MAX_SPEED;
+    for (const pm of [1, 0.85, 1.2]) { const r = consider(ang, Math.min(1, p * pm), { x: c.x, y: c.y }); if (r) return r; }
+  }
+  // nothing obvious: try a fan of shots (this also moves blockers and the target)
+  if (!best) for (let k = 0; k < 32; k++) for (const p of [0.25, 0.45, 0.7]) {
+    const a = k / 32 * TAU, r = consider(a, p, { x: t.cue.x + Math.cos(a) * 200, y: t.cue.y + Math.sin(a) * 200 });
+    if (r) return r;
+  }
+  return best;
+}
 function solveHole(hole) {
   let t = new Table(hole);
   for (let stroke = 1; stroke <= 4; stroke++) {
-    const d = directShot(t);
-    if (d && !d.blocked) {
-      for (const da of [0, -0.004, 0.004, -0.01, 0.01, -0.02, 0.02]) for (const pm of [1, 1.15, 0.9, 1.35]) {
-        const s = simulate(t, d.angle + da, Math.min(1, d.power * pm));
-        if (s.shot.targetPocket === hole.flag && !s.shot.scratch) return stroke;
-      }
-    }
-    // otherwise play for position: roll the cue ball somewhere with a clean pot
-    let next = null, nextQ = 0;
-    const consider = s => {
-      if (s.shot.targetPocket === hole.flag && !s.shot.scratch) return true;
-      if (s.shot.scratch || s.target.potted) return false;
-      const q = directShot(s);
-      if (q && !q.blocked && q.q > nextQ) { next = s; nextQ = q.q; }
-      return false;
-    };
-    const cands = [];
-    for (let k = 0; k < 96; k++) {
-      const x = 40 + ((k % 8) + 0.5) / 8 * (W - 80), y = 40 + (Math.floor(k / 8) + 0.5) / 12 * (H - 80);
-      if (pathBlocked(t, t.cue.x, t.cue.y, x, y, null)) continue;
-      const q = directShot(t, { x, y });
-      if (q && !q.blocked) cands.push({ x, y, q: q.q });
-    }
-    cands.sort((a, b) => b.q - a.q);
-    for (const c of cands.slice(0, 8)) {
-      const dist = Math.hypot(c.x - t.cue.x, c.y - t.cue.y), ang = Math.atan2(c.y - t.cue.y, c.x - t.cue.x), p = launchSpeed(dist, 15) / MAX_SPEED;
-      for (const pm of [1, 0.85, 1.2]) if (consider(simulate(t, ang, Math.min(1, p * pm)))) return stroke;
-    }
-    // nothing obvious: try a fan of shots (this also moves blockers and the target)
-    if (!next) for (let k = 0; k < 32; k++) for (const p of [0.25, 0.45, 0.7]) if (consider(simulate(t, k / 32 * TAU, p))) return stroke;
-    if (!next) return 5;
-    next.shot = null; t = next;
+    const m = bestMove(t);
+    if (!m) return 5;
+    if (m.holed) return stroke;
+    m.state.shot = null; t = m.state;
   }
   return 5;
 }
@@ -472,7 +482,7 @@ const STRIKE_T = 0.1, FILL_T = 1.4, PIN_AT = 0.62, PERF_A = 0.05, PERF_P = 0.035
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 
 let round = null, hole = null, table = null, phase = 'aim', strokes = 0, acc = 0;
-let aim = null, aimRaw = 0, snaps = [], drag = null, pin = null, swayT = 0, locked = null, meter = null, strike = null, strokeStart = null;
+let aim = null, aimRaw = 0, snaps = [], plan = null, drag = null, pin = null, swayT = 0, locked = null, meter = null, strike = null, strokeStart = null;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null, flagPop = 0;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0 };
 
@@ -651,11 +661,18 @@ const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= TAU; while (
 const SNAP_IN = 1.5 * Math.PI / 180, SNAP_OUT = 2.5 * Math.PI / 180;
 
 function defaultAim() {
-  snaps = computeSnaps();
-  const c = table.cue, b = table.target;
-  setAimAngle(Math.atan2(b.y - c.y, b.x - c.x), Math.hypot(b.x - c.x, b.y - c.y));
+  const c = table.cue, b = table.target, m = bestMove(table);
+  plan = m ? { kind: m.kind, angle: m.angle, power: m.power, to: m.to } : null;
+  snaps = computeSnaps().filter(sn => !plan || Math.abs(angDiff(sn.angle, plan.angle)) > 0.6 * Math.PI / 180);
+  aim = null;
+  if (plan) {
+    snaps.unshift({ angle: plan.angle, kind: 'plan' });
+    const hit = trace(table, c.x, c.y, Math.cos(plan.angle), Math.sin(plan.angle));
+    setAimAngle(plan.angle, plan.kind === 'pot' && hit.ball ? hit.t : Math.hypot(plan.to.x - c.x, plan.to.y - c.y));
+  } else setAimAngle(Math.atan2(b.y - c.y, b.x - c.x), Math.hypot(b.x - c.x, b.y - c.y));
   swayT = Math.random() * 10;
 }
+const onPlan = () => aim?.snap?.kind === 'plan' && plan;
 function setAim(x, y) {
   const c = table.cue;
   setAimAngle(Math.atan2(y - c.y, x - c.x), Math.hypot(x - c.x, y - c.y));
@@ -665,11 +682,11 @@ function setAimAngle(raw, dist) {
   // magnetic: catch a line within SNAP_IN, and keep hold of it until you drag past SNAP_OUT
   let snap = aim?.snap && snaps.includes(aim.snap) && Math.abs(angDiff(raw, aim.snap.angle)) < SNAP_OUT ? aim.snap : null;
   if (!snap) for (const sn of snaps) { const d = Math.abs(angDiff(raw, sn.angle)); if (d < SNAP_IN && (!snap || d < Math.abs(angDiff(raw, snap.angle)))) snap = sn; }
-  if (snap && aim?.snap?.angle !== snap.angle) { tone(snap.kind === 'pot' ? 1568 : 1175, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
+  if (snap && aim && aim.snap?.angle !== snap.angle) { tone(snap.kind === 'bank' ? 1175 : 1568, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
   const ang = snap ? snap.angle : raw, c = table.cue;
   dist = clamp(dist, 2 * R, 1400);
   aim = { angle: ang, dist, x: c.x + Math.cos(ang) * dist, y: c.y + Math.sin(ang) * dist, snap };
-  pin = pinFor(table, aim.angle, aim.dist);
+  pin = onPlan() ? { power: plan.power } : pinFor(table, aim.angle, aim.dist);
   updateUI();
 }
 function nudgeAim(dir, big) { if (phase === 'aim') setAimAngle(aimRaw + dir * (big ? 1 : 0.1) * Math.PI / 180, aim.dist); }
@@ -690,8 +707,8 @@ function lockLine() {
   if (phase !== 'aim') return;
   const pos = swingPos(), d = pos - 0.5, perfect = Math.abs(d) <= PERF_A;
   const off = perfect ? 0 : Math.sign(d) * (Math.abs(d) - PERF_A) / (0.5 - PERF_A) * swingAmp();
-  locked = { angle: aim.angle + off, off, perfect, pos };
-  pin = pinFor(table, locked.angle, aim.dist);
+  locked = { angle: aim.angle + off, off, perfect, pos, best: !!onPlan() };
+  pin = locked.best ? { power: plan.power } : pinFor(table, locked.angle, aim.dist);
   const deg = off * 180 / Math.PI, a = Math.abs(deg), side = deg > 0 ? 'right' : 'left';
   const c = table.cue, fy = c.y - 46 < 30 ? c.y + 46 : c.y - 46;
   const [txt, col] = perfect ? ['Perfect line', '#b88a2e'] : a < 0.5 ? [`A touch ${side}`, '#7a6a3a'] : [`Pulled ${side}!`, '#b8553f'];
@@ -723,6 +740,7 @@ function stopPower() {
   const power = perfect ? pin.power : clamp(m.b * m.barMax, 0.02, 1);
   if (perfect) { sfx.chime(); buzz(12); }
   flashMeter(perfect);
+  if (perfect && locked.perfect && locked.best) float(c.x, c.y - 90 < 30 ? c.y + 110 : c.y - 90, plan.kind === 'pot' ? 'Best shot!' : 'Perfect position play', '#b88a2e', 24, 1.8);
   const [txt, col] = perfect ? ['Perfect power', '#b88a2e'] : diff < 0 ? (diff < -0.08 ? ['Way short', '#b8553f'] : ['Soft', '#7a6a3a']) : (diff > 0.08 ? ['Heavy!', '#b8553f'] : ['Firm', '#7a6a3a']);
   float(c.x, c.y + (c.y + 70 > H ? -70 : 70), txt, col, 18);
   m.stopped = m.b;
@@ -801,7 +819,7 @@ function updateUI() {
   b.disabled = phase === 'strike' || phase === 'moving';
   b.classList.toggle('stop', phase === 'power');
   $('nL').disabled = $('nR').disabled = phase !== 'aim';
-  const hints = { aim: innerWidth < 460 ? 'Drag to aim · lock in the gold band' : 'Drag to aim · lock while the needle is in the gold band', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
+  const hints = { aim: innerWidth < 460 ? 'Lock as the line crosses the bullseye' : 'Lock as the swinging line crosses the bullseye', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
   $('hint').textContent = hints[phase];
   updateMeter();
 }
@@ -866,9 +884,9 @@ function showHelp() {
     <h2>Sink it in par</h2>
     <div class="howto">
       <p>🎯 Get the <b>target ball</b> (gold ring) into the <b>flagged pocket</b> in as few shots as you can. Other balls are obstacles, and knocking them in is fine.</p>
-      <p>1 · <b>Aim:</b> drag anywhere on the table: left/right turns the line, up/down sets its length. It snaps (gold) onto the <b>pot line</b> and bank lines; ‹ › nudge it.</p>
-      <p>2 · <b>Line:</b> the line swings across your aim and a needle sweeps the gauge. Tap <b>Lock the line</b> while it's in the gold <b>Perfect</b> band and the shot goes exactly where you aimed.</p>
-      <p>3 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the <b>pin</b> for perfect power. The pin is the power your shot needs; past it the ball runs too hot and can rattle out.</p>
+      <p>1 · <b>Line up:</b> each shot starts lined up on the <b>best shot</b>: a cone runs from the cue ball to a <b>bullseye</b> where the cue ball needs to strike. (You can drag to play your own line; it snaps to pot and bank lines.)</p>
+      <p>2 · <b>Lock the line:</b> a line swings back and forth inside the cone. Tap while it crosses the bullseye's gold centre for a perfect line.</p>
+      <p>3 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the <b>pin</b> for perfect power. Perfect line + perfect power plays the best shot exactly. The pin is the power your shot needs; past it the ball runs too hot and can rattle out.</p>
       <p>⛰️ Read the table: <b>tilt</b> bends every roll, worn <b>rough</b> felt slows the ball and shakes your aim, <b>slick</b> felt runs fast. The pin ignores all three.</p>
       <p>⚠️ Scratch the cue ball, or sink the target in the wrong pocket: <b>+1 shot</b>.</p>
       <p>📅 Everyone plays the same nine tables each day. One ranked round per day.</p>
@@ -1274,32 +1292,53 @@ function drawFlag(t, dt) {
   ctx.fillStyle = '#efe4ca'; ctx.beginPath(); ctx.arc(topX, topY, 2.5, 0, TAU); ctx.fill();
 }
 
-function drawAim() {
-  const c = table.cue;
-  const angle = phase === 'aim' ? aim.angle + (drag ? 0 : aimOffset()) : locked.angle;
-  // snap points round the cue ball
-  if (phase === 'aim') for (const sn of snaps) {
-    const on = aim.snap === sn;
-    ctx.fillStyle = sn.kind === 'pot' ? (on ? '#e2b13c' : 'rgba(226,177,60,.75)') : (on ? '#fbf8f0' : 'rgba(251,248,240,.6)');
-    ctx.beginPath(); ctx.arc(c.x + Math.cos(sn.angle) * (R + 24), c.y + Math.sin(sn.angle) * (R + 24), on ? 4.5 : 3, 0, TAU); ctx.fill();
+function wedge(x, y, a0, a1, r) { ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, a0, a1); ctx.closePath(); }
+function drawAim(t) {
+  const c = table.cue, base = aim.angle, A = swingAmp(), aiming = phase === 'aim';
+  const bh = trace(table, c.x, c.y, Math.cos(base), Math.sin(base));
+  const L = bh.ball && bh.t <= aim.dist + 2 * R ? bh.t : Math.min(bh.t, aim.dist);
+  const bx = c.x + Math.cos(base) * L, by = c.y + Math.sin(base) * L;
+  const inPerfect = aiming && !drag && Math.abs(swingPos() - 0.5) <= PERF_A;
+  // snap markers round the cue ball
+  if (aiming) for (const sn of snaps) {
+    const on = aim.snap === sn, mx = c.x + Math.cos(sn.angle) * (R + 24), my = c.y + Math.sin(sn.angle) * (R + 24);
+    ctx.fillStyle = sn.kind === 'plan' ? '#e2b13c' : sn.kind === 'pot' ? 'rgba(226,177,60,.7)' : 'rgba(251,248,240,.65)';
+    ctx.beginPath(); ctx.arc(mx, my, on ? 5 : 3.2, 0, TAU); ctx.fill();
+    if (sn.kind === 'plan') { ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(mx, my, on ? 9 : 7, 0, TAU); ctx.stroke(); }
   }
-  ctx.setLineDash([5, 7]); ctx.strokeStyle = 'rgba(255,250,235,.75)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(aim.x, aim.y); ctx.stroke(); ctx.setLineDash([]);
-  const dx = Math.cos(angle), dy = Math.sin(angle), hit = trace(table, c.x, c.y, dx, dy), L = Math.min(hit.t, aim.dist);
-  const col = phase !== 'aim' ? '#d08a2e' : aim.snap ? '#e2b13c' : '#c4472f';
+  // the cone of possible lines, with the perfect sliver in gold
+  if (aiming) {
+    const far = L + R * 1.4, pA = 2 * PERF_A * A;
+    wedge(c.x, c.y, base - A, base + A, far);
+    ctx.fillStyle = 'rgba(251,248,240,.24)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(251,248,240,.75)'; ctx.lineWidth = 2; ctx.stroke();
+    wedge(c.x, c.y, base - pA, base + pA, far);
+    ctx.fillStyle = inPerfect ? 'rgba(226,177,60,.75)' : 'rgba(226,177,60,.45)'; ctx.fill();
+  }
+  // bullseye where the cue ball must strike
+  const pulse = inPerfect ? 1 + Math.sin(t * 20) * 0.08 : 1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(251,248,240,.9)'; ctx.beginPath(); ctx.arc(bx, by, R * 1.05 * pulse, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(251,248,240,.7)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.62, 0, TAU); ctx.stroke();
+  ctx.fillStyle = inPerfect || locked?.perfect ? '#e2b13c' : 'rgba(226,177,60,.85)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.28 * pulse, 0, TAU); ctx.fill();
+  if (inPerfect) { ctx.strokeStyle = 'rgba(226,177,60,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bx, by, R * 1.5 * pulse, 0, TAU); ctx.stroke(); }
+  // the swinging (or locked) line and where it would really send the ball
+  const angle = aiming ? base + (drag ? 0 : aimOffset()) : locked.angle;
+  const dx = Math.cos(angle), dy = Math.sin(angle), hit = trace(table, c.x, c.y, dx, dy), LL = Math.min(hit.t, L + 2 * R);
+  const col = aiming ? (inPerfect ? '#e2b13c' : '#c4472f') : locked.perfect ? '#e2b13c' : '#d08a2e';
   ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(c.x + dx * L, c.y + dy * L); ctx.stroke();
-  if (hit.ball && hit.t <= aim.dist + 2 * R) {
+  ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(c.x + dx * LL, c.y + dy * LL); ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x + dx * LL, c.y + dy * LL, 4, 0, TAU); ctx.fill();
+  if (!aiming && hit.ball && hit.t <= L + 3 * R) {
     const gx = c.x + dx * hit.t, gy = c.y + dy * hit.t, b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R);
     ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gx, gy, R, 0, TAU); ctx.stroke();
     ctx.setLineDash([3, 6]); ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(b.x + nx * R, b.y + ny * R); ctx.lineTo(b.x + nx * 110, b.y + ny * 110); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(b.x + nx * R, b.y + ny * R); ctx.lineTo(b.x + nx * 120, b.y + ny * 120); ctx.stroke(); ctx.setLineDash([]);
   }
-  ctx.strokeStyle = '#2d3a30'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(aim.x, aim.y, 11, 0, TAU); ctx.moveTo(aim.x - 17, aim.y); ctx.lineTo(aim.x + 17, aim.y); ctx.moveTo(aim.x, aim.y - 17); ctx.lineTo(aim.x, aim.y + 17); ctx.stroke();
-  const label = phase === 'aim' && aim.snap ? (aim.snap.kind === 'pot' ? 'Pot line' : 'Bank line') : `${Math.round(aim.dist / PX_PER_IN)} in`;
-  ctx.font = "500 14px 'DM Mono', monospace"; const tw = ctx.measureText(label).width;
-  const lx = aim.x + 24 + tw > W + RAIL ? aim.x - 24 - tw - 18 : aim.x + 24, ly = aim.y - 30;
+  // label
+  const label = aim.snap?.kind === 'plan' ? (plan.kind === 'pot' ? 'Best shot · pot' : 'Best shot · position') : aim.snap?.kind === 'pot' ? 'Pot line' : aim.snap?.kind === 'bank' ? 'Bank line' : `${Math.round(aim.dist / PX_PER_IN)} in`;
+  ctx.font = "500 13px 'DM Mono', monospace"; const tw = ctx.measureText(label).width;
+  const lx = bx + 28 + tw + 18 > W + RAIL ? bx - 28 - tw - 18 : bx + 28, ly = by - 34;
   ctx.fillStyle = 'rgba(251,248,240,.95)'; ctx.strokeStyle = 'rgba(120,100,70,.35)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.roundRect(lx, ly, tw + 18, 24, 12); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#2d3a30'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx + 9, ly + 12.5);
@@ -1377,7 +1416,7 @@ function draw(t, dt) {
     ctx.fillStyle = '#2d3a30'; ctx.font = "500 11px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(m.n, m.x, m.y + 0.5);
   }
 
-  if (phase === 'aim' || phase === 'locked' || phase === 'power') drawAim();
+  if (phase === 'aim' || phase === 'locked' || phase === 'power') drawAim(t);
 
   for (const b of table.live()) updateSpin(b, dt);
   for (const sk of fx.sinks) {

@@ -11,25 +11,26 @@ Each table is a "hole": sink the **target ball** (gold ring) into the
 
 A shot has three steps:
 
-1. **Aim.** Drag anywhere on the table: left/right turns the line around the
-   cue ball (relative, 0.2° per px), up/down sets its length (the crosshair
-   distance, which sets the pin for shots that don't hit a ball). A quick tap
-   aims straight at that spot. The line snaps (within 1.5°, and holds on until 2.5°; gold, with a tick and a haptic
-   tap) onto the pot line for the target into the flag and onto one-cushion
-   bank lines (`computeSnaps`); gold and cream dots round the cue ball show
-   where they are. The ‹ › buttons and arrow keys nudge by 0.1° (Shift: 1°).
-2. **Line (timing).** The line swings evenly across your aim (a triangle
-   wave, `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 1.85 s on hole 1 and
-   faster later) while a needle sweeps the gauge. Tap **Lock the line** while
-   the needle is in the gold PERFECT band (±`PERF_A` = 5% of the sweep) and
-   the error is exactly zero; outside it the error grows to the full swing at
-   the ends. The swing pauses while you drag. Rough felt widens and speeds it.
-3. **Power.** Press **Swing**: a needle fills the bar towards the **PIN**,
-   the power the aimed shot needs (`pinFor`). Press **Stop** in the gold band
-   at the pin (±`PERF_P` = 3.5% of the bar, fill time `FILL_T` 1.4 s) for
-   exactly the pin power.
-   Past it is the hatched OVER zone: a ball arriving faster than
-   `POT_MAX_SPEED` rattles out of the pocket.
+1. **Line up.** Each shot starts lined up on the **best shot** (`bestMove`:
+   a pot verified by simulation, so it already allows for tilt and felt;
+   otherwise the positional shot that leaves the cleanest pot; the same
+   routine sets par). A cone runs from the cue ball to a **bullseye** at the
+   point the cue ball must strike, with the perfect sliver in gold. Players
+   can drag to play their own line (it snaps to pot and bank lines; ‹ ›
+   nudge), in which case the pin comes from `pinFor` instead.
+2. **Lock the line (timing).** A line swings evenly inside the cone (a
+   triangle wave, `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 1.85 s on hole
+   1, faster later; rough felt widens and speeds it). A needle mirrors it on
+   the gauge. Tap while it crosses the bullseye's gold centre (±`PERF_A` = 5%
+   of the sweep) for zero error; outside it the error grows to the full swing.
+3. **Power (timing).** Press **Swing**: a needle fills towards the **PIN**.
+   Stop in the gold band (±`PERF_P` = 3.5% of the bar, `FILL_T` 1.4 s).
+   Perfect line + perfect power on the best-shot line plays the best shot
+   exactly ("Best shot!"). Past the pin is the hatched OVER zone: a ball
+   arriving faster than `POT_MAX_SPEED` rattles out of the pocket.
+
+With perfect taps on every shot, a test round holed all 9, mostly one or two
+under par; par assumes some misses.
 
 Hazards, all seeded per hole and harder on later holes: blocker balls,
 brass bumpers, closed pockets, worn **rough** felt (slows the ball, doubles
