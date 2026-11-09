@@ -6,9 +6,27 @@ attempt, shareable emoji result, monetised by ads plus a subscription.
 
 ## Status (2026-11-09)
 
-Single-file prototype: index.html (no build, open in a browser). Code is
-valid and the game logic was run headlessly with a bot. The visuals, sound
-and shop screen have not been watched in a real browser yet; play it first.
+Single-file prototype: index.html (no build, open in a browser). Published
+as a claude.ai artifact for playtesting.
+
+Second pass (feel and presentation):
+- Portrait table (500 x 1000) with side pockets on the long edges; the cue
+  ball starts near the bottom and racks spawn in the top two-thirds. Ball
+  radius went from 13 to 15 so numbers read on phones.
+- Calm night lakeside background on its own canvas: drifting sky colours,
+  twinkling stars, moon and its reflection on the water, fireflies, bokeh,
+  swaying grass. Static when prefers-reduced-motion is set.
+- Shot feel: balls visibly roll (3D number and stripe rotation), motion
+  trails, cue-stick strike animation, power ring round the cue ball, balls
+  sink into pockets with a ripple, combo call-outs (Double!, Bank shot!),
+  a score counter that ticks up, petals when a table is cleared, phone vibration.
+- Sound: layered clack/cushion/pot sounds through a soft echo, pentatonic
+  chimes that grow with the mult, and an optional ambient pad + bell music
+  loop (music button, on by default once you interact).
+- First visit shows a How to play card (also on the ? button).
+
+The pure game logic is unchanged apart from table geometry, so the balance
+numbers below are from the old landscape table and need re-running.
 
 ## Where Daily Holes' model came from (research done 2026-11-09)
 
