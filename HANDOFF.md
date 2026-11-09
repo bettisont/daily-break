@@ -13,18 +13,19 @@ A shot has three steps:
 
 1. **Line up.** Each shot starts lined up on the **best shot** (`bestMove`,
    worked out a frame after the balls stop behind a "Lining up…" button,
-   about 0.13 s on average and at most 0.3 s). It is always legal (the cue
-   ball touches the target): a pot verified by simulation, so it allows for
-   tilt and felt; otherwise a shot played off the target that leaves the
-   cleanest pot; failing that, the legal shot that works the target closest
-   to the flag. The same routine sets par. A cone runs from the cue ball to a **bullseye** at the
+   about 0.13 s on average and at most 0.3 s). It plays like a person: the cue ball hits the target first, pots are cut
+   no thinner than about 65°, and fuller contact and softer weight are
+   preferred. It tries a pot verified by simulation (so it allows for tilt
+   and felt), otherwise a shot off the target that leaves the cleanest pot,
+   otherwise the natural shot that works the target closest to the flag;
+   cushion kicks only when the target is completely hidden. The same routine sets par. A cone runs from the cue ball to a **bullseye** at the
    point the cue ball must strike, with the perfect sliver in gold. Players
    can drag to play their own line (it snaps to pot and bank lines; ‹ ›
    nudge), in which case the pin comes from `pinFor` instead.
 2. **Lock the line (timing).** A line swings inside the cone like a
    pendulum (eased at the ends; drawn `CONE_VIS` = 3× wider than the real
-   error so it moves smoothly on screen; real error `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 1.85 s on hole
-   1, faster later; rough felt widens and speeds it). A needle mirrors it on
+   error so it moves smoothly on screen; real error `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 3 s on hole 1,
+   down to 2.2 s later; rough felt widens and speeds it). A needle mirrors it on
    the gauge. Tap while it crosses the bullseye's gold centre (±`PERF_A` = 7.5%
    of the sweep) for zero error; outside it the error grows to the full swing.
 3. **Power (timing).** Press **Swing**: a needle fills towards the **PIN**.

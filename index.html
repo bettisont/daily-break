@@ -240,7 +240,7 @@ class Table {
   shoot(angle, power) {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
-    this.shot = { pots: [], targetPocket: -1, scratch: false, rattles: 0, cushions: 0, touchedTarget: false };
+    this.shot = { pots: [], targetPocket: -1, scratch: false, rattles: 0, cushions: 0, touchedTarget: false, firstHit: null };
   }
 
   step() {
@@ -274,6 +274,7 @@ class Table {
           const jmp = -(1 + BALL_E) * vn / inv;
           a.vx -= jmp * nx / a.m; a.vy -= jmp * ny / a.m; b.vx += jmp * nx / b.m; b.vy += jmp * ny / b.m;
           if (s && ((a === this.cue && b === this.target) || (b === this.cue && a === this.target))) s.touchedTarget = true;
+          if (s && !s.firstHit && (a === this.cue || b === this.cue)) s.firstHit = a === this.cue ? b : a;
           this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
         }
         a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
@@ -408,7 +409,7 @@ function directShot(t, from = t.cue) {
   const d1 = Math.hypot(gx - from.x, gy - from.y);
   if (d1 < 1) return null;
   const dx = (gx - from.x) / d1, dy = (gy - from.y) / d1, cos = dx * ux + dy * uy;
-  if (cos < 0.25) return null;
+  if (cos < 0.42) return null;
   const blocked = pathBlocked(t, from.x, from.y, gx, gy, b) || pathBlocked(t, b.x, b.y, P.x, P.y, b);
   const power = launchSpeed(d1, launchSpeed(d2, ARRIVE) / (cos * (1 + BALL_E) / 2)) / MAX_SPEED;
   return { angle: Math.atan2(dy, dx), power: Math.min(1, power), blocked, q: cos ** 1.5 / (1 + (d1 + d2) / 1400) * (blocked ? 0.2 : 1) * (power > 1 ? 0.3 : 1) };
@@ -423,34 +424,37 @@ function simulate(t, angle, power) {
 // tilt and felt), otherwise the shot that leaves the cleanest pot next. Also used to set par.
 function bestMove(t) {
   const flag = t.hole.flag, d = directShot(t);
+  // a clean pot: the cue ball hits the target first and the target drops in the flag
+  const clean = s => s.shot.targetPocket === flag && !s.shot.scratch && s.shot.firstHit === s.target;
   if (d && !d.blocked) {
-    for (const da of [0, -0.004, 0.004, -0.01, 0.01, -0.02, 0.02]) for (const pm of [1, 1.15, 0.9, 1.35]) {
+    for (const da of [0, -0.004, 0.004, -0.01, 0.01, -0.02, 0.02]) for (const pm of [1, 1.15, 0.9, 1.3]) {
       const angle = d.angle + da, power = Math.min(1, d.power * pm), s = simulate(t, angle, power);
-      if (s.shot.targetPocket === flag && !s.shot.scratch && s.shot.touchedTarget) return { kind: 'pot', angle, power, holed: true, state: s };
+      if (clean(s)) return { kind: 'pot', angle, power, holed: true, state: s };
     }
   }
+  // no pot on: play the target ball like a person would (fairly full contact, sensible weight),
+  // either leaving a clean pot or at least working it towards the flag
   let best = null, fallback = null;
   const F = pocketAim(flag);
-  const consider = (angle, power) => {
+  const consider = (angle, power, thin, needFirst = true) => {
     const s = simulate(t, angle, power);
-    if (s.shot.targetPocket === flag && !s.shot.scratch && s.shot.touchedTarget) return { kind: 'pot', angle, power, holed: true, state: s };
-    if (s.shot.scratch || s.target.potted || !s.shot.touchedTarget) return null;
-    const q = directShot(s);
-    if (q && !q.blocked && (!best || q.q > best.q)) best = { kind: 'position', angle, power, q: q.q, state: s };
-    // no clean pot yet: at least work the target towards the flag
-    const near = -Math.hypot(s.target.x - F.x, s.target.y - F.y) + (q ? 150 * q.q : 0);
+    if (needFirst ? s.shot.firstHit !== s.target : !s.shot.touchedTarget) return null;
+    if (clean(s)) return { kind: 'pot', angle, power, holed: true, state: s };
+    if (s.shot.scratch || s.target.potted) return null;
+    const nat = (1 - 0.4 * thin) * (1 - 0.35 * power), q = directShot(s);
+    if (q && !q.blocked && (!best || q.q * nat > best.score)) best = { kind: 'position', angle, power, q: q.q, score: q.q * nat, state: s };
+    const near = -Math.hypot(s.target.x - F.x, s.target.y - F.y) - 120 * thin - 150 * power;
     if (!fallback || near > fallback.near) fallback = { kind: 'position', angle, power, q: 0, near, state: s };
     return null;
   };
-  // play the target ball itself: a spread of contact points and weights
   const tb = t.target, c = t.cue, d0 = Math.hypot(tb.x - c.x, tb.y - c.y);
-  const base = Math.atan2(tb.y - c.y, tb.x - c.x), half = Math.asin(Math.min(1, 2 * R / d0)) * 0.92;
-  for (let k = -4; k <= 4; k++) for (const p of [0.25, 0.42, 0.62, 0.85]) {
-    const r = consider(base + half * k / 4, p);
+  const base = Math.atan2(tb.y - c.y, tb.x - c.x), half = Math.asin(Math.min(1, 2 * R / d0)) * 0.75;
+  for (let k = -4; k <= 4; k++) for (const p of [0.2, 0.3, 0.42, 0.56, 0.72]) {
+    const r = consider(base + half * k / 4, p, Math.abs(k) / 4);
     if (r) return r;
   }
-  // nothing clean: a wider fan (banks and kicks off cushions), still having to touch the target
-  if (!best) for (let k = 0; k < 36; k++) for (const p of [0.45, 0.8]) { const r = consider(k / 36 * TAU, p); if (r) return r; }
+  // target hidden behind other balls: only then try a kick off a cushion
+  if (!best && !fallback) for (let k = 0; k < 36; k++) for (const p of [0.45, 0.75]) { const r = consider(k / 36 * TAU, p, 1, false); if (r) return r; }
   return best || fallback;
 }
 function solveHole(hole) {
@@ -701,7 +705,7 @@ function swingAmp() {
 }
 function swingPeriod() {
   const lie = lieAt(hole, table.cue.x, table.cue.y);
-  return Math.max(1.25, 1.85 - hole.i * 0.06) * (lie === 'rough' ? 0.8 : lie === 'slick' ? 0.9 : 1);
+  return Math.max(2.2, 3.0 - hole.i * 0.1) * (lie === 'rough' ? 0.85 : lie === 'slick' ? 0.92 : 1);
 }
 function swingPos() { return 0.5 - 0.5 * Math.cos(TAU * swayT / swingPeriod()); }
 const aimOffset = () => (swingPos() - 0.5) * 2 * swingAmp();
