@@ -45,13 +45,17 @@
   #controls{width:min(100%,560px);display:flex;gap:8px;align-items:center;padding-top:8px;transition:opacity .3s}
   #controls.busy{opacity:.4;pointer-events:none}
   .nudge{width:46px;height:46px;padding:0;border-radius:50%;font-size:14px;flex:none;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);touch-action:none}
-  #powerBox{position:relative;flex:1;height:46px;border-radius:999px;overflow:hidden;touch-action:none;cursor:ew-resize}
-  #powerFill{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,rgba(127,209,185,.45),rgba(255,210,122,.85))}
-  #powerBox.hot #powerFill{background:linear-gradient(90deg,rgba(255,210,122,.6),rgba(255,138,106,.95))}
-  #powerTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 52px;font-size:13px;color:var(--muted);font-weight:800;transition:opacity .2s;pointer-events:none;white-space:nowrap}
-  #knob{position:absolute;top:50%;left:0;width:36px;height:36px;margin:-18px 0 0 5px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#ece6d6 55%,#b9b2a0);box-shadow:0 2px 8px #0007;pointer-events:none}
-  #knob::after{content:'';position:absolute;inset:13px;border-radius:50%;background:#4a7bd1}
-  @media (max-width:420px){ #powerTxt{font-size:12px;padding-left:46px} }
+  #meter{position:relative;flex:1;height:46px;border-radius:999px;overflow:hidden;touch-action:none;cursor:pointer}
+  #meter.active{border-color:rgba(255,210,122,.45)}
+  #mZone{position:absolute;top:0;bottom:0;left:calc(10% - 5%);width:10%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)}
+  #mFill{position:absolute;top:8px;bottom:8px;left:10%;width:0;border-radius:999px;background:linear-gradient(90deg,rgba(127,209,185,.55),rgba(255,210,122,.9))}
+  #meter.hot #mFill{background:linear-gradient(90deg,rgba(255,210,122,.6),rgba(255,138,106,.95))}
+  #mSweet{position:absolute;top:5px;bottom:5px;left:10%;width:4px;margin-left:-2px;border-radius:2px;background:#ffd27a;box-shadow:0 0 10px #ffd27a}
+  #mLock{position:absolute;top:4px;bottom:4px;width:3px;margin-left:-1.5px;border-radius:2px;background:#fff;opacity:0;transition:opacity .2s}
+  #mNeedle{position:absolute;top:2px;bottom:2px;left:10%;width:6px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff,0 0 2px #000}
+  #meter:not(.active) #mNeedle{opacity:0}
+  #mTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 10px 0 calc(10% + 12px);font-size:13px;color:var(--muted);font-weight:800;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+  @media (max-width:420px){ #mTxt{font-size:11px} }
   canvas#c{display:block;filter:drop-shadow(0 24px 30px rgba(0,0,0,.5))}
   button{background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--glass-line);border-radius:12px;padding:9px 14px;font:inherit;font-weight:800;cursor:pointer;transition:transform .15s,background .2s,border-color .2s}
   button:hover:not(:disabled){border-color:var(--accent);background:rgba(255,255,255,.14)}
@@ -104,7 +108,7 @@
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">
     <button class="nudge" id="nudgeL" title="Fine aim (← key)">◀</button>
-    <div id="powerBox" class="glass"><div id="powerFill"></div><span id="powerTxt">Slide → to pull the cue, release to shoot</span><div id="knob"></div></div>
+    <div id="meter" class="glass"><div id="mZone"></div><div id="mFill"></div><div id="mSweet"></div><div id="mLock"></div><div id="mNeedle"></div><span id="mTxt">Tap to swing · tap for power · tap on the line</span></div>
     <button class="nudge" id="nudgeR" title="Fine aim (→ key)">▶</button>
   </div>
 </div>
@@ -603,7 +607,7 @@ function newRun(seed, ranked) {
 
 function startTable(i) {
   table = new Table(run, i, onEvent);
-  phase = 'aim'; acc = 0; strike = null; pdrag = null; keyCharge = null;
+  phase = 'aim'; acc = 0; strike = null; meter = null; showMeter();
   shownScore = 0; shownText = '';
   fx.sinks = []; fx.petals = [];
   autoAim();
@@ -718,7 +722,7 @@ function showHelp() {
     <h2>How to play</h2>
     <div class="howto">
       <p>🎱 <b>Touch or drag on the table</b> to aim; the line follows your finger. Use ◀ ▶ for tiny adjustments.</p>
-      <p>💪 <b>Slide the power bar</b> under the table to pull the cue back, and let go to shoot. Slide back to the start to cancel. On a keyboard: arrows to aim, hold and release Space to shoot.</p>
+      <p>⏱️ <b>Swing meter</b> under the table: <b>tap</b> to start the swing, <b>tap</b> again to lock the power, then <b>tap</b> as the needle comes back across the gold line. Hit it dead on for a <b style="color:var(--accent)">Perfect</b> shot; miss it and the ball drifts left or right. Keyboard: arrows to aim, Space for the taps.</p>
       <p>🎯 Reach each table's <b>target score</b> before your shots run out.</p>
       <p>✨ Every shot scores <span class="c">chips</span> × <span class="m">mult</span>. Chips come from ball numbers. Mult grows with each extra ball in one shot, bank shots and bombs.</p>
       <p><b style="color:#ffd700">Gold</b> rings give coins · <b style="color:var(--mult)">pink</b> doubles the mult · <b style="color:#ff6b5b">red</b> explodes. Potting the cue ball scores nothing.</p>
@@ -800,10 +804,13 @@ function todayKey() {
 
 /* ----- input ----- */
 
-// Aim by pointing at the table; power comes from the slider under it (or holding Space).
-let aimAngle = -Math.PI / 2, aiming = false, pdrag = null, keyCharge = null, nudgeTimer = null, lastTick = 0;
-const aimShot = power => ({ dx: Math.cos(aimAngle), dy: Math.sin(aimAngle), power });
-const curPower = () => pdrag ? pdrag.power : keyCharge ? keyCharge.power : 0;
+// Aim by pointing at the table, then a three-tap swing meter:
+// tap to start, tap to lock power, tap as the needle crosses the sweet spot.
+const SWEET = 0.1, POWER_TIME = 1.25, RETURN_TIME = 1.0, PERFECT = 0.02, GOOD = 0.05, MAX_ERR = 0.07;
+let aimAngle = -Math.PI / 2, aiming = false, meter = null, nudgeTimer = null, lastTick = 0;
+const aimShot = (power, err = 0) => ({ dx: Math.cos(aimAngle + err), dy: Math.sin(aimAngle + err), power });
+const posPower = pos => clamp((pos - SWEET) / (1 - SWEET), 0, 1);
+const curPower = () => !meter ? 0 : meter.stage === 'power' ? posPower(meter.pos) : meter.power;
 function autoAim() {
   const c = table.cue;
   let best = null;
@@ -828,52 +835,68 @@ function setAimFrom(e) {
 }
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
-  if (phase !== 'aim') return;
+  if (phase !== 'aim' || meter) return;
   aiming = true; setAimFrom(e);
   stage.setPointerCapture(e.pointerId);
 });
-stage.addEventListener('pointermove', e => { if (aiming && phase === 'aim') setAimFrom(e); });
+stage.addEventListener('pointermove', e => { if (aiming && phase === 'aim' && !meter) setAimFrom(e); });
 stage.addEventListener('pointerup', () => { aiming = false; });
 stage.addEventListener('pointercancel', () => { aiming = false; });
 
-function fire(power) {
-  if (phase !== 'aim' || power < 0.04) return;
-  strike = { shot: aimShot(power), t: 0 };
-  phase = 'strike';
-}
 function powerTick(power) {
   const step = Math.floor(power * 10);
   if (step !== lastTick) { lastTick = step; tone(300 + step * 40, 0.03, 0.025, 'sine', 1, 0, 0); }
 }
-function showPower(power, animate) {
-  const fill = $('powerFill'), knob = $('knob');
-  fill.style.transition = knob.style.transition = animate ? 'width .35s ease, left .35s ease' : 'none';
-  fill.style.width = power * 100 + '%';
-  knob.style.left = `calc(${power * 100}% - ${power * 46}px)`;
-  $('powerBox').classList.toggle('hot', power > 0.85);
-  $('powerTxt').style.opacity = power > 0.02 ? 0 : 1;
-}
-const powerBox = $('powerBox');
-powerBox.addEventListener('pointerdown', e => {
+function meterTap() {
   ensureAudio();
   if (phase !== 'aim') return;
-  pdrag = { sx: e.clientX, w: powerBox.getBoundingClientRect().width * 0.85, power: 0 };
-  lastTick = 0;
-  powerBox.setPointerCapture(e.pointerId);
-});
-powerBox.addEventListener('pointermove', e => {
-  if (!pdrag) return;
-  pdrag.power = clamp((e.clientX - pdrag.sx) / pdrag.w, 0, 1);
-  showPower(pdrag.power, false); powerTick(pdrag.power);
-});
-powerBox.addEventListener('pointerup', () => {
-  if (!pdrag) return;
-  const p = pdrag.power;
-  pdrag = null; showPower(0, true); fire(p);
-});
-powerBox.addEventListener('pointercancel', () => { pdrag = null; showPower(0, true); });
+  if (!meter) {
+    meter = { stage: 'power', pos: SWEET, power: 0 }; lastTick = 0;
+    tone(520, 0.06, 0.06, 'sine', 1, 0, 0.2);
+  } else if (meter.stage === 'power') {
+    meter.power = Math.max(0.05, posPower(meter.pos)); meter.stage = 'accuracy';
+    tone(700, 0.06, 0.07, 'sine', 1, 0, 0.2);
+  } else lockAccuracy();
+}
+function lockAccuracy() {
+  const off = meter.pos - SWEET, a = Math.abs(off), power = meter.power;
+  const err = a <= PERFECT ? 0 : Math.sign(off) * Math.min(MAX_ERR, (a - PERFECT) * 0.55);
+  meter = null; showMeter();
+  const c = table.cue, fy = c.y - 46 < 40 ? c.y + 46 : c.y - 46;
+  if (a <= PERFECT) { float(c.x, fy, 'Perfect!', '#ffd27a', 26); sfx.chime(3); sparkle(c.x, c.y, '#ffd27a', 10, 90); }
+  else if (a <= GOOD) float(c.x, fy, 'Good', '#ffffff', 22);
+  else float(c.x, fy, off > 0 ? 'Pushed right' : 'Pulled left', '#ff8a7a', 22);
+  strike = { shot: aimShot(power, err), t: 0 };
+  phase = 'strike';
+}
+function tickMeter(dt) {
+  if (!meter) return;
+  if (meter.stage === 'power') {
+    meter.pos += dt * (1 - SWEET) / POWER_TIME;
+    powerTick(posPower(meter.pos));
+    if (meter.pos >= 1) { meter.pos = 1; meter.power = 1; meter.stage = 'accuracy'; }
+  } else {
+    meter.pos -= dt / RETURN_TIME;
+    if (meter.pos <= 0) { meter.pos = 0; lockAccuracy(); return; }
+  }
+  showMeter();
+}
+function showMeter() {
+  const box = $('meter'), pct = v => (v * 100).toFixed(2) + '%';
+  box.classList.toggle('active', !!meter);
+  $('mTxt').style.opacity = meter ? 0 : 1;
+  if (!meter) { $('mFill').style.width = '0%'; $('mLock').style.opacity = 0; $('mNeedle').style.left = pct(SWEET); return; }
+  const lockPos = SWEET + meter.power * (1 - SWEET);
+  const fillTo = meter.stage === 'power' ? meter.pos : lockPos;
+  $('mFill').style.left = pct(SWEET); $('mFill').style.width = pct(fillTo - SWEET);
+  $('mLock').style.opacity = meter.stage === 'accuracy' ? 1 : 0; $('mLock').style.left = pct(lockPos);
+  $('mNeedle').style.left = pct(meter.pos);
+  box.classList.toggle('hot', curPower() > 0.85);
+}
+const meterBox = $('meter');
+meterBox.addEventListener('pointerdown', e => { e.preventDefault(); meterTap(); });
 
-function nudge(dir, fast) { if (phase === 'aim') aimAngle += dir * (fast ? 0.012 : 0.0035); }
+function nudge(dir, fast) { if (phase === 'aim' && !meter) aimAngle += dir * (fast ? 0.012 : 0.0035); }
 for (const [id, dir] of [['nudgeL', -1], ['nudgeR', 1]]) {
   const btn = $(id);
   btn.addEventListener('pointerdown', e => {
@@ -888,15 +911,7 @@ for (const [id, dir] of [['nudgeL', -1], ['nudgeR', 1]]) {
 addEventListener('keydown', e => {
   if ($('overlay').classList.contains('show')) return;
   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { nudge(e.key === 'ArrowLeft' ? -1 : 1, e.shiftKey); e.preventDefault(); }
-  else if (e.code === 'Space') {
-    e.preventDefault();
-    if (!e.repeat && phase === 'aim' && !keyCharge) { ensureAudio(); keyCharge = { power: 0, dir: 1 }; lastTick = 0; }
-  }
-});
-addEventListener('keyup', e => {
-  if (e.code !== 'Space' || !keyCharge) return;
-  const p = keyCharge.power;
-  keyCharge = null; showPower(0, true); fire(p);
+  else if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) meterTap(); }
 });
 
 function setBtn() {
@@ -1339,12 +1354,7 @@ function draw(t, dt) {
 function frame(now) {
   const t = now / 1000, dt = Math.min(0.05, t - (frame.last ?? t));
   frame.last = t;
-  if (keyCharge) {
-    keyCharge.power += keyCharge.dir * dt / 1.1;
-    if (keyCharge.power >= 1) { keyCharge.power = 1; keyCharge.dir = -1; }
-    if (keyCharge.power <= 0) { keyCharge.power = 0; keyCharge.dir = 1; }
-    showPower(keyCharge.power, false); powerTick(keyCharge.power);
-  }
+  tickMeter(dt);
   const busy = phase !== 'aim';
   if (busy !== frame.busy) { frame.busy = busy; $('controls').classList.toggle('busy', busy); }
   if (phase === 'strike') {

@@ -24,10 +24,15 @@ Second pass (feel and presentation):
   chimes that grow with the mult, and an optional ambient pad + bell music
   loop (music button, on by default once you interact).
 - First visit shows a How to play card (also on the ? button).
-- Aiming (third pass): point/drag on the table to aim (release does not
-  shoot), a power slider under the table shoots on release (slide back to
-  cancel), and the ◀ ▶ buttons fine-tune the aim. Keyboard: arrows aim,
-  hold and release Space to shoot. Each shot starts aimed at the nearest ball.
+- Aiming (fourth pass): point/drag on the table to aim, ◀ ▶ to fine-tune,
+  then a three-tap swing meter under the table, in the style of golf games:
+  tap to start, tap to lock power, tap as the needle crosses the gold
+  sweet-spot line. Within ±2% of the line is Perfect (no error); beyond that
+  the shot is pushed/pulled by up to 0.07 rad. If you never tap, it fires at
+  the end with full error. Tuning: SWEET, POWER_TIME, RETURN_TIME, PERFECT,
+  GOOD, MAX_ERR. Keyboard: arrows aim, Space/Enter for the taps. The aim
+  error is applied in the browser; a server re-run would need the final
+  angle, which is already what shoot() receives.
 
 The pure game logic is unchanged apart from table geometry, so the balance
 numbers below are from the old landscape table and need re-running.
