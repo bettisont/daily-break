@@ -24,6 +24,10 @@ Second pass (feel and presentation):
   chimes that grow with the mult, and an optional ambient pad + bell music
   loop (music button, on by default once you interact).
 - First visit shows a How to play card (also on the ? button).
+- Aiming (third pass): point/drag on the table to aim (release does not
+  shoot), a power slider under the table shoots on release (slide back to
+  cancel), and the ◀ ▶ buttons fine-tune the aim. Keyboard: arrows aim,
+  hold and release Space to shoot. Each shot starts aimed at the nearest ball.
 
 The pure game logic is unchanged apart from table geometry, so the balance
 numbers below are from the old landscape table and need re-running.
