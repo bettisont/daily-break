@@ -9,13 +9,21 @@ emoji scorecard. Single file: `index.html` (no build, open it in a browser).
 Each table is a "hole": sink the **target ball** (gold ring) into the
 **flagged pocket** in as few shots as possible, scored against par.
 
-A shot has two gauges:
+A shot has three steps:
 
-1. **Accuracy.** Tap or drag on the table to aim (a crosshair with distance in
-   inches). The red line sways around the aim; press **Lock the line**. The
-   locked offset is the aim error (shown as Pure / A touch left / Pulled
-   right!).
-2. **Power.** Press **Swing**: a needle fills the bar towards the **PIN**,
+1. **Aim.** Drag anywhere on the table: left/right turns the line around the
+   cue ball (relative, 0.26° per px), up/down sets its length (the crosshair
+   distance, which sets the pin for shots that don't hit a ball). A quick tap
+   aims straight at that spot. The line snaps (gold, with a tick and a haptic
+   tap) onto the pot line for the target into the flag and onto one-cushion
+   bank lines (`computeSnaps`); gold and cream dots round the cue ball show
+   where they are. The ‹ › buttons and arrow keys nudge by 0.1° (Shift: 1°).
+2. **Steady.** The line sways. Hold the button (or Space): the sway settles
+   to 5% over `settle`, stays steady for `hold` (the ring turns gold and the
+   button says Release!), then the hands start to shake and the sway grows
+   fast. Release locks the line. Rough felt settles more slowly with a
+   shorter window, and later holes have shorter windows (`steadyTimes`).
+3. **Power.** Press **Swing**: a needle fills the bar towards the **PIN**,
    the power the aimed shot needs (`pinFor`). Press **Stop** at the pin.
    Past it is the hatched OVER zone: a ball arriving faster than
    `POT_MAX_SPEED` rattles out of the pocket.
@@ -65,7 +73,7 @@ plus vinyl crackle, and a lazy electric-piano loop (music button).
 - Bottom half: audio, hole and round flow (`act`, `stopPower`,
   `resolveShot`, `finishHole`), UI, input and the canvas renderer (room,
   table, balls, effects).
-- Tuning: sway (`swayAmp`, `sway`), power fill time `FILL_T`, `PIN_AT`,
+- Tuning: sway (`swayAmp`, `sway`), steadying (`steadyTimes`, `steadyMul`), snapping (`SNAP`), power fill time `FILL_T`, `PIN_AT`,
   `POT_MAX_SPEED`, hole generation odds in `makeHole`, and the par extras in
   `parFor`.
 
