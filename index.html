@@ -240,7 +240,7 @@ class Table {
   shoot(angle, power) {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
-    this.shot = { pots: [], targetPocket: -1, scratch: false, rattles: 0, cushions: 0 };
+    this.shot = { pots: [], targetPocket: -1, scratch: false, rattles: 0, cushions: 0, touchedTarget: false };
   }
 
   step() {
@@ -260,6 +260,7 @@ class Table {
     for (let i = 0; i < live.length; i++) {
       for (let j = i + 1; j < live.length; j++) {
         const a = live[i], b = live[j];
+        if (!a.vx && !a.vy && !b.vx && !b.vy) continue;
         const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy, min = 2 * R;
         if (d2 >= min * min || d2 === 0) continue;
         // rewind to the exact moment of contact so the collision normal is precise
@@ -272,13 +273,14 @@ class Table {
         if (vn < 0) {
           const jmp = -(1 + BALL_E) * vn / inv;
           a.vx -= jmp * nx / a.m; a.vy -= jmp * ny / a.m; b.vx += jmp * nx / b.m; b.vy += jmp * ny / b.m;
+          if (s && ((a === this.cue && b === this.target) || (b === this.cue && a === this.target))) s.touchedTarget = true;
           this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
         }
         a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
       }
     }
     for (const b of live) {
-      if (b.potted) continue;
+      if (b.potted || (!b.vx && !b.vy)) continue;
       for (const o of this.hole.bumpers) {
         const dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy), min = o.r + R;
         if (d >= min || d === 0) continue;
@@ -414,7 +416,7 @@ function directShot(t, from = t.cue) {
 function simulate(t, angle, power) {
   const s = cloneTable(t);
   s.shoot(angle, power);
-  for (let n = 0; n < 30000 && s.moving(); n++) s.step();
+  for (let n = 0; n < 9000 && s.moving(); n++) s.step();
   return s;
 }
 // The best move from here with perfect execution: a pot verified by simulation (so it allows for
@@ -424,36 +426,32 @@ function bestMove(t) {
   if (d && !d.blocked) {
     for (const da of [0, -0.004, 0.004, -0.01, 0.01, -0.02, 0.02]) for (const pm of [1, 1.15, 0.9, 1.35]) {
       const angle = d.angle + da, power = Math.min(1, d.power * pm), s = simulate(t, angle, power);
-      if (s.shot.targetPocket === flag && !s.shot.scratch) return { kind: 'pot', angle, power, holed: true, state: s };
+      if (s.shot.targetPocket === flag && !s.shot.scratch && s.shot.touchedTarget) return { kind: 'pot', angle, power, holed: true, state: s };
     }
   }
-  let best = null;
-  const consider = (angle, power, to) => {
+  let best = null, fallback = null;
+  const F = pocketAim(flag);
+  const consider = (angle, power) => {
     const s = simulate(t, angle, power);
-    if (s.shot.targetPocket === flag && !s.shot.scratch) return { kind: 'pot', angle, power, holed: true, state: s };
-    if (s.shot.scratch || s.target.potted) return null;
+    if (s.shot.targetPocket === flag && !s.shot.scratch && s.shot.touchedTarget) return { kind: 'pot', angle, power, holed: true, state: s };
+    if (s.shot.scratch || s.target.potted || !s.shot.touchedTarget) return null;
     const q = directShot(s);
-    if (q && !q.blocked && (!best || q.q > best.q)) best = { kind: 'position', angle, power, q: q.q, state: s, to };
+    if (q && !q.blocked && (!best || q.q > best.q)) best = { kind: 'position', angle, power, q: q.q, state: s };
+    // no clean pot yet: at least work the target towards the flag
+    const near = -Math.hypot(s.target.x - F.x, s.target.y - F.y) + (q ? 150 * q.q : 0);
+    if (!fallback || near > fallback.near) fallback = { kind: 'position', angle, power, q: 0, near, state: s };
     return null;
   };
-  const cands = [];
-  for (let k = 0; k < 96; k++) {
-    const x = 40 + ((k % 8) + 0.5) / 8 * (W - 80), y = 40 + (Math.floor(k / 8) + 0.5) / 12 * (H - 80);
-    if (pathBlocked(t, t.cue.x, t.cue.y, x, y, null)) continue;
-    const q = directShot(t, { x, y });
-    if (q && !q.blocked) cands.push({ x, y, q: q.q });
-  }
-  cands.sort((a, b) => b.q - a.q);
-  for (const c of cands.slice(0, 8)) {
-    const dist = Math.hypot(c.x - t.cue.x, c.y - t.cue.y), ang = Math.atan2(c.y - t.cue.y, c.x - t.cue.x), p = launchSpeed(dist, 15) / MAX_SPEED;
-    for (const pm of [1, 0.85, 1.2]) { const r = consider(ang, Math.min(1, p * pm), { x: c.x, y: c.y }); if (r) return r; }
-  }
-  // nothing obvious: try a fan of shots (this also moves blockers and the target)
-  if (!best) for (let k = 0; k < 32; k++) for (const p of [0.25, 0.45, 0.7]) {
-    const a = k / 32 * TAU, r = consider(a, p, { x: t.cue.x + Math.cos(a) * 200, y: t.cue.y + Math.sin(a) * 200 });
+  // play the target ball itself: a spread of contact points and weights
+  const tb = t.target, c = t.cue, d0 = Math.hypot(tb.x - c.x, tb.y - c.y);
+  const base = Math.atan2(tb.y - c.y, tb.x - c.x), half = Math.asin(Math.min(1, 2 * R / d0)) * 0.92;
+  for (let k = -4; k <= 4; k++) for (const p of [0.25, 0.42, 0.62, 0.85]) {
+    const r = consider(base + half * k / 4, p);
     if (r) return r;
   }
-  return best;
+  // nothing clean: a wider fan (banks and kicks off cushions), still having to touch the target
+  if (!best) for (let k = 0; k < 36; k++) for (const p of [0.45, 0.8]) { const r = consider(k / 36 * TAU, p); if (r) return r; }
+  return best || fallback;
 }
 function solveHole(hole) {
   let t = new Table(hole);
@@ -478,7 +476,7 @@ const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
-const STRIKE_T = 0.1, FILL_T = 1.4, PIN_AT = 0.62, PERF_A = 0.05, PERF_P = 0.035;
+const STRIKE_T = 0.1, FILL_T = 1.4, PIN_AT = 0.62, PERF_A = 0.075, PERF_P = 0.035, CONE_VIS = 3;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 
 let round = null, hole = null, table = null, phase = 'aim', strokes = 0, acc = 0;
@@ -628,8 +626,7 @@ function startHole(i) {
   table = new Table(hole, onEvent);
   strokes = 0; marks = []; trails = []; curTrail = null; stamp = null; locked = null; meter = null; strike = null;
   fx.sinks = []; fx.confetti = [];
-  phase = 'aim';
-  defaultAim();
+  lineUp();
   banner = { title: `Hole ${i + 1}`, sub: `Par ${hole.par} · sink the ${hole.balls[0].n} at the flag`, life: 2.4, max: 2.4 };
   renderCard9(); updateUI();
 }
@@ -660,15 +657,20 @@ function computeSnaps() {
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; };
 const SNAP_IN = 1.5 * Math.PI / 180, SNAP_OUT = 2.5 * Math.PI / 180;
 
+// Work out the best shot a frame later, so the table never freezes while it thinks.
+function lineUp() {
+  phase = 'lining'; aim = null; locked = null; updateUI();
+  setTimeout(() => { if (phase !== 'lining') return; defaultAim(); phase = 'aim'; updateUI(); }, 30);
+}
 function defaultAim() {
   const c = table.cue, b = table.target, m = bestMove(table);
-  plan = m ? { kind: m.kind, angle: m.angle, power: m.power, to: m.to } : null;
+  plan = m ? { kind: m.kind, angle: m.angle, power: m.power } : null;
   snaps = computeSnaps().filter(sn => !plan || Math.abs(angDiff(sn.angle, plan.angle)) > 0.6 * Math.PI / 180);
   aim = null;
   if (plan) {
     snaps.unshift({ angle: plan.angle, kind: 'plan' });
     const hit = trace(table, c.x, c.y, Math.cos(plan.angle), Math.sin(plan.angle));
-    setAimAngle(plan.angle, plan.kind === 'pot' && hit.ball ? hit.t : Math.hypot(plan.to.x - c.x, plan.to.y - c.y));
+    setAimAngle(plan.angle, Math.min(hit.t, 900));
   } else setAimAngle(Math.atan2(b.y - c.y, b.x - c.x), Math.hypot(b.x - c.x, b.y - c.y));
   swayT = Math.random() * 10;
 }
@@ -701,7 +703,7 @@ function swingPeriod() {
   const lie = lieAt(hole, table.cue.x, table.cue.y);
   return Math.max(1.25, 1.85 - hole.i * 0.06) * (lie === 'rough' ? 0.8 : lie === 'slick' ? 0.9 : 1);
 }
-function swingPos() { const p = swingPeriod(), u = ((swayT % p) + p) % p / p; return u < 0.5 ? u * 2 : 2 - u * 2; }
+function swingPos() { return 0.5 - 0.5 * Math.cos(TAU * swayT / swingPeriod()); }
 const aimOffset = () => (swingPos() - 0.5) * 2 * swingAmp();
 function lockLine() {
   if (phase !== 'aim') return;
@@ -760,6 +762,9 @@ function resolveShot() {
     pen++; table.respot(table.target, hole.balls[0].x, hole.balls[0].y);
     float(table.target.x, table.target.y - 34, 'Wrong pocket +1', '#b8553f', 18, 1.8);
   }
+  if (!s.touchedTarget && !holedIt) {
+    pen++; float(table.cue.x, table.cue.y + 40 > H ? table.cue.y - 60 : table.cue.y + 40, `Missed the ${table.target.n} +1`, '#b8553f', 18, 1.8);
+  }
   if (s.scratch) {
     pen++; table.respot(table.cue, strokeStart.x, strokeStart.y);
     float(table.cue.x, table.cue.y - 34, 'Scratch +1', '#b8553f', 18, 1.8);
@@ -768,7 +773,7 @@ function resolveShot() {
   table.shot = null; curTrail = null; locked = null;
   if (holedIt) finishHole(false);
   else if (strokes >= hole.par + 3) finishHole(true);
-  else { phase = 'aim'; meter = null; defaultAim(); }
+  else { meter = null; lineUp(); }
   renderCard9(); updateUI();
 }
 
@@ -814,12 +819,12 @@ function updateUI() {
   $('iHole').innerHTML = `Hole ${hole.i + 1} · Par ${hole.par}<b>${t.n} ball<small>${t.potted ? 0 : Math.round(Math.hypot(F.x - t.x, F.y - t.y) / PX_PER_IN)} in</small></b>`;
   $('iLie').innerHTML = `Shot ${Math.min(strokes + (phase === 'holed' || phase === 'over' ? 0 : 1), 99)}<b>${lie[0].toUpperCase() + lie.slice(1)}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { aim: 'Lock the line', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
+  const b = $('act'), labels = { lining: 'Lining up…', aim: 'Lock the line', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
   b.textContent = labels[phase];
-  b.disabled = phase === 'strike' || phase === 'moving';
+  b.disabled = phase === 'strike' || phase === 'moving' || phase === 'lining';
   b.classList.toggle('stop', phase === 'power');
   $('nL').disabled = $('nR').disabled = phase !== 'aim';
-  const hints = { aim: innerWidth < 460 ? 'Lock as the line crosses the bullseye' : 'Lock as the swinging line crosses the bullseye', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
+  const hints = { lining: '', aim: innerWidth < 460 ? 'Lock as the line crosses the bullseye' : 'Lock as the swinging line crosses the bullseye', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
   $('hint').textContent = hints[phase];
   updateMeter();
 }
@@ -888,7 +893,7 @@ function showHelp() {
       <p>2 · <b>Lock the line:</b> a line swings back and forth inside the cone. Tap while it crosses the bullseye's gold centre for a perfect line.</p>
       <p>3 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the <b>pin</b> for perfect power. Perfect line + perfect power plays the best shot exactly. The pin is the power your shot needs; past it the ball runs too hot and can rattle out.</p>
       <p>⛰️ Read the table: <b>tilt</b> bends every roll, worn <b>rough</b> felt slows the ball and shakes your aim, <b>slick</b> felt runs fast. The pin ignores all three.</p>
-      <p>⚠️ Scratch the cue ball, or sink the target in the wrong pocket: <b>+1 shot</b>.</p>
+      <p>⚠️ Every shot must touch the target ball. Missing it, scratching the cue ball or sinking the target in the wrong pocket: <b>+1 shot</b>.</p>
       <p>📅 Everyone plays the same nine tables each day. One ranked round per day.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
@@ -1294,7 +1299,7 @@ function drawFlag(t, dt) {
 
 function wedge(x, y, a0, a1, r) { ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, a0, a1); ctx.closePath(); }
 function drawAim(t) {
-  const c = table.cue, base = aim.angle, A = swingAmp(), aiming = phase === 'aim';
+  const c = table.cue, base = aim.angle, A = swingAmp() * CONE_VIS, aiming = phase === 'aim';
   const bh = trace(table, c.x, c.y, Math.cos(base), Math.sin(base));
   const L = bh.ball && bh.t <= aim.dist + 2 * R ? bh.t : Math.min(bh.t, aim.dist);
   const bx = c.x + Math.cos(base) * L, by = c.y + Math.sin(base) * L;
@@ -1316,14 +1321,14 @@ function drawAim(t) {
     ctx.fillStyle = inPerfect ? 'rgba(226,177,60,.75)' : 'rgba(226,177,60,.45)'; ctx.fill();
   }
   // bullseye where the cue ball must strike
-  const pulse = inPerfect ? 1 + Math.sin(t * 20) * 0.08 : 1;
+  const pulse = inPerfect ? 1.06 : 1;
   ctx.lineWidth = 2;
   ctx.strokeStyle = 'rgba(251,248,240,.9)'; ctx.beginPath(); ctx.arc(bx, by, R * 1.05 * pulse, 0, TAU); ctx.stroke();
   ctx.strokeStyle = 'rgba(251,248,240,.7)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.62, 0, TAU); ctx.stroke();
   ctx.fillStyle = inPerfect || locked?.perfect ? '#e2b13c' : 'rgba(226,177,60,.85)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.28 * pulse, 0, TAU); ctx.fill();
   if (inPerfect) { ctx.strokeStyle = 'rgba(226,177,60,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bx, by, R * 1.5 * pulse, 0, TAU); ctx.stroke(); }
   // the swinging (or locked) line and where it would really send the ball
-  const angle = aiming ? base + (drag ? 0 : aimOffset()) : locked.angle;
+  const angle = aiming ? base + (drag ? 0 : aimOffset() * CONE_VIS) : locked.angle;
   const dx = Math.cos(angle), dy = Math.sin(angle), hit = trace(table, c.x, c.y, dx, dy), LL = Math.min(hit.t, L + 2 * R);
   const col = aiming ? (inPerfect ? '#e2b13c' : '#c4472f') : locked.perfect ? '#e2b13c' : '#d08a2e';
   ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';

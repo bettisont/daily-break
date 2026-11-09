@@ -11,17 +11,21 @@ Each table is a "hole": sink the **target ball** (gold ring) into the
 
 A shot has three steps:
 
-1. **Line up.** Each shot starts lined up on the **best shot** (`bestMove`:
-   a pot verified by simulation, so it already allows for tilt and felt;
-   otherwise the positional shot that leaves the cleanest pot; the same
-   routine sets par). A cone runs from the cue ball to a **bullseye** at the
+1. **Line up.** Each shot starts lined up on the **best shot** (`bestMove`,
+   worked out a frame after the balls stop behind a "Lining up…" button,
+   about 0.13 s on average and at most 0.3 s). It is always legal (the cue
+   ball touches the target): a pot verified by simulation, so it allows for
+   tilt and felt; otherwise a shot played off the target that leaves the
+   cleanest pot; failing that, the legal shot that works the target closest
+   to the flag. The same routine sets par. A cone runs from the cue ball to a **bullseye** at the
    point the cue ball must strike, with the perfect sliver in gold. Players
    can drag to play their own line (it snaps to pot and bank lines; ‹ ›
    nudge), in which case the pin comes from `pinFor` instead.
-2. **Lock the line (timing).** A line swings evenly inside the cone (a
-   triangle wave, `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 1.85 s on hole
+2. **Lock the line (timing).** A line swings inside the cone like a
+   pendulum (eased at the ends; drawn `CONE_VIS` = 3× wider than the real
+   error so it moves smoothly on screen; real error `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 1.85 s on hole
    1, faster later; rough felt widens and speeds it). A needle mirrors it on
-   the gauge. Tap while it crosses the bullseye's gold centre (±`PERF_A` = 5%
+   the gauge. Tap while it crosses the bullseye's gold centre (±`PERF_A` = 7.5%
    of the sweep) for zero error; outside it the error grows to the full swing.
 3. **Power (timing).** Press **Swing**: a needle fills towards the **PIN**.
    Stop in the gold band (±`PERF_P` = 3.5% of the bar, `FILL_T` 1.4 s).
@@ -38,7 +42,8 @@ the aim sway), **slick** felt (low friction), and table **tilt** (constant
 acceleration, the equivalent of wind). The pin ignores tilt and felt, as wind
 does in golf.
 
-Penalties: scratching the cue ball means +1 and replaying from where you
+Penalties: every shot must touch the target ball (missing it is +1);
+scratching the cue ball means +1 and replaying from where you
 were; sinking the target in the wrong pocket means +1 and it is respotted.
 Other balls can be knocked in freely. A hole is picked up at par + 3.
 
