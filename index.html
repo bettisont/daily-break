@@ -48,7 +48,8 @@
   #meter{position:relative;height:26px;border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:hidden}
   #mOver{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(-45deg,var(--hatch) 0 7px,transparent 7px 14px)}
   #mFill{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,#eef2e6,#9fc495)}
-  #mPin{position:absolute;top:0;bottom:0;width:12px;margin-left:-6px;background:rgba(47,107,79,.18);border-left:2px solid var(--green);border-right:2px solid var(--green)}
+  #mPin{position:absolute;top:0;bottom:0;background:rgba(226,177,60,.35);border-left:2px solid var(--gold);border-right:2px solid var(--gold);transition:background .15s}
+  #meter.hit #mPin{background:rgba(226,177,60,.85)}
   #mNeedle{position:absolute;top:-2px;bottom:-2px;width:3px;margin-left:-1.5px;background:var(--ink);opacity:0}
   .mlabels{position:relative;height:15px;margin:5px 2px 8px;font-size:11px;color:var(--muted)}
   .mlabels span{position:absolute;top:0}
@@ -60,7 +61,6 @@
   #act:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--green-dark)}
   #act:disabled{opacity:.5;cursor:default}
   #act.stop{background:#b5603f;box-shadow:0 3px 0 #7d3f28}
-  #act.holding{background:var(--green-dark);transform:translateY(2px);box-shadow:0 1px 0 #13301f}
   #hint{margin-top:8px;text-align:center;font-size:11px;color:var(--muted);min-height:14px}
   #overlay{position:fixed;inset:0;z-index:10;background:rgba(236,229,211,.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;opacity:0;pointer-events:none;transition:opacity .3s}
   #overlay.show{opacity:1;pointer-events:auto}
@@ -100,7 +100,7 @@
   <div id="controls">
     <div id="meter"><div id="mFill"></div><div id="mOver"></div><div id="mPin"></div><div id="mNeedle"></div></div>
     <div class="mlabels mono"><span id="lEase">Ease</span><span id="lPin">Pin</span><span id="lOver">Over</span></div>
-    <div class="actrow"><button class="nudge" id="nL" title="Fine aim (← key)">‹</button><button id="act">Hold to steady</button><button class="nudge" id="nR" title="Fine aim (→ key)">›</button></div>
+    <div class="actrow"><button class="nudge" id="nL" title="Fine aim (← key)">‹</button><button id="act">Lock the line</button><button class="nudge" id="nR" title="Fine aim (→ key)">›</button></div>
     <div id="hint" class="mono"></div>
   </div>
 </div>
@@ -468,11 +468,11 @@ const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
-const STRIKE_T = 0.1, FILL_T = 1.2, PIN_AT = 0.62;
+const STRIKE_T = 0.1, FILL_T = 1.4, PIN_AT = 0.62, PERF_A = 0.05, PERF_P = 0.035;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 
 let round = null, hole = null, table = null, phase = 'aim', strokes = 0, acc = 0;
-let aim = null, aimRaw = 0, snaps = [], steady = null, pin = null, swayT = 0, locked = null, meter = null, strike = null, strokeStart = null;
+let aim = null, aimRaw = 0, snaps = [], drag = null, pin = null, swayT = 0, locked = null, meter = null, strike = null, strokeStart = null;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null, flagPop = 0;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0 };
 
@@ -564,6 +564,7 @@ const sfx = {
   stamp() { noise(0.12, 0.5, 300); tone(80, 0.18, 0.3, 'sine', 0.6, 0, 0.1); },
   penalty() { tone(330, 0.2, 0.08, 'triangle', 0.7, 0, 0.3); tone(262, 0.3, 0.08, 'triangle', 0.7, 0.15, 0.3); },
   click() { tone(660, 0.05, 0.05, 'sine', 1, 0, 0.2); },
+  chime() { tone(1318.5, 0.25, 0.07, 'sine', 1, 0, 0.5); tone(1975.5, 0.35, 0.05, 'sine', 1, 0.06, 0.5); },
 };
 
 /* ----- events from the table ----- */
@@ -671,58 +672,40 @@ function setAimAngle(raw, dist) {
   pin = pinFor(table, aim.angle, aim.dist);
   updateUI();
 }
-function nudgeAim(dir, big) { if (phase === 'aim' && !steady) setAimAngle(aimRaw + dir * (big ? 1 : 0.1) * Math.PI / 180, aim.dist); }
+function nudgeAim(dir, big) { if (phase === 'aim') setAimAngle(aimRaw + dir * (big ? 1 : 0.1) * Math.PI / 180, aim.dist); }
 
-// Hold to steady: the wobble calms, holds still for a moment, then your hands start to shake.
-function swayAmp() {
+// Accuracy: once aimed, the line swings evenly across your aim and a needle sweeps the gauge.
+// Tap Lock while the needle is in the gold PERFECT band and the shot goes exactly on your line.
+function swingAmp() {
   const lie = lieAt(hole, table.cue.x, table.cue.y);
-  return (1.5 + 0.08 * hole.i) * (lie === 'rough' ? 1.7 : lie === 'slick' ? 1.15 : 1) * Math.PI / 180;
+  return (3 + 0.12 * hole.i) * (lie === 'rough' ? 1.5 : 1) * Math.PI / 180;
 }
-function sway(t) {
-  const w = TAU * 0.5 * (1 + 0.04 * hole.i);
-  return swayAmp() * (0.72 * Math.sin(w * t) + 0.28 * Math.sin(2.63 * w * t + 1.3));
+function swingPeriod() {
+  const lie = lieAt(hole, table.cue.x, table.cue.y);
+  return Math.max(1.25, 1.85 - hole.i * 0.06) * (lie === 'rough' ? 0.8 : lie === 'slick' ? 0.9 : 1);
 }
-function steadyTimes() {
-  const rough = lieAt(hole, table.cue.x, table.cue.y) === 'rough';
-  return { settle: rough ? 0.9 : 0.55, hold: Math.max(0.6, 1.15 - hole.i * 0.05) * (rough ? 0.75 : 1), shake: 1.8 };
-}
-function steadyMul() {
-  if (!steady) return 1;
-  const { settle, hold, shake } = steadyTimes(), h = steady.h;
-  if (h < settle) { const k = h / settle; return lerp(1, 0.05, 1 - (1 - k) ** 2); }
-  if (h < settle + hold) return 0.05;
-  return 0.05 + Math.min(2.6, (h - settle - hold) / shake * 2.6);
-}
-function steadyStage() {
-  if (!steady) return null;
-  const { settle, hold } = steadyTimes();
-  return steady.h < settle ? 'settling' : steady.h < settle + hold ? 'steady' : 'shaking';
-}
-const aimOffset = () => sway(swayT) * steadyMul();
-function startSteady() {
-  if (phase !== 'aim' || steady) return;
-  steady = { h: 0, stage: 'settling' };
-  noise(0.5, 0.05, 500, 'lowpass');
-  $('act').classList.add('holding');
-}
+function swingPos() { const p = swingPeriod(), u = ((swayT % p) + p) % p / p; return u < 0.5 ? u * 2 : 2 - u * 2; }
+const aimOffset = () => (swingPos() - 0.5) * 2 * swingAmp();
 function lockLine() {
-  if (!steady || phase !== 'aim') return;
-  const off = aimOffset();
-  steady = null; $('act').classList.remove('holding');
-  locked = { angle: aim.angle + off, off };
+  if (phase !== 'aim') return;
+  const pos = swingPos(), d = pos - 0.5, perfect = Math.abs(d) <= PERF_A;
+  const off = perfect ? 0 : Math.sign(d) * (Math.abs(d) - PERF_A) / (0.5 - PERF_A) * swingAmp();
+  locked = { angle: aim.angle + off, off, perfect, pos };
   pin = pinFor(table, locked.angle, aim.dist);
   const deg = off * 180 / Math.PI, a = Math.abs(deg), side = deg > 0 ? 'right' : 'left';
   const c = table.cue, fy = c.y - 46 < 30 ? c.y + 46 : c.y - 46;
-  const [txt, col] = a < 0.2 ? ['Pure', '#2f6b4f'] : a < 0.6 ? [`A touch ${side}`, '#7a6a3a'] : [`Pulled ${side}!`, '#b8553f'];
+  const [txt, col] = perfect ? ['Perfect line', '#b88a2e'] : a < 0.5 ? [`A touch ${side}`, '#7a6a3a'] : [`Pulled ${side}!`, '#b8553f'];
   float(c.x, fy, txt, col, 20);
-  sfx.lock(); buzz(8);
+  if (perfect) { sfx.chime(); sparkle(c.x, c.y, '#e2b13c', 10, 90); buzz(12); } else { sfx.lock(); buzz(8); }
+  flashMeter(perfect);
   phase = 'locked';
   updateUI();
 }
+function flashMeter(hit) { const m = $('meter'); m.classList.toggle('hit', hit); clearTimeout(flashMeter.t); flashMeter.t = setTimeout(() => m.classList.remove('hit'), 450); }
 
 function act() {
   ensureAudio();
-  if (phase === 'aim') return;
+  if (phase === 'aim') { lockLine(); return; }
   if (phase === 'locked') {
     const barMax = clamp(pin.power / PIN_AT, 0.12, 1);
     meter = { b: 0, barMax, pinPos: pin.power / barMax, tick: -1 };
@@ -736,8 +719,11 @@ function act() {
 }
 
 function stopPower() {
-  const m = meter, power = clamp(m.b * m.barMax, 0.02, 1), diff = m.b - m.pinPos, c = table.cue;
-  const [txt, col] = Math.abs(diff) < 0.025 ? ['Perfect strike', '#b88a2e'] : diff < 0 ? (diff < -0.08 ? ['Way short', '#b8553f'] : ['Soft', '#7a6a3a']) : (diff > 0.08 ? ['Heavy!', '#b8553f'] : ['Firm', '#7a6a3a']);
+  const m = meter, diff = m.b - m.pinPos, c = table.cue, perfect = Math.abs(diff) <= PERF_P;
+  const power = perfect ? pin.power : clamp(m.b * m.barMax, 0.02, 1);
+  if (perfect) { sfx.chime(); buzz(12); }
+  flashMeter(perfect);
+  const [txt, col] = perfect ? ['Perfect power', '#b88a2e'] : diff < 0 ? (diff < -0.08 ? ['Way short', '#b8553f'] : ['Soft', '#7a6a3a']) : (diff > 0.08 ? ['Heavy!', '#b8553f'] : ['Firm', '#7a6a3a']);
   float(c.x, c.y + (c.y + 70 > H ? -70 : 70), txt, col, 18);
   m.stopped = m.b;
   strike = { angle: locked.angle, power, t: 0 };
@@ -810,23 +796,34 @@ function updateUI() {
   $('iHole').innerHTML = `Hole ${hole.i + 1} · Par ${hole.par}<b>${t.n} ball<small>${t.potted ? 0 : Math.round(Math.hypot(F.x - t.x, F.y - t.y) / PX_PER_IN)} in</small></b>`;
   $('iLie').innerHTML = `Shot ${Math.min(strokes + (phase === 'holed' || phase === 'over' ? 0 : 1), 99)}<b>${lie[0].toUpperCase() + lie.slice(1)}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { aim: steady ? ({ settling: 'Steady…', steady: 'Release!', shaking: 'Shaking!' })[steadyStage()] : 'Hold to steady', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
+  const b = $('act'), labels = { aim: 'Lock the line', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
   b.textContent = labels[phase];
   b.disabled = phase === 'strike' || phase === 'moving';
   b.classList.toggle('stop', phase === 'power');
   $('nL').disabled = $('nR').disabled = phase !== 'aim';
-  const hints = { aim: innerWidth < 460 ? 'Drag to aim · hold, release to lock' : 'Drag to aim · hold the button, release when steady', locked: 'Swing, then stop the needle on the pin', power: 'Stop just at the pin', strike: '', moving: '', holed: '', over: '' };
+  const hints = { aim: innerWidth < 460 ? 'Drag to aim · lock in the gold band' : 'Drag to aim · lock while the needle is in the gold band', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
   $('hint').textContent = hints[phase];
   updateMeter();
 }
 function updateMeter() {
   const pct = v => (clamp(v, 0, 1) * 100).toFixed(2) + '%';
+  const accuracy = phase === 'aim';
+  $('lEase').textContent = accuracy ? 'Left' : 'Ease';
+  $('lPin').textContent = accuracy ? 'Perfect' : 'Pin';
+  $('lOver').textContent = accuracy ? 'Right' : 'Over';
+  if (accuracy) {
+    $('mPin').style.left = pct(0.5 - PERF_A); $('mPin').style.width = pct(2 * PERF_A); $('mPin').style.opacity = 1;
+    $('lPin').style.left = '50%'; $('lPin').style.opacity = 1;
+    $('mOver').style.opacity = 0; $('mFill').style.width = '0%';
+    $('mNeedle').style.opacity = drag ? 0.35 : 1; $('mNeedle').style.left = pct(swingPos());
+    return;
+  }
   const barMax = meter ? meter.barMax : clamp((pin?.power ?? 0.3) / PIN_AT, 0.12, 1);
   const pinPos = meter ? meter.pinPos : clamp((pin?.power ?? 0.3) / barMax, 0, 1);
-  const showPin = ['aim', 'locked', 'power', 'strike', 'moving'].includes(phase);
-  $('mPin').style.left = pct(pinPos); $('mPin').style.opacity = showPin ? 1 : 0;
+  const showPin = ['locked', 'power', 'strike', 'moving'].includes(phase);
+  $('mPin').style.left = pct(pinPos - PERF_P); $('mPin').style.width = pct(2 * PERF_P); $('mPin').style.opacity = showPin ? 1 : 0;
   $('lPin').style.left = pct(pinPos); $('lPin').style.opacity = showPin ? 1 : 0;
-  $('mOver').style.left = pct(Math.min(1, pinPos + 0.06));
+  $('mOver').style.opacity = showPin ? 1 : 0; $('mOver').style.left = pct(Math.min(1, pinPos + PERF_P + 0.03));
   const b = meter ? (meter.stopped ?? meter.b) : 0;
   $('mFill').style.width = pct(b);
   $('mNeedle').style.opacity = meter ? 1 : 0; $('mNeedle').style.left = pct(b);
@@ -870,8 +867,8 @@ function showHelp() {
     <div class="howto">
       <p>🎯 Get the <b>target ball</b> (gold ring) into the <b>flagged pocket</b> in as few shots as you can. Other balls are obstacles, and knocking them in is fine.</p>
       <p>1 · <b>Aim:</b> drag anywhere on the table: left/right turns the line, up/down sets its length. It snaps (gold) onto the <b>pot line</b> and bank lines; ‹ › nudge it.</p>
-      <p>2 · <b>Steady:</b> the line wobbles. <b>Hold</b> the button to steady your hand, and <b>release</b> while the ring is gold. Hold too long and you start to shake.</p>
-      <p>3 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> as the needle reaches the <b>pin</b>. The pin is the power your shot needs; past it the ball runs too hot and can rattle out.</p>
+      <p>2 · <b>Line:</b> the line swings across your aim and a needle sweeps the gauge. Tap <b>Lock the line</b> while it's in the gold <b>Perfect</b> band and the shot goes exactly where you aimed.</p>
+      <p>3 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the <b>pin</b> for perfect power. The pin is the power your shot needs; past it the ball runs too hot and can rattle out.</p>
       <p>⛰️ Read the table: <b>tilt</b> bends every roll, worn <b>rough</b> felt slows the ball and shakes your aim, <b>slick</b> felt runs fast. The pin ignores all three.</p>
       <p>⚠️ Scratch the cue ball, or sink the target in the wrong pocket: <b>+1 shot</b>.</p>
       <p>📅 Everyone plays the same nine tables each day. One ranked round per day.</p>
@@ -902,38 +899,29 @@ function toWorld(e) {
   return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
 }
 // Drag anywhere to turn the line (left/right) and set its length (up/down); a quick tap aims at that spot.
-let drag = null;
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
-  if (phase === 'aim' && !steady) {
+  if (phase === 'aim') {
     drag = { x: e.clientX, y: e.clientY, raw: aimRaw, dist: aim.dist, moved: false };
     stage.setPointerCapture(e.pointerId);
   } else if (phase === 'power') act();
 });
 stage.addEventListener('pointermove', e => {
-  if (!drag || phase !== 'aim' || steady) return;
+  if (!drag || phase !== 'aim') return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (!drag.moved && Math.hypot(dx, dy) < 6) return;
   drag.moved = true;
   setAimAngle(drag.raw + dx * 0.0035, drag.dist - dy / view.s * 1.2);
 });
 const endDrag = e => {
-  if (drag && !drag.moved && phase === 'aim' && !steady && e?.type === 'pointerup') { const p = toWorld(e); setAim(p.x, p.y); }
+  if (drag && !drag.moved && phase === 'aim' && e?.type === 'pointerup') { const p = toWorld(e); setAim(p.x, p.y); }
   drag = null;
 };
 stage.addEventListener('pointerup', endDrag);
 stage.addEventListener('pointercancel', () => { drag = null; });
 
 const actBtn = $('act');
-actBtn.addEventListener('pointerdown', e => {
-  e.preventDefault(); ensureAudio();
-  if (actBtn.disabled) return;
-  if (phase === 'aim') { startSteady(); actBtn.setPointerCapture(e.pointerId); }
-  else act();
-});
-actBtn.addEventListener('pointerup', lockLine);
-actBtn.addEventListener('pointercancel', lockLine);
-actBtn.addEventListener('lostpointercapture', lockLine);
+actBtn.addEventListener('pointerdown', e => { e.preventDefault(); if (!actBtn.disabled) act(); });
 let nudgeTimer = null;
 for (const [id, dir] of [['nL', -1], ['nR', 1]]) {
   const btn = $(id);
@@ -947,15 +935,10 @@ for (const [id, dir] of [['nL', -1], ['nR', 1]]) {
 }
 addEventListener('keydown', e => {
   if ($('overlay').classList.contains('show')) return;
-  if (e.code === 'Space' || e.key === 'Enter') {
-    e.preventDefault();
-    if (e.repeat || actBtn.disabled) return;
-    ensureAudio();
-    if (phase === 'aim') startSteady(); else act();
-  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); nudgeAim(e.key === 'ArrowLeft' ? -1 : 1, e.shiftKey); }
-  else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && phase === 'aim' && !steady) { e.preventDefault(); setAimAngle(aimRaw, aim.dist + (e.key === 'ArrowUp' ? 20 : -20)); }
+  if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat && !actBtn.disabled) act(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); nudgeAim(e.key === 'ArrowLeft' ? -1 : 1, e.shiftKey); }
+  else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && phase === 'aim') { e.preventDefault(); setAimAngle(aimRaw, aim.dist + (e.key === 'ArrowUp' ? 20 : -20)); }
 });
-addEventListener('keyup', e => { if (e.code === 'Space' || e.key === 'Enter') lockLine(); });
 function setSoundBtns() {
   $('snd').textContent = muted ? '🔇' : '🔊';
   $('mus').classList.toggle('off', !musicOn || muted);
@@ -1293,20 +1276,12 @@ function drawFlag(t, dt) {
 
 function drawAim() {
   const c = table.cue;
-  const angle = phase === 'aim' ? aim.angle + aimOffset() : locked.angle;
+  const angle = phase === 'aim' ? aim.angle + (drag ? 0 : aimOffset()) : locked.angle;
   // snap points round the cue ball
   if (phase === 'aim') for (const sn of snaps) {
     const on = aim.snap === sn;
     ctx.fillStyle = sn.kind === 'pot' ? (on ? '#e2b13c' : 'rgba(226,177,60,.75)') : (on ? '#fbf8f0' : 'rgba(251,248,240,.6)');
     ctx.beginPath(); ctx.arc(c.x + Math.cos(sn.angle) * (R + 24), c.y + Math.sin(sn.angle) * (R + 24), on ? 4.5 : 3, 0, TAU); ctx.fill();
-  }
-  // steadiness ring
-  if (phase === 'aim' && steady) {
-    const st = steadyStage(), { settle } = steadyTimes(), k = Math.min(1, steady.h / settle);
-    const col2 = st === 'steady' ? '#e2b13c' : st === 'shaking' ? '#c4472f' : 'rgba(251,248,240,.9)';
-    ctx.strokeStyle = col2; ctx.lineWidth = st === 'steady' ? 4 : 3; ctx.lineCap = 'round';
-    const jit = st === 'shaking' ? (Math.random() - 0.5) * 3 : 0;
-    ctx.beginPath(); ctx.arc(c.x + jit, c.y + jit, R + 11, -Math.PI / 2, -Math.PI / 2 + TAU * (st === 'settling' ? k : 1)); ctx.stroke();
   }
   ctx.setLineDash([5, 7]); ctx.strokeStyle = 'rgba(255,250,235,.75)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(aim.x, aim.y); ctx.stroke(); ctx.setLineDash([]);
@@ -1489,9 +1464,12 @@ function frame(now) {
   const t = now / 1000, dt = Math.min(0.05, t - (frame.last ?? t));
   frame.last = t;
   if (phase === 'aim') {
-    const st = steadyStage();
-    if (steady) { steady.h += dt; const ns = steadyStage(); if (ns !== st) { if (ns === 'steady') { tone(1318.5, 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(5); } updateUI(); } }
-    swayT += dt * (st === 'shaking' ? 2.6 : 1);
+    if (!drag) {
+      const was = Math.abs(swingPos() - 0.5) <= PERF_A;
+      swayT += dt;
+      if (!was && Math.abs(swingPos() - 0.5) <= PERF_A) tone(1046, 0.03, 0.015, 'sine', 1, 0, 0);
+    }
+    updateMeter();
   }
   if (phase === 'power') {
     meter.b += dt / FILL_T;

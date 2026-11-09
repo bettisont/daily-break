@@ -18,13 +18,16 @@ A shot has three steps:
    tap) onto the pot line for the target into the flag and onto one-cushion
    bank lines (`computeSnaps`); gold and cream dots round the cue ball show
    where they are. The ‹ › buttons and arrow keys nudge by 0.1° (Shift: 1°).
-2. **Steady.** The line sways. Hold the button (or Space): the sway settles
-   to 5% over `settle`, stays steady for `hold` (the ring turns gold and the
-   button says Release!), then the hands start to shake and the sway grows
-   fast. Release locks the line. Rough felt settles more slowly with a
-   shorter window, and later holes have shorter windows (`steadyTimes`).
+2. **Line (timing).** The line swings evenly across your aim (a triangle
+   wave, `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 1.85 s on hole 1 and
+   faster later) while a needle sweeps the gauge. Tap **Lock the line** while
+   the needle is in the gold PERFECT band (±`PERF_A` = 5% of the sweep) and
+   the error is exactly zero; outside it the error grows to the full swing at
+   the ends. The swing pauses while you drag. Rough felt widens and speeds it.
 3. **Power.** Press **Swing**: a needle fills the bar towards the **PIN**,
-   the power the aimed shot needs (`pinFor`). Press **Stop** at the pin.
+   the power the aimed shot needs (`pinFor`). Press **Stop** in the gold band
+   at the pin (±`PERF_P` = 3.5% of the bar, fill time `FILL_T` 1.4 s) for
+   exactly the pin power.
    Past it is the hatched OVER zone: a ball arriving faster than
    `POT_MAX_SPEED` rattles out of the pocket.
 
@@ -73,7 +76,7 @@ plus vinyl crackle, and a lazy electric-piano loop (music button).
 - Bottom half: audio, hole and round flow (`act`, `stopPower`,
   `resolveShot`, `finishHole`), UI, input and the canvas renderer (room,
   table, balls, effects).
-- Tuning: sway (`swayAmp`, `sway`), steadying (`steadyTimes`, `steadyMul`), snapping (`SNAP`), power fill time `FILL_T`, `PIN_AT`,
+- Tuning: line timing (`swingAmp`, `swingPeriod`, `PERF_A`), power band (`PERF_P`), snapping (`SNAP_IN`, `SNAP_OUT`), power fill time `FILL_T`, `PIN_AT`,
   `POT_MAX_SPEED`, hole generation odds in `makeHole`, and the par extras in
   `parFor`.
 
