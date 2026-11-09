@@ -45,17 +45,17 @@
   #controls{width:min(100%,560px);display:flex;gap:8px;align-items:center;padding-top:8px;transition:opacity .3s}
   #controls.busy{opacity:.4;pointer-events:none}
   .nudge{width:46px;height:46px;padding:0;border-radius:50%;font-size:14px;flex:none;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);touch-action:none}
-  #meter{position:relative;flex:1;height:46px;border-radius:999px;overflow:hidden;touch-action:none;cursor:pointer}
-  #meter.active{border-color:rgba(255,210,122,.45)}
-  #mZone{position:absolute;top:0;bottom:0;left:calc(10% - 5%);width:10%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)}
-  #mFill{position:absolute;top:8px;bottom:8px;left:10%;width:0;border-radius:999px;background:linear-gradient(90deg,rgba(127,209,185,.55),rgba(255,210,122,.9))}
-  #meter.hot #mFill{background:linear-gradient(90deg,rgba(255,210,122,.6),rgba(255,138,106,.95))}
-  #mSweet{position:absolute;top:5px;bottom:5px;left:10%;width:4px;margin-left:-2px;border-radius:2px;background:#ffd27a;box-shadow:0 0 10px #ffd27a}
-  #mLock{position:absolute;top:4px;bottom:4px;width:3px;margin-left:-1.5px;border-radius:2px;background:#fff;opacity:0;transition:opacity .2s}
-  #mNeedle{position:absolute;top:2px;bottom:2px;left:10%;width:6px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff,0 0 2px #000}
-  #meter:not(.active) #mNeedle{opacity:0}
-  #mTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 10px 0 calc(10% + 12px);font-size:13px;color:var(--muted);font-weight:800;transition:opacity .2s;pointer-events:none;white-space:nowrap}
-  @media (max-width:420px){ #mTxt{font-size:11px} }
+  #meter{position:relative;flex:1;height:50px;border-radius:999px;overflow:hidden;touch-action:none;cursor:pointer;transition:border-color .2s,box-shadow .25s}
+  #meter.ready{border-color:rgba(255,210,122,.75);box-shadow:0 0 18px rgba(255,210,122,.3)}
+  #meter.ready #mTxt{color:var(--accent)}
+  #meter.active{border-color:rgba(255,255,255,.35)}
+  #meter.hit{box-shadow:0 0 24px rgba(127,224,168,.7)}
+  #meter.miss{box-shadow:0 0 24px rgba(255,138,122,.7)}
+  #mZone{position:absolute;top:6px;bottom:6px;border-radius:12px;border:2px solid transparent;opacity:0}
+  #mPerfect{position:absolute;top:10px;bottom:10px;border-radius:8px;background:rgba(255,210,122,.8);box-shadow:0 0 12px rgba(255,210,122,.7);opacity:0}
+  #mNeedle{position:absolute;top:2px;bottom:2px;width:6px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 8px #fff,0 0 2px #000;opacity:0}
+  #mTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 12px;font-size:14px;color:var(--muted);font-weight:800;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+  @media (max-width:420px){ #mTxt{font-size:12px} }
   canvas#c{display:block;filter:drop-shadow(0 24px 30px rgba(0,0,0,.5))}
   button{background:rgba(255,255,255,.08);color:var(--ink);border:1px solid var(--glass-line);border-radius:12px;padding:9px 14px;font:inherit;font-weight:800;cursor:pointer;transition:transform .15s,background .2s,border-color .2s}
   button:hover:not(:disabled){border-color:var(--accent);background:rgba(255,255,255,.14)}
@@ -99,17 +99,16 @@
   </header>
   <div id="hud" class="glass">
     <div class="stat"><small>Table</small><b id="tbl"></b><span class="sub" id="tier"></span></div>
-    <div class="stat"><small>Shots</small><div class="dots" id="shots"></div></div>
+    <div class="stat"><small>Turns</small><div class="dots" id="shots"></div></div>
     <div class="stat"><small>Coins</small><b id="coins"></b></div>
-    <div class="stat"><small>This shot</small><b id="live">–</b></div>
+    <div class="stat"><small>This turn</small><b id="live">–</b></div>
     <div class="prog"><div id="progFill"></div><span id="progTxt"></span></div>
   </div>
   <div id="relics"></div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">
-    <button class="nudge" id="nudgeL" title="Fine aim (← key)">◀</button>
-    <div id="meter" class="glass"><div id="mZone"></div><div id="mFill"></div><div id="mSweet"></div><div id="mLock"></div><div id="mNeedle"></div><span id="mTxt">Tap to swing · tap for power · tap on the line</span></div>
-    <button class="nudge" id="nudgeR" title="Fine aim (→ key)">▶</button>
+    <button class="nudge" id="clearPlan" title="Clear plan (Esc)">↺</button>
+    <div id="meter" class="glass"><div id="mZone"></div><div id="mPerfect"></div><div id="mNeedle"></div><span id="mTxt"></span></div>
   </div>
 </div>
 <div id="overlay"><div class="card glass" id="card"></div></div>
@@ -120,8 +119,10 @@
 const W = 500, H = 1000, RAIL = 40, R = 15, DT = 1 / 240, TAU = Math.PI * 2;
 const BASE_MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
 const BALL_E = 0.95, BUMPER_E = 0.9, BASE_CUSHION_E = 0.78;
-const BASE_SHOTS = 6, TABLES = 9, MAX_RELICS = 6, START_COINS = 4;
-const TARGETS = [80, 140, 220, 320, 450, 650, 900, 1250, 1700];
+const BASE_SHOTS = 4, TABLES = 9, MAX_RELICS = 6, START_COINS = 4;
+const PLAN_MAX = 3, ARRIVE_SPEED = 150, PERFECT_FRAC = 0.35;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const TARGETS = [500, 900, 1200, 1700, 2200, 2700, 3400, 4200, 5200];
 const TIERS = ['Opener', 'Main', 'Boss'];
 const EPOCH = Date.UTC(2026, 10, 9);
 const COLORS = ['#fdfcf7', '#f4c430', '#1f4fd1', '#d62828', '#6a2c91', '#f07b1d', '#1c8a3c', '#8b1e1e', '#151515', '#f4c430'];
@@ -136,7 +137,7 @@ const RELICS = [
   { id: 'bank', icon: '🏦', name: 'Bank Shot', price: 5, desc: 'Banked pots give +2 mult instead of +1.' },
   { id: 'chain', icon: '⛓️', name: 'Chain Reaction', price: 6, desc: 'Each extra ball in one shot gives +2 mult instead of +1.' },
   { id: 'wide', icon: '🕳️', name: 'Wide Pockets', price: 6, desc: 'Pockets are 25% bigger.' },
-  { id: 'chalk', icon: '🧊', name: 'Extra Chalk', price: 5, desc: '+1 shot on every table.' },
+  { id: 'chalk', icon: '🧊', name: 'Extra Chalk', price: 5, desc: '+1 turn on every table.' },
   { id: 'insurance', icon: '🛟', name: 'Insurance', price: 4, desc: 'Your first scratch on each table still scores.' },
   { id: 'heavy', icon: '🏋️', name: 'Heavy Cue', price: 5, desc: 'Cue ball is 60% heavier and hits harder.' },
   { id: 'magnet', icon: '🧲', name: 'Magnet Pockets', price: 7, desc: 'Pockets pull nearby balls in.' },
@@ -145,17 +146,17 @@ const RELICS = [
   { id: 'high', icon: '🎲', name: 'High Roller', price: 5, desc: 'Potting a 7, 8 or 9 gives +3 mult.' },
   { id: 'piggy', icon: '🐷', name: 'Piggy Bank', price: 4, desc: 'After each table, +1 coin per 5 you hold (max 5).' },
   { id: 'demo', icon: '💣', name: 'Demolition', price: 5, desc: 'Bombs blast twice as far and give +3 mult.' },
-  { id: 'sight', icon: '🔭', name: 'Long Sight', price: 4, desc: 'Full-length aim line, including the first bounce.' },
-  { id: 'overtime', icon: '⏱️', name: 'Overtime', price: 4, desc: 'Unused shots pay 2 coins each instead of 1.' },
+  { id: 'sight', icon: '🧘', name: 'Steady Hand', price: 5, desc: 'Timing zones are 40% wider.' },
+  { id: 'overtime', icon: '⏱️', name: 'Overtime', price: 4, desc: 'Unused turns pay 2 coins each instead of 1.' },
   { id: 'ghost', icon: '👻', name: 'Ghost Cue', price: 8, desc: 'The cue ball can never be potted.' },
-  { id: 'power', icon: '💥', name: 'Power Break', price: 3, desc: '+30% max shot power.' },
+  { id: 'power', icon: '📜', name: 'Long Plan', price: 6, desc: 'Plan one more ball per turn.' },
   { id: 'rich', icon: '💎', name: 'Rich Rack', price: 5, desc: 'Far more gold, mult and bomb balls.' },
   { id: 'potluck', icon: '🍀', name: 'Pot Luck', price: 3, desc: '+25 chips on every scoring shot.' },
 ];
 const BOSSES = [
   { id: 'shrink', name: 'The Squeeze', desc: 'Pockets are much smaller.' },
   { id: 'ice', name: 'Black Ice', desc: 'Almost no friction.' },
-  { id: 'blind', name: 'Blindfold', desc: 'No aim line.' },
+  { id: 'blind', name: 'Jitters', desc: 'The timing needle is much faster.' },
   { id: 'sticky', name: 'Dead Cushions', desc: 'Cushions barely bounce.' },
   { id: 'lockdown', name: 'Lockdown', desc: 'Two pockets are closed.' },
   { id: 'lead', name: 'Lead Balls', desc: 'Object balls are twice as heavy.' },
@@ -237,9 +238,10 @@ function shotScore(s, has) {
   let chips = s.pots.reduce((sum, b) => sum + 10 + b.n * 10, 0);
   if (has('potluck')) chips += 25;
   if (has('bumper')) chips += 15 * s.bumperHits;
-  let mult = 1 + (s.pots.length - 1) * (has('chain') ? 2 : 1) + s.banks * (has('bank') ? 2 : 1) + s.booms * (has('demo') ? 3 : 1);
+  let mult = 1 + (s.pots.length - 1) * (has('chain') ? 2 : 1) + s.banks * (has('bank') ? 2 : 1) + s.booms * (has('demo') ? 3 : 1) + (s.perfects || 0);
   if (has('high')) mult += 3 * s.pots.filter(b => b.n >= 7).length;
   mult *= 2 ** s.multBalls;
+  if (s.completed) mult *= 2;
   return { chips, mult, score: chips * mult };
 }
 
@@ -256,7 +258,7 @@ class Table {
       damp: b === 'ice' ? 0.08 : LIN_DAMP,
       cushionE: b === 'sticky' ? 0.4 : BASE_CUSHION_E,
       objMass: b === 'lead' ? 2 : 1,
-      maxSpeed: BASE_MAX_SPEED * (this.has('power') ? 1.3 : 1),
+      maxSpeed: BASE_MAX_SPEED,
       bombR: this.has('demo') ? 260 : 140,
     };
     this.cue = { x: CUE_SPOT.x, y: CUE_SPOT.y, vx: 0, vy: 0, n: 0, type: 'cue', m: this.has('heavy') ? 1.6 : 1, potted: false };
@@ -278,10 +280,13 @@ class Table {
   live() { return [this.cue, ...this.balls].filter(b => !b.potted); }
   moving() { return this.live().some(b => b.vx || b.vy); }
 
+  // A turn ("run") can contain several strikes; the score is settled by endShot().
+  beginRun() { this.shot = newShot(); }
+
   shoot(dx, dy, power) {
+    if (!this.shot) this.shot = newShot();
     const speed = this.p.maxSpeed * power;
     this.cue.vx = dx * speed; this.cue.vy = dy * speed;
-    this.shot = { pots: [], banks: 0, bumperHits: 0, booms: 0, multBalls: 0, scratch: false, coins: 0 };
     for (const b of this.balls) b.cushioned = false;
   }
 
@@ -309,8 +314,12 @@ class Table {
         const a = live[i], b = live[j];
         const dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy, min = 2 * R;
         if (d2 >= min * min || d2 === 0) continue;
-        const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, inv = 1 / a.m + 1 / b.m, ov = (min - d) / inv;
-        a.x -= nx * ov / a.m; a.y -= ny * ov / a.m; b.x += nx * ov / b.m; b.y += ny * ov / b.m;
+        // rewind the pair to the exact moment of contact so the collision normal is precise
+        const rvx = b.vx - a.vx, rvy = b.vy - a.vy, dv = dx * rvx + dy * rvy, vv = rvx * rvx + rvy * rvy;
+        const back = dv < 0 && vv > 0 ? Math.min(DT * 2, (dv + Math.sqrt(dv * dv - vv * (d2 - min * min))) / vv) : 0;
+        a.x -= a.vx * back; a.y -= a.vy * back; b.x -= b.vx * back; b.y -= b.vy * back;
+        const ex = b.x - a.x, ey = b.y - a.y, d = Math.hypot(ex, ey) || 1, nx = ex / d, ny = ey / d, inv = 1 / a.m + 1 / b.m;
+        if (d < min) { const ov = (min - d) / inv; a.x -= nx * ov / a.m; a.y -= ny * ov / a.m; b.x += nx * ov / b.m; b.y += ny * ov / b.m; }
         const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
         if (vn < 0) {
           const jmp = -(1 + BALL_E) * vn / inv;
@@ -318,6 +327,7 @@ class Table {
           this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
           if (-vn > 120) { if (a.type === 'bomb') bombs.add(a); if (b.type === 'bomb') bombs.add(b); }
         }
+        a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
       }
     }
     for (const bomb of bombs) this.explode(bomb);
@@ -442,6 +452,85 @@ function shopOffers(run, i, rerolls) {
   return shuffle(rngFor(`${run.seed}:shop:${i}:${rerolls}`), available).slice(0, 3);
 }
 
+const newShot = () => ({ pots: [], banks: 0, bumperHits: 0, booms: 0, multBalls: 0, scratch: false, coins: 0, perfects: 0, completed: false });
+
+// Where to send an object ball so it drops: just inside the pocket mouth.
+function pocketAim(i) {
+  const p = POCKETS[i];
+  return { x: p.x <= 0 ? R + 1 : p.x >= W ? W - R - 1 : p.x, y: p.y <= 0 ? R + 1 : p.y >= H ? H - R - 1 : p.y };
+}
+// Launch speed needed to travel d and still be moving at vf, under dv/dt = -(a + k v).
+function launchSpeed(d, vf, a, k) {
+  const dist = v0 => ((v0 - vf) - (a / k) * Math.log((a + k * v0) / (a + k * vf))) / k;
+  let lo = vf, hi = 40000;
+  for (let n = 0; n < 50; n++) { const mid = (lo + hi) / 2; if (dist(mid) < d) lo = mid; else hi = mid; }
+  return hi;
+}
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, u = clamp(((px - ax) * dx + (py - ay) * dy) / l2, 0, 1);
+  return Math.hypot(ax + dx * u - px, ay + dy * u - py);
+}
+function pathBlocked(t, ax, ay, bx, by, skip) {
+  return t.balls.some(b => !b.potted && b !== skip && segDist(b.x, b.y, ax, ay, bx, by) < 2 * R - 0.5) ||
+    t.layout.bumpers.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R);
+}
+// The shot the game plays for a called ball: best pocket, exact aim and power,
+// plus hw = half-width of the timing zone (bigger = easier).
+function shotFor(t, ball) {
+  const c = t.cue, transfer = (1 + BALL_E) * c.m / (c.m + ball.m);
+  let best = null;
+  POCKETS.forEach((pk, i) => {
+    if (!t.openPocket(i)) return;
+    const P = pocketAim(i), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
+    if (d2 < 1) return;
+    const ux = (P.x - ball.x) / d2, uy = (P.y - ball.y) / d2;
+    const gx = ball.x - ux * 2 * R, gy = ball.y - uy * 2 * R;
+    if (gx < R || gx > W - R || gy < R || gy > H - R) return;
+    const d1 = Math.hypot(gx - c.x, gy - c.y);
+    if (d1 < 1) return;
+    const dx = (gx - c.x) / d1, dy = (gy - c.y) / d1, cos = dx * ux + dy * uy;
+    if (cos < 0.17) return;
+    const blocked = pathBlocked(t, c.x, c.y, gx, gy, ball) || pathBlocked(t, ball.x, ball.y, P.x, P.y, ball);
+    const vObj = launchSpeed(d2, ARRIVE_SPEED, t.p.decel, t.p.damp);
+    const power = launchSpeed(d1, vObj / (cos * transfer), t.p.decel, t.p.damp) / t.p.maxSpeed;
+    let hw = 0.11 * cos ** 1.2 * (1 - Math.min(0.5, (d1 + d2) / 2600));
+    if (blocked) hw *= 0.4;
+    if (power > 1) hw *= 0.5;
+    if (t.has('sight')) hw *= 1.4;
+    hw = Math.max(0.02, hw);
+    if (!best || hw > best.hw) best = { dx, dy, power: Math.min(1, power), hw, pocket: P, ghost: { x: gx, y: gy }, blocked };
+  });
+  if (!best) {
+    const d = Math.hypot(ball.x - c.x, ball.y - c.y) || 1, dx = (ball.x - c.x) / d, dy = (ball.y - c.y) / d;
+    best = { dx, dy, power: 0.5, hw: 0.02, pocket: null, ghost: { x: ball.x - dx * 2 * R, y: ball.y - dy * 2 * R }, blocked: true };
+  }
+  return best;
+}
+function cloneTable(t) {
+  const c = Object.assign(Object.create(Table.prototype), t);
+  c.run = { ...t.run };
+  c.ev = () => {};
+  c.cue = { ...t.cue };
+  c.balls = t.balls.map(b => ({ ...b }));
+  c.shot = t.shot ? { ...t.shot, pots: [...t.shot.pots] } : newShot();
+  return c;
+}
+// Play a called sequence (ball indices) on a copy of the table, assuming perfect timing.
+function previewPlan(t, plan) {
+  const sim = cloneTable(t), items = [];
+  for (const idx of plan) {
+    const ball = sim.balls[idx];
+    if (ball.potted) { items.push({ idx, skipped: true, potted: true }); continue; }
+    const from = { x: sim.cue.x, y: sim.cue.y }, at = { x: ball.x, y: ball.y }, shot = shotFor(sim, ball);
+    sim.shoot(shot.dx, shot.dy, shot.power);
+    for (let n = 0; n < 40000 && sim.moving(); n++) sim.step();
+    const potted = ball.potted && !sim.cue.potted;
+    items.push({ idx, from, ball: at, shot, potted, cueEnd: sim.cue.potted ? null : { x: sim.cue.x, y: sim.cue.y } });
+    if (!potted) return { items, sim: null };
+  }
+  return { items, sim };
+}
+
 /* ---------- browser ---------- */
 
 const $ = id => document.getElementById(id);
@@ -455,7 +544,6 @@ function ls(k, v) {
 }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 const lerp = (a, b, k) => a + (b - a) * k;
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 let run, table, phase, acc = 0, shop = null, strike = null, helpReturn = null;
 const fx = { particles: [], floats: [], sinks: [], rings: [], petals: [], shake: 0, zoom: 0, banner: null };
@@ -586,7 +674,7 @@ function onEvent(type, e) {
 
 function celebrate() {
   sfx.win();
-  float(W / 2, H * 0.3, 'Table cleared!', '#ffd27a', 40, 2.2);
+  float(W / 2, H * 0.2, 'Table cleared!', '#ffd27a', 40, 2.2);
   const cols = ['#ffd1dc', '#ffe8a3', '#c8f0d8', '#cfe3ff', '#ffffff'];
   for (let i = 0; i < 80; i++) {
     fx.petals.push({ x: Math.random() * W, y: -20 - Math.random() * H * 0.5, vy: 90 + Math.random() * 90, vx: (Math.random() - 0.5) * 30,
@@ -607,16 +695,15 @@ function newRun(seed, ranked) {
 
 function startTable(i) {
   table = new Table(run, i, onEvent);
-  phase = 'aim'; acc = 0; strike = null; meter = null; showMeter();
+  phase = 'plan'; acc = 0; strike = null; exec = null; plan = []; runPlan = [];
   shownScore = 0; shownText = '';
   fx.sinks = []; fx.petals = [];
-  autoAim();
   $('overlay').classList.remove('show');
   const tier = TIERS[i % 3];
   fx.banner = table.boss
     ? { title: `Boss: ${table.boss.name}`, sub: `${table.boss.desc} Target ${table.target}`, life: 3, boss: true }
-    : { title: `Table ${i + 1}: ${tier}`, sub: `Score ${table.target} in ${table.shotsLeft} shots`, life: 2.4 };
-  updateHud();
+    : { title: `Table ${i + 1}: ${tier}`, sub: `Score ${table.target} in ${table.shotsLeft} turns`, life: 2.4 };
+  updateHud(); refreshPreview();
 }
 
 let shownScore = 0, shownText = '', lastCoins = null;
@@ -659,7 +746,7 @@ function updateLive() {
   if (html !== liveText) { liveText = html; $('live').innerHTML = html; }
 }
 
-function finishShot() {
+function finishShot(completed) {
   const s = table.shot, pots = s.pots.length, banks = s.banks;
   const out = table.endShot();
   const cy = H * 0.42;
@@ -670,17 +757,20 @@ function finishShot() {
     const combo = pots >= 5 ? `${pots}-ball combo!` : ['', '', 'Double!', 'Triple!', 'Quadruple!'][pots];
     const extra = [combo, banks ? (banks > 1 ? `${banks} banks!` : 'Bank shot!') : ''].filter(Boolean).join('  ');
     if (extra) float(W / 2, cy - 50, extra, '#ff8ad8', 26, 1.9);
+    if (completed) float(W / 2, cy - 92, 'Called it! ×2', '#ffd27a', 30, 2.1);
     if (out.scratch === 'insured') float(W / 2, cy + 46, 'Insurance used', '#b9c0d4', 20, 1.8);
     sfx.chime(Math.min(9, 1 + out.mult + pots));
     if (big) fx.zoom = 0.025;
-  }
+  } else float(W / 2, cy, 'No pot', '#b9c0d4', 28, 1.4);
   updateHud();
   if (out.result === 'won') { phase = 'between'; celebrate(); setTimeout(winTable, 1700); }
   else if (out.result === 'lost') { phase = 'between'; setTimeout(loseRun, 1400); }
   else {
-    phase = 'aim'; autoAim();
-    if (out.result === 'rerack') fx.banner = { title: 'Re-rack!', sub: `${table.shotsLeft} shots to score ${table.target - table.score} more`, life: 2 };
+    phase = 'plan'; plan = [];
+    if (out.result === 'rerack') fx.banner = { title: 'Re-rack!', sub: `${table.shotsLeft} turns to score ${table.target - table.score} more`, life: 2 };
+    refreshPreview();
   }
+  showMeter();
 }
 
 function winTable() {
@@ -700,7 +790,7 @@ function renderShop() {
   const rw = shop.rewards;
   $('card').innerHTML = `
     <h2>Table ${table.i + 1} cleared</h2>
-    <div class="rewards">Cleared +<b>${rw.base}</b> · unused shots +<b>${rw.shots}</b>${rw.interest ? ` · piggy bank +<b>${rw.interest}</b>` : ''} · you have <b>${run.coins}</b> 🪙</div>
+    <div class="rewards">Cleared +<b>${rw.base}</b> · unused turns +<b>${rw.shots}</b>${rw.interest ? ` · piggy bank +<b>${rw.interest}</b>` : ''} · you have <b>${run.coins}</b> 🪙</div>
     <div class="offers">${offers.map(r => {
       const sold = shop.sold.has(r.id);
       return `<div class="offer ${sold ? 'sold' : ''}"><div class="icon">${r.icon}</div><div class="name">${r.name}</div><div class="desc">${r.desc}</div>
@@ -721,10 +811,9 @@ function showHelp() {
   $('card').innerHTML = `
     <h2>How to play</h2>
     <div class="howto">
-      <p>🎱 <b>Touch or drag on the table</b> to aim; the line follows your finger. Use ◀ ▶ for tiny adjustments.</p>
-      <p>⏱️ <b>Swing meter</b> under the table: <b>tap</b> to start the swing, <b>tap</b> again to lock the power, then <b>tap</b> as the needle comes back across the gold line. Hit it dead on for a <b style="color:var(--accent)">Perfect</b> shot; miss it and the ball drifts left or right. Keyboard: arrows to aim, Space for the taps.</p>
-      <p>🎯 Reach each table's <b>target score</b> before your shots run out.</p>
-      <p>✨ Every shot scores <span class="c">chips</span> × <span class="m">mult</span>. Chips come from ball numbers. Mult grows with each extra ball in one shot, bank shots and bombs.</p>
+      <p>🎱 <b>Plan your run.</b> Tap balls in the order you want to pot them (up to 3). Dotted lines show the shot that will be played and where the cue ball should stop. Coloured rings show how easy each next ball is from there: green easy, amber tricky, red hard.</p>
+      <p>⏱️ <b>Nail the timing.</b> Press play, then tap anywhere while the needle is inside the zone. Hit it and the shot goes in; the gold centre is a <b style="color:var(--accent)">Perfect</b> (+1 mult). Harder shots have smaller zones and each shot in a run is faster. A miss ends the run.</p>
+      <p>✨ A run scores <span class="c">chips</span> × <span class="m">mult</span>. Every extra ball, bank shot and Perfect adds mult, and potting every ball you called <b>doubles it</b>.</p>
       <p><b style="color:#ffd700">Gold</b> rings give coins · <b style="color:var(--mult)">pink</b> doubles the mult · <b style="color:#ff6b5b">red</b> explodes. Potting the cue ball scores nothing.</p>
       <p>🛍️ Spend coins on relics between tables. Every third table is a boss.</p>
       <p>📅 Everyone plays the same tables each day, with one ranked run per day.</p>
@@ -804,23 +893,11 @@ function todayKey() {
 
 /* ----- input ----- */
 
-// Aim by pointing at the table, then a three-tap swing meter:
-// tap to start, tap to lock power, tap as the needle crosses the sweet spot.
-const SWEET = 0.1, POWER_TIME = 1.25, RETURN_TIME = 1.0, PERFECT = 0.02, GOOD = 0.05, MAX_ERR = 0.07;
-let aimAngle = -Math.PI / 2, aiming = false, meter = null, nudgeTimer = null, lastTick = 0;
-const aimShot = (power, err = 0) => ({ dx: Math.cos(aimAngle + err), dy: Math.sin(aimAngle + err), power });
-const posPower = pos => clamp((pos - SWEET) / (1 - SWEET), 0, 1);
-const curPower = () => !meter ? 0 : meter.stage === 'power' ? posPower(meter.pos) : meter.power;
-function autoAim() {
-  const c = table.cue;
-  let best = null;
-  for (const b of table.balls) {
-    if (b.potted) continue;
-    const d = Math.hypot(b.x - c.x, b.y - c.y);
-    if (!best || d < best.d) best = { d, b };
-  }
-  if (best) aimAngle = Math.atan2(best.b.y - c.y, best.b.x - c.x);
-}
+// Plan a run by tapping balls in the order you'll pot them. The game plays each
+// shot for you; your tap on the timing meter decides whether it goes in.
+let plan = [], runPlan = [], preview = null, rings = [], exec = null;
+const planMax = () => PLAN_MAX + (table.has('power') ? 1 : 0);
+const diffColor = hw => hw >= 0.07 ? '127,224,168' : hw >= 0.04 ? '255,210,122' : '255,138,122';
 function toTable(e) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -828,90 +905,125 @@ function toTable(e) {
     y: (e.clientY - rect.top) / rect.height * (H + 2 * RAIL) - RAIL,
   };
 }
-const stage = $('stage');
-function setAimFrom(e) {
-  const p = toTable(e), c = table.cue, dx = p.x - c.x, dy = p.y - c.y;
-  if (Math.hypot(dx, dy) > R * 0.6) aimAngle = Math.atan2(dy, dx);
-}
-stage.addEventListener('pointerdown', e => {
-  ensureAudio();
-  if (phase !== 'aim' || meter) return;
-  aiming = true; setAimFrom(e);
-  stage.setPointerCapture(e.pointerId);
-});
-stage.addEventListener('pointermove', e => { if (aiming && phase === 'aim' && !meter) setAimFrom(e); });
-stage.addEventListener('pointerup', () => { aiming = false; });
-stage.addEventListener('pointercancel', () => { aiming = false; });
-
-function powerTick(power) {
-  const step = Math.floor(power * 10);
-  if (step !== lastTick) { lastTick = step; tone(300 + step * 40, 0.03, 0.025, 'sine', 1, 0, 0); }
-}
-function meterTap() {
-  ensureAudio();
-  if (phase !== 'aim') return;
-  if (!meter) {
-    meter = { stage: 'power', pos: SWEET, power: 0 }; lastTick = 0;
-    tone(520, 0.06, 0.06, 'sine', 1, 0, 0.2);
-  } else if (meter.stage === 'power') {
-    meter.power = Math.max(0.05, posPower(meter.pos)); meter.stage = 'accuracy';
-    tone(700, 0.06, 0.07, 'sine', 1, 0, 0.2);
-  } else lockAccuracy();
-}
-function lockAccuracy() {
-  const off = meter.pos - SWEET, a = Math.abs(off), power = meter.power;
-  const err = a <= PERFECT ? 0 : Math.sign(off) * Math.min(MAX_ERR, (a - PERFECT) * 0.55);
-  meter = null; showMeter();
-  const c = table.cue, fy = c.y - 46 < 40 ? c.y + 46 : c.y - 46;
-  if (a <= PERFECT) { float(c.x, fy, 'Perfect!', '#ffd27a', 26); sfx.chime(3); sparkle(c.x, c.y, '#ffd27a', 10, 90); }
-  else if (a <= GOOD) float(c.x, fy, 'Good', '#ffffff', 22);
-  else float(c.x, fy, off > 0 ? 'Pushed right' : 'Pulled left', '#ff8a7a', 22);
-  strike = { shot: aimShot(power, err), t: 0 };
-  phase = 'strike';
-}
-function tickMeter(dt) {
-  if (!meter) return;
-  if (meter.stage === 'power') {
-    meter.pos += dt * (1 - SWEET) / POWER_TIME;
-    powerTick(posPower(meter.pos));
-    if (meter.pos >= 1) { meter.pos = 1; meter.power = 1; meter.stage = 'accuracy'; }
-  } else {
-    meter.pos -= dt / RETURN_TIME;
-    if (meter.pos <= 0) { meter.pos = 0; lockAccuracy(); return; }
+function refreshPreview() {
+  preview = null; rings = [];
+  if (table && phase === 'plan') {
+    preview = previewPlan(table, plan);
+    const base = plan.length ? preview.sim : table;
+    if (base && plan.length < planMax()) base.balls.forEach((b, i) => { if (!b.potted && !plan.includes(i)) rings.push({ i, hw: shotFor(base, b).hw }); });
   }
   showMeter();
 }
-function showMeter() {
-  const box = $('meter'), pct = v => (v * 100).toFixed(2) + '%';
-  box.classList.toggle('active', !!meter);
-  $('mTxt').style.opacity = meter ? 0 : 1;
-  if (!meter) { $('mFill').style.width = '0%'; $('mLock').style.opacity = 0; $('mNeedle').style.left = pct(SWEET); return; }
-  const lockPos = SWEET + meter.power * (1 - SWEET);
-  const fillTo = meter.stage === 'power' ? meter.pos : lockPos;
-  $('mFill').style.left = pct(SWEET); $('mFill').style.width = pct(fillTo - SWEET);
-  $('mLock').style.opacity = meter.stage === 'accuracy' ? 1 : 0; $('mLock').style.left = pct(lockPos);
-  $('mNeedle').style.left = pct(meter.pos);
-  box.classList.toggle('hot', curPower() > 0.85);
+function togglePick(p) {
+  let pick = -1, bestD = R * 2.4;
+  table.balls.forEach((b, i) => { if (b.potted) return; const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bestD) { bestD = d; pick = i; } });
+  if (pick < 0) return;
+  const at = plan.indexOf(pick);
+  if (at >= 0) { plan.splice(at, 1); tone(440, 0.07, 0.05, 'sine', 0.8, 0, 0.2); }
+  else if (plan.length < planMax()) { plan.push(pick); tone(560 + plan.length * 140, 0.09, 0.06, 'sine', 1, 0, 0.3); buzz(6); }
+  else { tone(200, 0.08, 0.05, 'triangle', 1, 0, 0); return; }
+  refreshPreview();
 }
-const meterBox = $('meter');
-meterBox.addEventListener('pointerdown', e => { e.preventDefault(); meterTap(); });
-
-function nudge(dir, fast) { if (phase === 'aim' && !meter) aimAngle += dir * (fast ? 0.012 : 0.0035); }
-for (const [id, dir] of [['nudgeL', -1], ['nudgeR', 1]]) {
-  const btn = $(id);
-  btn.addEventListener('pointerdown', e => {
-    ensureAudio(); nudge(dir); tone(900, 0.02, 0.02, 'sine', 1, 0, 0);
-    let n = 0; clearInterval(nudgeTimer);
-    nudgeTimer = setInterval(() => { n++; if (n > 6) nudge(dir, n > 26); }, 45);
-    btn.setPointerCapture(e.pointerId);
+function clearPlan() {
+  if (phase !== 'plan' || !plan.length) return;
+  plan = []; tone(330, 0.08, 0.05, 'sine', 0.8, 0, 0.2); refreshPreview();
+}
+function startRun() {
+  if (phase !== 'plan' || !plan.length) return;
+  runPlan = [...plan]; plan = []; preview = null; rings = [];
+  table.beginRun();
+  exec = { step: 0 };
+  tone(660, 0.1, 0.07, 'sine', 1, 0, 0.3);
+  nextStep();
+}
+function nextStep() {
+  while (exec.step < runPlan.length && table.balls[runPlan[exec.step]].potted) exec.step++;
+  if (exec.step >= runPlan.length) { endRun(true); return; }
+  const ball = table.balls[runPlan[exec.step]];
+  Object.assign(exec, {
+    ball, shot: shotFor(table, ball), flash: null, pos: 0, dir: 1,
+    zone: 0.3 + Math.random() * 0.45,
+    period: 1.3 * 0.85 ** exec.step * (table.boss?.id === 'blind' ? 0.65 : 1),
   });
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(ev, () => clearInterval(nudgeTimer));
+  phase = 'time'; showMeter();
+}
+function timingTap() {
+  if (phase !== 'time') return;
+  const off = exec.pos - exec.zone, a = Math.abs(off), hw = exec.shot.hw, c = table.cue;
+  const fy = c.y - 52 < 40 ? c.y + 52 : c.y - 52;
+  let err = 0;
+  if (a <= hw * PERFECT_FRAC) {
+    table.shot.perfects++; exec.flash = 'hit';
+    float(c.x, fy, 'Perfect! +1 mult', '#ffd27a', 24); sfx.chime(3); sparkle(c.x, c.y, '#ffd27a', 12, 100); buzz(15);
+  } else if (a <= hw) {
+    exec.flash = 'hit'; float(c.x, fy, 'Nice', '#ffffff', 22); tone(880, 0.12, 0.06, 'sine', 1, 0, 0.4);
+  } else {
+    exec.flash = 'miss'; err = Math.sign(off) * (0.03 + (a - hw) * 0.25);
+    float(c.x, fy, off > 0 ? 'Too late' : 'Too early', '#ff8a7a', 22); tone(220, 0.15, 0.06, 'triangle', 0.8, 0, 0.2);
+  }
+  const s = exec.shot, ang = Math.atan2(s.dy, s.dx) + err;
+  strike = { shot: { dx: Math.cos(ang), dy: Math.sin(ang), power: s.power }, t: 0 };
+  phase = 'strike'; updateLive(); showMeter();
+}
+function afterStrike() {
+  if (table.shot.scratch || !exec.ball.potted) { endRun(false); return; }
+  exec.step++;
+  phase = 'between';
+  setTimeout(() => { if (phase === 'between' && exec) nextStep(); }, 420);
+}
+function endRun(allCalled) {
+  const completed = allCalled && runPlan.length >= 2;
+  if (completed) table.shot.completed = true;
+  exec = null; runPlan = [];
+  finishShot(completed);
+}
+function tickTiming(dt) {
+  if (phase !== 'time') return;
+  exec.pos += exec.dir * dt / exec.period;
+  if (exec.pos >= 1) { exec.pos = 1; exec.dir = -1; }
+  if (exec.pos <= 0) { exec.pos = 0; exec.dir = 1; }
+  showMeter();
+}
+function showMeter() {
+  const box = $('meter'), z = $('mZone'), pf = $('mPerfect'), nd = $('mNeedle'), txt = $('mTxt');
+  const pct = v => (v * 100).toFixed(2) + '%';
+  const timing = !!(exec && exec.shot && (phase === 'time' || phase === 'strike' || phase === 'moving'));
+  box.classList.toggle('active', phase === 'time');
+  box.classList.toggle('ready', phase === 'plan' && plan.length > 0);
+  box.classList.toggle('hit', timing && phase !== 'time' && exec.flash === 'hit');
+  box.classList.toggle('miss', timing && phase !== 'time' && exec.flash === 'miss');
+  z.style.opacity = pf.style.opacity = nd.style.opacity = timing ? 1 : 0;
+  txt.style.opacity = timing ? 0 : 1;
+  if (!timing) {
+    txt.textContent = phase !== 'plan' ? '' : plan.length ? `Play run of ${plan.length} ▶` : `Tap balls to plan your run (up to ${planMax()})`;
+    return;
+  }
+  const hw = exec.shot.hw, col = diffColor(hw);
+  z.style.left = pct(exec.zone - hw); z.style.width = pct(2 * hw);
+  z.style.background = `rgba(${col},.28)`; z.style.borderColor = `rgba(${col},.9)`;
+  pf.style.left = pct(exec.zone - hw * PERFECT_FRAC); pf.style.width = pct(2 * hw * PERFECT_FRAC);
+  nd.style.left = pct(exec.pos);
 }
 
+const stage = $('stage');
+stage.addEventListener('pointerdown', e => {
+  ensureAudio();
+  if (phase === 'time') timingTap();
+  else if (phase === 'plan') togglePick(toTable(e));
+});
+$('meter').addEventListener('pointerdown', e => {
+  e.preventDefault(); ensureAudio();
+  if (phase === 'plan') startRun(); else if (phase === 'time') timingTap();
+});
+$('clearPlan').addEventListener('click', () => { ensureAudio(); clearPlan(); });
 addEventListener('keydown', e => {
   if ($('overlay').classList.contains('show')) return;
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { nudge(e.key === 'ArrowLeft' ? -1 : 1, e.shiftKey); e.preventDefault(); }
-  else if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) meterTap(); }
+  if (e.code === 'Space' || e.key === 'Enter') {
+    e.preventDefault();
+    if (e.repeat) return;
+    ensureAudio();
+    if (phase === 'plan') startRun(); else if (phase === 'time') timingTap();
+  } else if (e.key === 'Escape' || e.key === 'Backspace') clearPlan();
 });
 
 function setBtn() {
@@ -1224,35 +1336,60 @@ function drawCue(shot, sk) {
   ctx.restore();
 }
 
-function drawAim(shot) {
-  const cue = table.cue;
-  const guide = table.boss?.id === 'blind' ? 0 : table.has('sight') ? Infinity : 320;
-  if (guide > 0) {
-    const hit = table.trace(cue.x, cue.y, shot.dx, shot.dy);
-    const len = Math.min(hit.t, guide);
-    const gx = cue.x + shot.dx * len, gy = cue.y + shot.dy * len;
-    ctx.setLineDash([2, 9]); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(cue.x, cue.y); ctx.lineTo(gx, gy); ctx.stroke(); ctx.setLineDash([]);
-    if (hit.t <= guide) {
-      ctx.beginPath(); ctx.arc(gx, gy, R, 0, TAU); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.5; ctx.stroke();
-      if (hit.ball) {
-        const nx = hit.ball.x - gx, ny = hit.ball.y - gy, nl = Math.hypot(nx, ny), l = table.has('sight') ? 160 : 70;
-        ctx.strokeStyle = hit.ball.n === 8 ? '#cfcfcf' : COLORS[hit.ball.n]; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(hit.ball.x, hit.ball.y); ctx.lineTo(hit.ball.x + nx / nl * l, hit.ball.y + ny / nl * l); ctx.stroke();
-      } else if (hit.wall && table.has('sight')) {
-        const rdx = hit.wall === 'x' ? -shot.dx : shot.dx, rdy = hit.wall === 'y' ? -shot.dy : shot.dy;
-        const h2 = table.trace(gx, gy, rdx, rdy), l2 = Math.min(h2.t, 400);
-        ctx.setLineDash([2, 9]); ctx.strokeStyle = 'rgba(255,255,255,.4)';
-        ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + rdx * l2, gy + rdy * l2); ctx.stroke(); ctx.setLineDash([]);
-      }
-    }
+function line(a, b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+function arrow(a, b, col) {
+  const ang = Math.atan2(b.y - a.y, b.x - a.x);
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(a.x + Math.cos(ang) * (R + 3), a.y + Math.sin(ang) * (R + 3)); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x - Math.cos(ang - 0.45) * 13, b.y - Math.sin(ang - 0.45) * 13);
+  ctx.lineTo(b.x - Math.cos(ang + 0.45) * 13, b.y - Math.sin(ang + 0.45) * 13); ctx.fill();
+}
+function label(x, y, text, color, size = 14) {
+  ctx.font = `900 ${size}px Nunito, system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(10,14,30,.75)'; ctx.strokeText(text, x, y);
+  ctx.fillStyle = color; ctx.fillText(text, x, y);
+}
+function drawShotPath(from, ball, s, alpha) {
+  ctx.setLineDash([2, 8]); ctx.lineCap = 'round'; ctx.lineWidth = 2.5; ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+  line(from, s.ghost); ctx.setLineDash([]);
+  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(s.ghost.x, s.ghost.y, R, 0, TAU); ctx.stroke();
+  if (s.pocket) arrow(ball, s.pocket, `rgba(${diffColor(s.hw)},${Math.min(1, alpha + 0.25)})`);
+}
+function drawPlan(t) {
+  for (const r of rings) {
+    const b = table.balls[r.i];
+    ctx.strokeStyle = `rgba(${diffColor(r.hw)},${0.5 + 0.25 * Math.sin(t * 3 + r.i)})`; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(b.x, b.y, R + 6, 0, TAU); ctx.stroke();
   }
-  if (!shot.power) return;
-  const pc = shot.power > 0.85 ? '#ff8a6a' : '#ffd27a';
-  ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.arc(cue.x, cue.y, R + 8, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = pc; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.arc(cue.x, cue.y, R + 8, -Math.PI / 2, -Math.PI / 2 + TAU * shot.power); ctx.stroke();
+  if (!preview) return;
+  preview.items.forEach((it, k) => {
+    if (it.skipped) return;
+    drawShotPath(it.from, it.ball, it.shot, k ? 0.45 : 0.8);
+    if (it.cueEnd) {
+      ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.setLineDash([3, 4]); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(it.cueEnd.x, it.cueEnd.y, R, 0, TAU); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (!it.potted) label(it.ball.x, it.ball.y + R + 16, it.cueEnd ? 'Likely miss' : 'Scratch!', '#ff8a7a', 13);
+  });
+}
+function drawExec(t) {
+  const b = exec.ball;
+  ctx.strokeStyle = `rgba(255,255,255,${0.45 + 0.35 * Math.sin(t * 7)})`; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(b.x, b.y, R + 7, 0, TAU); ctx.stroke();
+  if (phase === 'time') drawShotPath(table.cue, b, exec.shot, 0.8);
+}
+function drawBadges(list, from, pv) {
+  list.forEach((idx, k) => {
+    if (k < from) return;
+    const b = table.balls[idx];
+    if (b.potted) return;
+    const miss = pv && pv.items[k] && !pv.items[k].potted, x = b.x + R * 0.95, y = b.y - R * 0.95;
+    ctx.fillStyle = miss ? '#ff8a7a' : '#ffd27a'; ctx.strokeStyle = 'rgba(20,14,4,.75)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 9.5, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#2a1d05'; ctx.font = '900 12px Nunito, system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k + 1, x, y + 0.5);
+  });
 }
 
 function draw(t, dt) {
@@ -1287,12 +1424,18 @@ function draw(t, dt) {
   }
   fx.sinks = fx.sinks.filter(sk => sk.t < 1);
 
-  const shot = phase === 'aim' ? aimShot(curPower()) : phase === 'strike' ? strike.shot : null;
-  if (shot && phase === 'aim') drawAim(shot);
+  const executing = exec && exec.shot && (phase === 'time' || phase === 'strike');
+  if (phase === 'plan') drawPlan(t);
+  if (executing) drawExec(t);
 
   for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y, t);
   if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y, t);
-  if (shot) drawCue(shot, phase === 'strike' ? Math.min(1, strike.t / STRIKE_T) : 0);
+  if (phase === 'plan') drawBadges(plan, 0, preview);
+  else if (exec) drawBadges(runPlan, exec.step, null);
+  if (executing) {
+    const s = phase === 'strike' ? strike.shot : { ...exec.shot, power: exec.shot.power * (0.2 + 0.8 * exec.pos) };
+    drawCue(s, phase === 'strike' ? Math.min(1, strike.t / STRIKE_T) : 0);
+  }
 
   for (const g of fx.rings) {
     g.life -= dt;
@@ -1354,8 +1497,8 @@ function draw(t, dt) {
 function frame(now) {
   const t = now / 1000, dt = Math.min(0.05, t - (frame.last ?? t));
   frame.last = t;
-  tickMeter(dt);
-  const busy = phase !== 'aim';
+  tickTiming(dt);
+  const busy = phase !== 'plan' && phase !== 'time';
   if (busy !== frame.busy) { frame.busy = busy; $('controls').classList.toggle('busy', busy); }
   if (phase === 'strike') {
     strike.t += dt;
@@ -1370,7 +1513,7 @@ function frame(now) {
     acc += dt;
     while (acc >= DT) { table.step(); acc -= DT; }
     updateLive();
-    if (!table.moving()) { strike = null; finishShot(); }
+    if (!table.moving()) { strike = null; afterStrike(); }
   }
   tickScore(dt);
   draw(t, dt);

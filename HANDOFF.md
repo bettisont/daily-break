@@ -24,15 +24,23 @@ Second pass (feel and presentation):
   chimes that grow with the mult, and an optional ambient pad + bell music
   loop (music button, on by default once you interact).
 - First visit shows a How to play card (also on the ? button).
-- Aiming (fourth pass): point/drag on the table to aim, ◀ ▶ to fine-tune,
-  then a three-tap swing meter under the table, in the style of golf games:
-  tap to start, tap to lock power, tap as the needle crosses the gold
-  sweet-spot line. Within ±2% of the line is Perfect (no error); beyond that
-  the shot is pushed/pulled by up to 0.07 rad. If you never tap, it fires at
-  the end with full error. Tuning: SWEET, POWER_TIME, RETURN_TIME, PERFECT,
-  GOOD, MAX_ERR. Keyboard: arrows aim, Space/Enter for the taps. The aim
-  error is applied in the browser; a server re-run would need the final
-  angle, which is already what shoot() receives.
+- Core loop (fifth pass): plan, then timing. You no longer aim. Each turn
+  you tap up to 3 balls (4 with the Long Plan relic) in the order you want
+  to pot them. shotFor() picks the best pocket, exact aim and power for each.
+  previewPlan() replays the plan on a cloned table with perfect timing and
+  draws each shot path plus where the cue ball stops; coloured rings show
+  how easy each remaining ball is from there (hw = timing half-width).
+  Then each shot gets a timing meter: a needle ping-pongs across the bar,
+  and tapping inside the zone plays the exact shot (inner 35% = Perfect, +1
+  mult). Outside the zone the aim is pushed/pulled and it misses. Each shot
+  in a run is 15% faster. A miss or scratch ends the turn and you keep what
+  you scored; potting every called ball (plans of 2+) doubles the mult.
+  4 turns per table. Ball-ball collisions now rewind to the exact contact
+  time, so perfect-timing shots pot about 96% of the time (measured).
+- Relics changed with the loop: Long Sight -> Steady Hand (zones 40% wider),
+  Power Break -> Long Plan (+1 ball per plan). Ids kept as 'sight'/'power'
+  so old saved results still render. Boss Blindfold -> Jitters (needle
+  much faster).
 
 The pure game logic is unchanged apart from table geometry, so the balance
 numbers below are from the old landscape table and need re-running.
@@ -101,15 +109,17 @@ numbers below are from the old landscape table and need re-running.
 
 ## Balance notes
 
-The bot only takes straight single pots and buys the cheapest relics. Pass
-rates over 300 runs with the current targets:
+Targets: 500, 900, 1200, 1700, 2200, 2700, 3400, 4200, 5200. Tuned with a
+headless bot (greedy planner, Gaussian timing error, buys the cheapest
+relics), 80 runs each:
 
-- Precise aim: table 1 87%, table 3 about 35% of all runs, table 6 2%,
-  nobody clears all 9.
-- Sloppy aim: table 1 64%, table 3 12%.
+- Sharp timing (sd 0.035 of a sweep): cleared table 3 96%, table 6 71%,
+  all 9 21%.
+- Casual timing (sd 0.055): table 3 69%, table 6 35%, all 9 4%.
 
-A human planning combos and banks should do better, so judge the difficulty
-by playing.
+Per-table scores over 4 turns with no relics: casual median about 2,200,
+sharp about 3,400. Re-run the bot after changing shotFor, the timing zone
+sizes or the scoring.
 
 ## Next ideas
 
