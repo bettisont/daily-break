@@ -1,97 +1,76 @@
 # Daily Break - handoff
 
-A daily pool game for the browser, built on the daily-golf model: the same
-seeded nine-hole course for everyone each day, one ranked round, a shareable
-emoji scorecard. Single file: `index.html` (no build, open it in a browser).
+A daily pool game for the browser on the daily-golf model: the same seeded
+nine-hole course for everyone each day, one ranked round, golf scoring and a
+shareable emoji scorecard. Single file: `index.html` (no build, open it in a
+browser).
 
-## The game (as of 2026-11-09)
+## The game (as of 2026-11-09): call your shot
 
-Each table is a "hole": sink the **target ball** (gold ring) into the
-**flagged pocket** in as few shots as possible, scored against par.
+Each hole is a small seeded rack (2, 2, 3, 3, 3, 4, 4, 5, 5 balls). Clear
+it in as few shots as possible, against par. Hazards per hole: table tilt,
+worn rough felt, slick felt, brass bumpers and an occasional closed pocket.
 
-A shot has three steps:
+A shot:
 
-1. **Line up.** Each shot starts lined up on the **best shot** (`bestMove`,
-   worked out a frame after the balls stop behind a "Lining up…" button,
-   about 0.13 s on average and at most 0.3 s). It plays like a person: the cue ball hits the target first, pots are cut
-   no thinner than about 65°, and fuller contact and softer weight are
-   preferred. It tries a pot verified by simulation (so it allows for tilt
-   and felt), otherwise a shot off the target that leaves the cleanest pot,
-   otherwise the natural shot that works the target closest to the flag;
-   cushion kicks only when the target is completely hidden. The same routine sets par. A cone runs from the cue ball to a **bullseye** at the
-   point the cue ball must strike, with the perfect sliver in gold. Players
-   can drag to play their own line (it snaps to pot and bank lines; ‹ ›
-   nudge), in which case the pin comes from `pinFor` instead.
-2. **Lock the line (timing).** A line swings inside the cone like a
-   pendulum (eased at the ends; drawn `CONE_VIS` = 3× wider than the real
-   error so it moves smoothly on screen; real error `swingAmp` ≈ 3° each way, `swingPeriod` ≈ 3 s on hole 1,
-   down to 2.2 s later; rough felt widens and speeds it). A needle mirrors it on
-   the gauge. Tap while it crosses the bullseye's gold centre (±`PERF_A` = 7.5%
-   of the sweep) for zero error; outside it the error grows to the full swing.
-3. **Power (timing).** Press **Swing**: a needle fills towards the **PIN**.
-   Stop in the gold band (±`PERF_P` = 3.5% of the bar, `FILL_T` 1.4 s).
-   Perfect line + perfect power on the best-shot line plays the best shot
-   exactly ("Best shot!"). Past the pin is the hatched OVER zone: a ball
-   arriving faster than `POT_MAX_SPEED` rattles out of the pocket.
+1. **Call it.** The game suggests a call (`bestCall`): ball, pocket and
+   shot type. Tap another ball to call it (its best pocket is picked) or tap
+   a pocket to send the called ball there; the flag moves to the called
+   pocket. Green dots mark other balls with a clean pot on.
+2. **Pick a shot type** from the chip row, like choosing a club:
+   Soft, Stun, Follow, Draw, Power (`SHOTS`: object-ball arrival speed and
+   cue-ball spin). For the called line every type is simulated
+   (`playCall`, which nudges the line a hair to allow for tilt and felt), so
+   each chip shows whether it pots ("risky" if not) and the table shows the
+   cue ball's dotted path and finishing spot. ★ marks the best leave
+   (`nextQ`: the best clean pot available afterwards).
+3. **Lock the line.** A line swings like a pendulum inside a cone from the
+   cue ball to a bullseye at the contact point (drawn `CONE_VIS` = 3× wider
+   than the real error, ±`swingAmp` ≈ 3°; `swingPeriod` 3 s on hole 1, down
+   to 2.2 s). Tap inside the gold band (±`PERF_A` = 7.5% of the sweep) for
+   zero error.
+4. **Power.** Swing, then Stop in the gold band at the pin (±`PERF_P` =
+   3.5% of the bar, `FILL_T` 1.4 s); the pin is the chosen type's power.
+   Perfect line + perfect power plays exactly the previewed shot.
 
-With perfect taps on every shot, a test round holed all 9, mostly one or two
-under par; par assumes some misses.
+Rules: fouls are +1 (no contact, not hitting the called ball first, or a
+scratch, which also puts the cue ball back where it was). Other balls that
+drop are a bonus. A hole is picked up at par + 4.
 
-Hazards, all seeded per hole and harder on later holes: blocker balls,
-brass bumpers, closed pockets, worn **rough** felt (slows the ball, doubles
-the aim sway), **slick** felt (low friction), and table **tilt** (constant
-acceleration, the equivalent of wind). The pin ignores tilt and felt, as wind
-does in golf.
+Physics notes: fixed 1/240 s step, exact-contact ball collisions, tilt,
+felt friction, pocket rattle above `POT_MAX_SPEED`, and spin applied at the
+cue ball's first contact (follow carries through, draw comes back). Resting
+balls are skipped, so simulation is cheap.
 
-Penalties: every shot must touch the target ball (missing it is +1);
-scratching the cue ball means +1 and replaying from where you
-were; sinking the target in the wrong pocket means +1 and it is respotted.
-Other balls can be knocked in freely. A hole is picked up at par + 3.
-
-Par comes from a perfect-execution bot (`solveHole`: direct pot if
-possible, else a positional shot, else a fan of shots), plus 1, plus 1 more
-for strong tilt or a crowded table with no direct pot. Hole 1 is solved at
-load and the rest in the background. Over 25 sample courses: holes 1-2 are
-mostly par 2-3, the middle par 3-4, the end par 4-5, and solving a course
-takes about 1 s in total.
-
-The ranked round is saved in localStorage per date; `?seed=xyz` or the
-Random course button gives practice rounds.
+Par: a bot clears the rack by always taking `bestCall` with perfect
+execution; par is its strokes + 1, clamped to rack size + 1 … + 3
+(`parFor`). Hole 1 is solved at load, the rest in the background (about
+0.08 s each). With perfect taps on every suggested call, a test round
+cleared every rack one under par.
 
 ## Look and feel
 
-Top-down retro room: plank floor, a patterned rug, a walnut table with
-sage felt, plants that sway, an armchair, a record player that spins while
-the music is on, a sleeping cat (breathing, the odd tail flick), window light
-with rain shadows, drifting cloud shadows, dust motes, a vignette and film
-grain. UI: DM Sans + DM Mono, scorecard strip, an info bar (hole/par, target
-ball and distance, shot number and lie, tilt), the power meter and one big
-action button.
-
-Shot feedback: rolling 3D balls, cue strike animation with chalk puff,
-numbered shot markers with dotted trails, balls sinking into pockets, a flag
-that pops, rattle-outs, stamped results (BIRDIE, PAR, ...) and confetti.
-Sound: layered clacks/cushions/pockets, a lock click and meter ticks, rain
-plus vinyl crackle, and a lazy electric-piano loop (music button).
+Top-down retro room: plank floor, a patterned rug, walnut table with sage
+felt, swaying plants, armchair, a spinning record player, a sleeping cat,
+window light with rain shadows, cloud shadows, dust motes, vignette and
+grain. UI in DM Sans + DM Mono: scorecard strip, info bar (hole/par, balls
+left, shot and lie, tilt), chip row, the gauge and one big action button.
+Sound: clacks, cushions, pockets, chimes for perfect taps, rain and vinyl
+ambience, and an electric-piano loop.
 
 ## Code layout
 
-- Top half of the script, no DOM: seeded RNG, `makeHole`, the `Table`
-  physics (fixed 1/240 s step with exact-contact ball collisions, tilt,
-  felt patches, pocket rattle), `trace`, `pinFor`, and the par solver.
-  Deterministic, so a server could re-run shots to validate scores.
-- Bottom half: audio, hole and round flow (`act`, `stopPower`,
-  `resolveShot`, `finishHole`), UI, input and the canvas renderer (room,
-  table, balls, effects).
-- Tuning: line timing (`swingAmp`, `swingPeriod`, `PERF_A`), power band (`PERF_P`), snapping (`SNAP_IN`, `SNAP_OUT`), power fill time `FILL_T`, `PIN_AT`,
-  `POT_MAX_SPEED`, hole generation odds in `makeHole`, and the par extras in
-  `parFor`.
+- Top half of the script, no DOM: seeded RNG, `makeHole`, `Table`
+  physics, `trace`, called-shot helpers (`potLine`, `allLines`, `safeLine`,
+  `shotPower`, `simulate`, `clean`, `playCall`, `nextQ`, `bestCall`) and the
+  par solver. Deterministic, so a server could re-run shots to validate.
+- Bottom half: audio, events, round/hole flow (`lineUp`, `suggestCall`,
+  `selectLine/Ball/Pocket/Type`, `lockLine`, `act`, `stopPower`,
+  `resolveShot`, `finishHole`), UI, input and the canvas renderer.
 
 ## Next ideas
 
-- Playtest the difficulty: sway size and speed, meter speed, how often holes
-  need a positional shot.
-- Spin (top/back/side) as an optional third input.
+- Playtest the feel: swing speed, gold band sizes, whether the suggestion
+  should be hidden on later holes or behind a "hint" button.
+- English (side spin) as a sixth chip; banks and combos as callable shots.
 - Leaderboard and friends with server-side shot replay.
-- A page per day for search traffic; monetisation as in the original plan
-  (cosmetic cues, felts and rooms; no ads during play).
