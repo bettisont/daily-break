@@ -7,7 +7,7 @@ browser).
 
 ## The game (as of 2026-11-09): call your shot
 
-Each hole is a small seeded rack (2, 2, 3, 3, 3, 4, 4, 5, 5 balls). Clear
+Each hole is a seeded rack (3, 3, 4, 4, 5, 5, 6, 6, 7 balls; about a third placed in clusters and some on the cushions; pockets are tight: corner capture 1.75 R, side 1.55 R). Clear
 it in as few shots as possible, against par. Hazards per hole: table tilt,
 worn rough felt, slick felt, brass bumpers and an occasional closed pocket.
 
@@ -16,18 +16,17 @@ A shot:
 Every rack is generated so the opening shot has at least one clean pot
 (`makeHole` re-rolls deterministically until it does).
 
-1. **Call it.** The easiest pot is called to start. Tap another ball to
-   call it (its easiest pocket is picked) or tap a pocket to send the called
-   ball there; the flag moves to the called pocket. Green dots mark other
-   balls with a clean pot on; coloured dots by the pockets show how hard
-   each pot is for the called ball.
+1. **Call it.** Nothing is called for you: tap the ball you want (its
+   easiest pocket is picked) and tap a pocket to send it there instead; the
+   flag moves to the called pocket. Coloured dots by the pockets show how
+   hard each pot is for the called ball.
 2. **Choose the hit.** A close-up bubble pinned to the bottom-right corner
    shows the cue ball's face. Tap where to strike it: the height sets the
    spin (`spinFor`: high = follow, centre = stun, low = draw; taps snap to
    the vertical line because side spin isn't modelled) and the game names
    it (`strikeName`: Follow, Roll, Stun, Draw, Deep draw). The call is then
    simulated (`setSpot` → `playCall`, nudging the line a hair for tilt and
-   felt), so the table shows the cue ball's dotted path and finishing spot,
+   felt), so the table shows the first ~170 px of the cue ball's path after contact (fading; no finishing spot),
    and "risky" if it may not drop. Pace is set by the power gauge: the pin is
    a normal pace (a bit more for draw). Nothing is pre-selected; the action
    button reads "Choose your hit" until you tap. Arrow keys nudge the hit.
@@ -42,9 +41,12 @@ Every rack is generated so the opening shot has at least one clean pot
 4. **Lock the tip.** The table shows only the planned line and ghost ball.
    In the bubble the cue tip drifts over the ball (`tipPos`, faster and
    wider on rough felt). The gold spot is the hit you chose. Tip on the spot
-   gives an exact line and the chosen spin. Off to the side squirts the
-   cue ball off line (up to about 2.5°, opposite side to the hit); too high
-   or low delivers the spin actually hit (high = follow, low = draw).
+   gives an exact line and the chosen spin. Missing by less than one spot
+   width costs 30% of the error; beyond that it costs in full. Off to the
+   side squirts the cue ball off line (9° per unit of ball radius, scaled up
+   for long shots, capped at 6°, opposite side to the hit); too high or low
+   blends towards the spin actually hit. Pockets reject balls faster than
+   `POT_MAX_SPEED` = 1050 (they rattle out).
 5. **Power.** Swing, then Stop in the gold band at the pin; the pin is the
    chosen type's power. Perfect tip + perfect power plays exactly the
    previewed shot.
@@ -59,10 +61,11 @@ cue ball's first contact (follow carries through, draw comes back). Resting
 balls are skipped, so simulation is cheap.
 
 Par: a bot clears the rack by always taking `bestCall` with perfect
-execution; par is its strokes + 1, clamped to rack size + 1 … + 3
-(`parFor`). Hole 1 is solved at load, the rest in the background (about
-0.08 s each). With perfect taps on every suggested call, a test round
-cleared every rack one under par.
+execution; par is its strokes, clamped to rack size … + 2 (`parFor`), so
+one shot per ball is par. Hole 1 is solved at load, the rest in the background (about
+0.08 s each). Playtest bots: perfect timing with naive planning lands around par;
+"decent" timing (often just off the spot, power within ~2 band widths)
+misses about 35% of shots and finishes about 2 over par per hole.
 
 ## Look and feel
 
