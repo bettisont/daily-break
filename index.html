@@ -129,6 +129,13 @@
   .howto{text-align:left;font-size:14px;color:#4c574a}
   .howto p{margin:9px 0}
   .howto b{color:var(--ink)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;margin:14px auto 0;max-width:340px;background:var(--panel)}
+  .stats div{padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .stats div + div{border-left:1px solid var(--line)}
+  .stats b{font-size:22px;font-weight:800;line-height:1}
+  .stats span{font:500 9.5px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .fbrow{margin-top:10px;font-size:13px}
+  .fbrow a{color:var(--muted)}
   .mini{display:grid;grid-template-columns:auto repeat(3,1fr) auto;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0;font-family:'DM Mono',monospace;font-size:12px}
   .mini div{padding:5px 0;border-left:1px solid var(--line);border-top:1px solid var(--line)}
   .mini div.h{padding:5px 6px;color:var(--muted);border-left:0}
@@ -174,7 +181,7 @@
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
 const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1050;
-const LIVES = 3, MAX_BALLS = 15, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 9);
+const LIVES = 3, MAX_BALLS = 15, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 11);   // launch day = Daily Break #1
 // 0 is the cue ball; 1-8 solids, 9-15 stripes (a level can hold up to 15 balls).
 const COLORS = ['#f4efe2', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b', '#24221f', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b'];
 const POCKETS = [
@@ -902,7 +909,13 @@ function resolveShot() {
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
   const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
   round.potted += shotLog.length;
-  if (foul || !shotLog.length) {
+  if ((foul || !shotLog.length) && round.level === 0) {
+    // level 1 is a warm-up: a miss or foul there is free, so nobody loses a life in their first ten seconds
+    if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
+    say(`${foul || 'Miss'} · free on level 1`, table.cue.y + 44, '#7a6a3a');
+    sfx.click(); buzz(10);
+    hs.streak = 0;
+  } else if (foul || !shotLog.length) {
     // a miss or a foul costs a life (balls that dropped on a foul stay down)
     round.lives--; levelMisses++;
     if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
@@ -1047,9 +1060,24 @@ function showFinal(already) {
       <button class="btn" data-random>Random table</button>
       ${!round.ranked ? '<button class="btn" data-daily>Today\'s run</button>' : ''}
     </div>
-    ${already ? '<div class="k mono" style="margin-top:12px">A new run opens at midnight</div>' : ''}`;
+    ${statsHtml()}
+    <div class="k mono" id="nextIn" style="margin-top:10px"></div>
+    <div class="fbrow"><a href="${feedbackHref()}">Send feedback</a></div>`;
+  tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
   $('overlay').classList.add('show');
   phase = 'over'; updateUI();
+}
+function showIntro() {
+  $('card').innerHTML = `
+    <div class="k mono">Daily Break · a pool ladder</div>
+    <h2>How far can you get?</h2>
+    <div class="howto">
+      <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
+      <p>❤️ You have 3 lives. A miss costs one (level 1 is a free warm-up).</p>
+      <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
+    </div>
+    <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
+  $('overlay').classList.add('show');
 }
 function showHelp() {
   $('card').innerHTML = `
@@ -1057,7 +1085,7 @@ function showHelp() {
     <h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
-      <p>❤️ You have <b>3 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
+      <p>❤️ You have <b>3 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. The <b>target</b> button steps through the others (or tap a ball on the table).</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dotted line shows where the object ball will go.</p>
@@ -1068,7 +1096,8 @@ function showHelp() {
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day; practise as much as you like.</p>
     </div>
-    <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
+    <div class="row"><button class="btn primary" data-close>Let's play</button></div>
+    <div class="fbrow"><a href="${feedbackHref()}">Send feedback</a></div>`;
   $('overlay').classList.add('show');
 }
 $('card').addEventListener('click', e => {
@@ -1081,9 +1110,41 @@ $('card').addEventListener('click', e => {
   else if ('random' in b.dataset) { $('overlay').classList.remove('show'); newRound(Math.random().toString(36).slice(2, 8), false); }
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
 });
-function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function keyOf(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function todayKey() { return keyOf(new Date()); }
+// Your ranked days, all kept on this device: how many, the day streak, best and average level.
+function ladderStats() {
+  const days = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i), d = k?.startsWith('dailybreak:ladder:') ? k.slice(18) : null;
+      if (d && isDailySeed(d)) try { days[d] = JSON.parse(localStorage.getItem(k)).level + 1; } catch {}
+    }
+  } catch {}
+  const levels = Object.values(days), played = levels.length;
+  let streak = 0; const d = new Date();
+  if (!days[keyOf(d)]) d.setDate(d.getDate() - 1);   // today not played yet: the streak runs to yesterday
+  while (days[keyOf(d)]) { streak++; d.setDate(d.getDate() - 1); }
+  return { played, streak, best: played ? Math.max(...levels) : 0, avg: played ? levels.reduce((a, b) => a + b, 0) / played : 0 };
+}
+function statsHtml() {
+  const st = ladderStats();
+  if (!st.played) return '';
+  const cell = (v, k) => `<div><b>${v}</b><span>${k}</span></div>`;
+  return `<div class="stats">${cell(st.played, 'Played')}${cell(st.streak, 'Day streak')}${cell(st.best, 'Best level')}${cell(st.avg.toFixed(1), 'Average')}</div>`;
+}
+// Countdown to the next daily ladder (local midnight).
+function tickNext() {
+  const el = $('nextIn');
+  if (!el) { clearInterval(tickNext.t); return; }
+  const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), ms = next - now;
+  const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60, sec = Math.floor(ms / 1e3) % 60;
+  el.textContent = `Next ladder in ${h ? `${h}h ${m}m` : `${m}m ${String(sec).padStart(2, '0')}s`}`;
+}
+const FEEDBACK_EMAIL = 'hello@dailybreak.app';
+function feedbackHref() {
+  const body = round?.done ? `\n\n---\n${shareText()}` : '';
+  return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('Daily Break feedback')}&body=${encodeURIComponent(body)}`;
 }
 
 /* ----- input ----- */
@@ -2010,7 +2071,7 @@ function frame(now) {
 resize();
 const seedParam = new URLSearchParams(location.search).get('seed');
 newRound(seedParam || todayKey(), !seedParam);
-if (!ls('dailybreak:seenHelp') && !$('overlay').classList.contains('show')) showHelp();
+if (!ls('dailybreak:seenHelp') && !$('overlay').classList.contains('show')) showIntro();
 requestAnimationFrame(frame);
 </script>
 </body>
