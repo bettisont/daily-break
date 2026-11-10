@@ -35,6 +35,9 @@
   #info > div{padding:6px 12px 7px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.12em;font-size:10.5px;color:#5a6556;white-space:nowrap;overflow:hidden}
   #info > div + div{border-left:1px solid var(--line)}
   #info b{display:block;margin-top:2px;font-family:'DM Sans',sans-serif;font-weight:700;letter-spacing:-.01em;text-transform:none;font-size:18px;color:var(--ink);line-height:1.1}
+  #info b.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.35)}100%{transform:scale(1)}}
+  #info b{transform-origin:left center}
   #info b small{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5a6556;font-weight:400;margin-left:4px}
   .round{width:30px;height:30px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}
   .round.off{opacity:.45}
@@ -307,7 +310,7 @@ class Table {
             // spin takes hold on the first contact: follow carries on through, draw comes back
             if (!s.spinUsed) {
               s.spinUsed = true;
-              if (s.spin) { const k = s.spin * 0.7 * Math.max(0, cueVn), sx = cueA ? nx : -nx, sy = cueA ? ny : -ny; this.cue.vx += sx * k; this.cue.vy += sy * k; }
+              if (s.spin) { const k = s.spin * 0.7 * Math.max(0, cueVn), sx = cueA ? nx : -nx, sy = cueA ? ny : -ny; this.cue.vx += sx * k; this.cue.vy += sy * k; if (Math.abs(s.spin) > 0.15 && cueVn > 150) this.ev('spin', { spin: s.spin, x: this.cue.x, y: this.cue.y, speed: cueVn }); }
             }
           }
           this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
@@ -348,7 +351,7 @@ class Table {
       if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * CUSHION_E; hitWall = true; }
       if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) * CUSHION_E; hitWall = true; }
       if (hitWall) b.cush = (b.cush || 0) + 1;
-      if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp }); }
+      if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
     }
   }
 
@@ -468,12 +471,13 @@ let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strik
 let hs = null, shotLog = [];
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
-const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0 };
+const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0 };
+let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
 
 /* ----- audio: effects, rain + vinyl ambience, lazy keys ----- */
 
-let audio = null, master, fxBus, verb, musicBus, ambBus, noiseBuf, lastHit = 0, musicTimer = null, chordIdx = 0;
+let rollGain = null, rollFilter = null, audio = null, master, fxBus, verb, musicBus, ambBus, noiseBuf, lastHit = 0, musicTimer = null, chordIdx = 0;
 let muted = ls('dailybreak:muted') === '1', musicOn = ls('dailybreak:music') !== '0';
 
 function ensureAudio() {
@@ -492,9 +496,21 @@ function ensureAudio() {
     const data = noiseBuf.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     startAmbience();
+    // the low rumble of balls rolling on the cloth: its level follows how fast everything is moving
+    const rs = audio.createBufferSource(), rf = audio.createBiquadFilter();
+    rs.buffer = noiseBuf; rs.loop = true; rf.type = 'lowpass'; rf.frequency.value = 260; rf.Q.value = 0.9;
+    rollGain = audio.createGain(); rollGain.gain.value = 0; rollFilter = rf;
+    rs.connect(rf).connect(rollGain).connect(fxBus); rs.start();
   }
   if (audio.state === 'suspended') audio.resume();
   if (!musicTimer) { playChord(); musicTimer = setInterval(playChord, 6400); }
+}
+// Sounds can be placed left/right by where they happen on the table (set `pan` around a call with atX).
+let pan = 0;
+function atX(x, fn) { pan = clamp((x / W) * 2 - 1, -1, 1) * 0.6; try { fn(); } finally { pan = 0; } }
+function out(node, bus) {
+  if (pan && audio.createStereoPanner) { const p = audio.createStereoPanner(); p.pan.value = pan; node.connect(p).connect(bus); }
+  else node.connect(bus);
 }
 function tone(freq, dur, vol, type = 'sine', slide = 1, delay = 0, wet = 0.15, bus = fxBus) {
   if (!audio) return;
@@ -503,7 +519,7 @@ function tone(freq, dur, vol, type = 'sine', slide = 1, delay = 0, wet = 0.15, b
   if (slide !== 1) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq * slide), t + dur);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(bus);
+  o.connect(g); out(g, bus);
   if (wet) { const w = audio.createGain(); w.gain.value = wet; g.connect(w).connect(verb); }
   o.start(t); o.stop(t + dur + 0.05);
 }
@@ -512,7 +528,7 @@ function noise(dur, vol, freq, type = 'lowpass', delay = 0, q = 0.7, bus = fxBus
   const t = audio.currentTime + delay, src = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
   src.buffer = noiseBuf; f.type = type; f.frequency.value = freq; f.Q.value = q;
   g.gain.setValueAtTime(Math.max(0.0002, vol), t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(f).connect(g).connect(bus); src.start(t, Math.random() * 2, dur + 0.05);
+  src.connect(f).connect(g); out(g, bus); src.start(t, Math.random() * 2, dur + 0.05);
 }
 function startAmbience() {
   // soft rain on the window
@@ -548,13 +564,31 @@ function playChord() {
 }
 const POT_SCALE = [392, 440, 523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];
 const sfx = {
-  clack(v) { v = Math.min(1, v / 1600); if (v < 0.03) return; noise(0.03, 0.6 * v, 3200, 'bandpass', 0, 1.4); tone(2100 + Math.random() * 500, 0.045, 0.12 * v, 'sine', 1, 0, 0.05); },
-  cushion(v) { v = Math.min(1, v / 2000); if (v < 0.03) return; noise(0.09, 0.35 * v, 380); tone(95, 0.12, 0.18 * v, 'sine', 0.7, 0, 0); },
+  // ball on ball: a bright click with a woody body; harder hits are louder and a touch lower
+  clack(v) { v = Math.min(1, v / 1600); if (v < 0.03) return; noise(0.03, 0.6 * v, 3200, 'bandpass', 0, 1.4); tone(2100 + Math.random() * 500 - v * 300, 0.045, 0.12 * v, 'sine', 1, 0, 0.05); tone(620 + Math.random() * 80, 0.06, 0.07 * v, 'triangle', 0.8, 0, 0.05); },
+  // the cushion: a padded thud, with a rubbery bounce on a hard hit
+  cushion(v) { v = Math.min(1, v / 2000); if (v < 0.03) return; noise(0.09, 0.35 * v, 380); tone(95, 0.12, 0.18 * v, 'sine', 0.7, 0, 0); if (v > 0.35) tone(210, 0.08, 0.06 * v, 'sine', 1.6, 0.01, 0); },
+  // into the pocket: a deep leathery thunk, then the ball rolling away down the return
+  drop() { tone(110, 0.18, 0.3, 'sine', 0.55, 0.05, 0.05); noise(0.12, 0.3, 420, 'lowpass', 0.05); for (let k = 0; k < 4; k++) tone(300 + Math.random() * 120, 0.03, 0.035 * (1 - k / 5), 'triangle', 0.9, 0.22 + k * 0.07 + Math.random() * 0.02, 0); },
+  // the cue tip on the ball: a clean strike is a solid "thock"; a miscue skids
+  thock(p) { tone(190, 0.09, 0.22 + 0.15 * p, 'sine', 0.6, 0, 0.05); noise(0.025, 0.4 + 0.3 * p, 1800, 'bandpass', 0, 1.2); tone(1250, 0.03, 0.06, 'triangle', 1, 0, 0.1); },
+  miscue() { noise(0.16, 0.35, 3400, 'highpass', 0, 0.8); tone(520, 0.14, 0.06, 'sawtooth', 0.5, 0, 0.1); },
+  // spin taking hold off the object ball: draw zips back, follow surges on
+  spin(kind, amt) { const up = kind === 'follow'; noise(0.22, 0.12 * amt, up ? 1500 : 900, 'bandpass', 0, 3); tone(up ? 380 : 760, 0.22, 0.05 * amt, 'sine', up ? 2 : 0.5, 0, 0.2); },
+  // the pull-back cue: a little leather creak per step, and a thump when it bottoms out
+  creak(p) { noise(0.03, 0.06 + 0.06 * p, 500 + p * 900, 'bandpass', 0, 6); },
+  maxed() { tone(70, 0.14, 0.25, 'sine', 0.7, 0, 0); noise(0.06, 0.2, 300); },
+  // the spin spot and aim strip: soft clicks whose pitch follows the setting
+  notch(f) { tone(f, 0.018, 0.035, 'triangle', 1, 0, 0); },
+  // a streak of 3 or more: a warm bass swell under the pot
+  boom(k) { tone(55, 0.5, 0.22, 'sine', 0.9, 0.04, 0.2); tone(110 * (1 + (k % 3) * 0.25), 0.4, 0.06, 'triangle', 1, 0.06, 0.4); },
+  // two or more balls in one shot
+  multi(n) { [784, 988, 1175, 1568].slice(0, n + 1).forEach((f, k) => tone(f, 0.25, 0.05, 'sine', 1, 0.05 + k * 0.06, 0.5)); },
   pot() { tone(170, 0.22, 0.35, 'sine', 0.5, 0, 0.1); noise(0.14, 0.25, 700, 'lowpass', 0.03); tone(1300, 0.025, 0.05, 'triangle', 1, 0.1, 0.1); tone(950, 0.025, 0.04, 'triangle', 1, 0.17, 0.1); },
   rattle() { for (let k = 0; k < 4; k++) tone(700 - k * 90, 0.04, 0.09, 'triangle', 0.8, k * 0.05, 0.1); noise(0.12, 0.2, 900, 'bandpass', 0, 2); },
   strike(p) { noise(0.02, 0.3 + 0.4 * p, 2400, 'bandpass', 0, 1); tone(820, 0.035, 0.08 + 0.1 * p, 'triangle', 1, 0, 0); },
   bumper() { tone(523, 0.25, 0.1, 'sine', 1.5, 0, 0.4); tone(784, 0.25, 0.06, 'sine', 1.5, 0.03, 0.4); },
-  tick() { tone(2400, 0.012, 0.02, 'square', 1, 0, 0); },
+  tick() { tone(1700 + Math.random() * 300, 0.01, 0.02, 'triangle', 1, 0, 0); },
   // pots climb a pentatonic scale as the streak builds; in-order pots add a bell on top
   potNote(k, gold) {
     sfx.pot();
@@ -583,9 +617,19 @@ const lowestN = () => Math.min(...table.balls.filter(b => !b.potted).map(b => b.
 
 function onEvent(type, e) {
   if (type === 'hit') {
-    if (audio && audio.currentTime - lastHit > 0.015) { lastHit = audio.currentTime; sfx.clack(e.speed); }
+    if (audio && audio.currentTime - lastHit > 0.015) { lastHit = audio.currentTime; atX(e.x, () => sfx.clack(e.speed)); }
     if (e.speed > 500) ring(e.x, e.y, '255,250,235', 18, 0.35, 4);
-  } else if (type === 'cushion') sfx.cushion(e.speed);
+    // a hard hit freezes the frame for a blink and gives a little kick
+    if (e.speed > 900) { hitStop = Math.max(hitStop, 0.03); fx.shake = Math.max(fx.shake, 2 + e.speed / 700); sparkle(e.x, e.y, '#fbf8f0', 5, 90); }
+  } else if (type === 'cushion') {
+    atX(e.x, () => sfx.cushion(e.speed));
+    // a puff of chalk dust off the cloth
+    if (e.speed > 350) for (let i = 0; i < 4 + e.speed / 300; i++) { const a = Math.random() * TAU, v = 30 + Math.random() * 50; fx.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.4 + Math.random() * 0.3, color: 'rgba(225,238,228,.8)', r: 1.5 + Math.random() * 2 }); }
+  } else if (type === 'spin') {
+    const kind = e.spin > 0 ? 'follow' : 'draw', amt = clamp(Math.abs(e.spin) * e.speed / 900, 0.3, 1);
+    atX(e.x, () => sfx.spin(kind, amt)); buzz(kind === 'draw' ? [6, 30, 6] : 8);
+    spinFx = { t: 0, kind, amt };
+  }
   else if (type === 'bumper') { sfx.bumper(); e.o.flash = 1; ring(e.o.x, e.o.y, '230,190,100', 34, 0.5, e.o.r); }
   else if (type === 'rattle') { sfx.rattle(); float(e.x, e.y - 30, 'Rattled out', '#b8553f', 18); fx.shake = 4; }
   else if (type === 'pot') {
@@ -593,12 +637,18 @@ function onEvent(type, e) {
     ensureSpin(b);
     fx.sinks.push({ x: e.x, y: e.y, tx, ty, b: { n: b.n, spot: b.spot, pole: b.pole }, t: 0 });
     ring(tx, ty, '255,250,235', 46, 0.6);
+    p.glow = 1;   // the pocket lights up for a moment
+    atX(tx, () => sfx.drop());
+    hitStop = Math.max(hitStop, 0.045);
     if (b.isCue) { sfx.pot(); buzz(10); return; }
     // the event fires before the ball is marked potted, so it still counts as on the table here
     const s = table.shot, inOrder = b.n === lowestN(), bank = (b.cush || 0) > 0, combo = !!s?.firstHit && s.firstHit !== b;
     const k = (hs?.streak || 0) + shotLog.length;   // pots in a row, counting this one's place
     shotLog.push({ n: b.n, inOrder, bank, combo });
-    sfx.potNote(k, inOrder); buzz(inOrder ? 18 : 10);
+    atX(tx, () => sfx.potNote(k, inOrder)); buzz(inOrder ? [18, 40, 12] : 12);
+    if (k >= 2) sfx.boom(k);
+    if (shotLog.length >= 2) { sfx.multi(shotLog.length); float(W / 2, H * 0.22, shotLog.length === 2 ? 'Double!' : shotLog.length === 3 ? 'Triple!' : `${shotLog.length} in one!`, '#c4472f', 26, 1.4); }
+    fx.glow = Math.min(1, 0.35 + k * 0.15);
     const fy = clamp(ty, 60, H - 60) + (ty < H / 2 ? 40 : -40), fxp = clamp(tx, 60, W - 60);
     const tags = [inOrder ? 'In order' : `${b.n} ball`, bank && 'Bank', combo && 'Combo'].filter(Boolean).join(' · ');
     if (inOrder) { ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18 + k * 6, 160 + k * 20); }
@@ -623,7 +673,7 @@ function newRound(seed, ranked) {
 function startHole(i) {
   hole = round.holes[i];
   table = new Table(hole, onEvent);
-  strokes = 0; hs = { points: 0, streak: 0, misses: 0, fouls: 0, outOfOrder: 0 };
+  strokes = 0; shownPts = 0; hs = { points: 0, streak: 0, misses: 0, fouls: 0, outOfOrder: 0 };
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
   fx.sinks = []; fx.confetti = [];
   lineUp();
@@ -688,7 +738,8 @@ function setPower(p) {
   if (phase !== 'aim') return;
   const before = Math.round(power * 20);
   power = clamp(p, 0, 1);
-  if (Math.round(power * 20) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; tone(300 + power * 500, 0.02, 0.025, 'sine', 1, 0, 0); }
+  if (Math.round(power * 20) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; sfx.creak(power); if (power > 0.04) buzz(2); }
+  if (power >= 1 && before < 20) { sfx.maxed(); buzz(18); }
   updateMeter();
 }
 
@@ -763,6 +814,7 @@ function resolveShot() {
     say(`${foul} −${PTS.foul}`, table.cue.y + 44); sfx.penalty();
   } else if (shotLog.length) {
     hs.streak++;
+    setTimeout(() => { const el = $('iLie').querySelector('b'); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0);
     let base = PTS.multi * (shotLog.length - 1);
     for (const p of shotLog) { base += PTS.pot + (p.inOrder ? PTS.order : 0) + (p.bank ? PTS.bank : 0) + (p.combo ? PTS.combo : 0); if (!p.inOrder) hs.outOfOrder++; }
     const mult = streakMult(hs.streak), gain = Math.round(base * mult);
@@ -825,7 +877,7 @@ function renderCard9() {
 function updateUI() {
   if (!table) return;
   const left = table.remaining(), lie = lieAt(hole, table.cue.x, table.cue.y), lim = shotLimit(hole);
-  $('iHole').innerHTML = `Rack ${hole.i + 1}/${HOLES} · ${hs.points.toLocaleString()} pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
+  $('iHole').innerHTML = `Rack ${hole.i + 1}/${HOLES} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   const on = phase === 'holed' || phase === 'over' ? strokes : Math.min(strokes + 1, lim);
   $('iLie').innerHTML = `Shot ${on}/${lim}${lie !== 'felt' ? ` · ${lie}` : ''}<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
@@ -1027,6 +1079,8 @@ spinEl.addEventListener('pointermove', e => {
   const before = strikeName(aim.spin);
   setSpot(d.y0 + dy / 90, true);
   if (strikeName(aim.spin) !== before) { sfx.click(); buzz(6); }
+  const notch = Math.round(aim.spotY * 10);
+  if (notch !== d.notch) { d.notch = notch; sfx.notch(900 - aim.spotY * 700); if (!notch) { tone(520, 0.04, 0.05, 'sine', 1, 0, 0); buzz(8); } }
 });
 const endSpin = e => {
   const d = spinDrag;
@@ -1698,10 +1752,29 @@ function draw(t, dt) {
   drawAim(t);
 
   for (const b of table.live()) updateSpin(b, dt);
+  // potted balls swirl down into the pocket as they shrink
   for (const sk of fx.sinks) {
-    sk.t += dt / 0.3;
-    const k = Math.min(1, sk.t) ** 2;
-    drawBall(sk.b, lerp(sk.x, sk.tx, k), lerp(sk.y, sk.ty, k), 1 - 0.55 * k, 1 - k);
+    sk.t += dt / 0.36;
+    const k = Math.min(1, sk.t) ** 1.6, a = k * 2.6, dx = (sk.x - sk.tx) * (1 - k), dy = (sk.y - sk.ty) * (1 - k);
+    drawBall(sk.b, sk.tx + dx * Math.cos(a) - dy * Math.sin(a), sk.ty + dx * Math.sin(a) + dy * Math.cos(a), 1 - 0.6 * k, 1 - k * k);
+  }
+  for (const p of POCKETS) if (p.glow > 0) {
+    p.glow = Math.max(0, p.glow - dt * 1.8);
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.cap * 2.4);
+    g.addColorStop(0, `rgba(255,214,120,${0.55 * p.glow})`); g.addColorStop(1, 'rgba(255,214,120,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap * 2.4, 0, TAU); ctx.fill();
+  }
+  // spin taking hold: gold arcs whirl round the cue ball (back for draw, forward for follow)
+  if (spinFx && !table.cue.potted) {
+    spinFx.t += dt;
+    const k = spinFx.t / 0.7, c = table.cue, dir = spinFx.kind === 'draw' ? -1 : 1;
+    if (k >= 1) spinFx = null;
+    else {
+      ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(dir * spinFx.t * 14);
+      ctx.strokeStyle = `rgba(226,177,60,${0.85 * (1 - k)})`; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.arc(0, 0, R + 6 + k * 10, i * Math.PI, i * Math.PI + 1.3); ctx.stroke(); }
+      ctx.restore();
+    }
   }
   fx.sinks = fx.sinks.filter(sk => sk.t < 1);
   for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
@@ -1766,6 +1839,13 @@ function draw(t, dt) {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawContact(dt);
+  // a warm golden glow round the edges on pots, stronger as a streak builds
+  if (fx.glow > 0) {
+    fx.glow = Math.max(0, fx.glow - dt * 1.4);
+    const gg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.3, cw / 2, ch / 2, Math.max(cw, ch) * 0.7);
+    gg.addColorStop(0, 'rgba(255,200,90,0)'); gg.addColorStop(1, `rgba(255,190,80,${0.35 * fx.glow})`);
+    ctx.fillStyle = gg; ctx.fillRect(0, 0, cw, ch);
+  }
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
   vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + (1 - timeScale) * 0.45})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
@@ -1786,13 +1866,17 @@ function frame(now) {
     const was = strike.t;
     strike.t += dt;
     // the close-up's tip lands: the click and buzz go with it
-    if (was < STRIKE_T && strike.t >= STRIKE_T) { const q = zoom?.ct.quality; sfx.strike(strike.power); buzz(q === 'clean' ? 14 : 8); if (q === 'clean') sfx.chime(); else if (q === 'miscue') sfx.penalty(); }
+    if (was < STRIKE_T && strike.t >= STRIKE_T) {
+      const q = zoom?.ct.quality;
+      if (q === 'miscue') { sfx.miscue(); buzz([20, 30, 20]); }
+      else { sfx.thock(strike.power); buzz(q === 'clean' ? [14, 25, 8] : 10); if (q === 'clean') sfx.chime(); }
+    }
     // then, once the close-up has gone, the cue on the table strikes and the balls roll
     if (strike.t >= SHOOT_T) {
       table.shoot(strike.angle, strike.power, strike.spin);
       const q = zoom?.ct.quality, c0 = table.cue, fy = c0.y - 50 < 30 ? c0.y + 50 : c0.y - 50;
       if (q === 'clean') { sparkle(c0.x, c0.y, '#e2b13c', 14, 110); float(c0.x, fy, 'Clean strike', '#b88a2e', 20); }
-      else if (q === 'miscue') { fx.shake = 5; float(c0.x, fy, 'Miscue!', '#b8553f', 22); }
+      else if (q === 'miscue') { fx.shake = 5; float(c0.x, fy, 'Miscue!', '#b8553f', 22); for (let k = 0; k < 14; k++) { const a = Math.random() * TAU, v = 40 + Math.random() * 90; fx.particles.push({ x: c0.x, y: c0.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 + Math.random() * 0.4, color: '#8fb4e8', r: 1.5 + Math.random() * 2.5 }); } }
       else if (q) float(c0.x, fy, zoom.ct.off ? `Off-centre: pushed ${zoom.ct.off < 0 ? 'left' : 'right'}` : 'Off-centre', q === 'near' ? '#7a6a3a' : '#b8553f', 18);
       sfx.clack(strike.power * 1600);
       const c = table.cue;
@@ -1817,11 +1901,24 @@ function frame(now) {
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
   if (phase === 'moving') {
-    acc += dt * timeScale;
-    while (acc >= DT) { table.step(); acc -= DT; }
+    if (hitStop > 0) hitStop -= dt;   // a blink of freeze on big moments
+    else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; } }
     const c = table.cue, last = curTrail?.pts[curTrail.pts.length - 1];
     if (curTrail && !c.potted && last && Math.hypot(c.x - last[0], c.y - last[1]) > 14) curTrail.pts.push([c.x, c.y]);
     if (!table.moving() && !(cine && cine.hold > 0)) resolveShot();
+  }
+  if (rollGain) {
+    const v = phase === 'moving' && table ? table.live().reduce((a, b) => a + Math.hypot(b.vx, b.vy), 0) : 0;
+    rollGain.gain.setTargetAtTime(Math.min(1, v / 2600) * 0.11, audio.currentTime, 0.05);
+    rollFilter.frequency.setTargetAtTime(180 + Math.min(1, v / 2600) * 320, audio.currentTime, 0.05);
+  }
+  // the points total counts up rather than jumping
+  if (hs && shownPts !== hs.points) {
+    const d = hs.points - shownPts;
+    shownPts = Math.abs(d) < 3 ? hs.points : shownPts + Math.ceil(Math.abs(d) * Math.min(1, dt * 8)) * Math.sign(d);
+    const el = document.getElementById('ptsVal');
+    if (el) el.textContent = shownPts.toLocaleString();
+    if (Math.abs(d) > 2 && audio && audio.currentTime - lastTick > 0.05) { lastTick = audio.currentTime; tone(1500 + Math.random() * 200, 0.012, 0.012, 'sine', 1, 0, 0); }
   }
   draw(t, dt);
   requestAnimationFrame(frame);
