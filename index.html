@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ece5d3">
 <title>Daily Break · a daily pool game</title>
-<meta name="description" content="A daily pool ladder: one ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
+<meta name="description" content="A daily pool ladder: one ball, then two, then three. Four lives, the same tables for everyone each day. How far can you get?">
 <link rel="canonical" href="https://dailybreak.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Daily Break">
 <meta property="og:title" content="Daily Break · a daily pool game">
-<meta property="og:description" content="One ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
+<meta property="og:description" content="One ball, then two, then three. Four lives, the same tables for everyone each day. How far can you get?">
 <meta property="og:url" content="https://dailybreak.app/">
 <meta property="og:image" content="https://dailybreak.app/og.png">
 <meta property="og:image:width" content="1200">
@@ -181,7 +181,7 @@
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
 const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1050;
-const LIVES = 3, MAX_BALLS = 15, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 11);   // launch day = Daily Break #1
+const LIVES = 4, MAX_BALLS = 15, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 11);   // launch day = Daily Break #1
 // 0 is the cue ball; 1-8 solids, 9-15 stripes (a level can hold up to 15 balls).
 const COLORS = ['#f4efe2', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b', '#24221f', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b'];
 const POCKETS = [
@@ -558,7 +558,7 @@ const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shak
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
 
-/* ----- audio: effects, rain + vinyl ambience, lazy keys ----- */
+/* ----- audio: effects and lazy keys (no background hiss: the rain/vinyl ambience was removed 10 Nov 2026) ----- */
 
 let rollGain = null, rollFilter = null, audio = null, master, fxBus, verb, musicBus, ambBus, noiseBuf, lastHit = 0, musicTimer = null, chordIdx = 0;
 let muted = ls('dailybreak:muted') === '1', musicOn = ls('dailybreak:music') !== '0';
@@ -578,7 +578,6 @@ function ensureAudio() {
     noiseBuf = audio.createBuffer(1, audio.sampleRate * 3, audio.sampleRate);
     const data = noiseBuf.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    startAmbience();
     // the low rumble of balls rolling on the cloth: its level follows how fast everything is moving
     const rs = audio.createBufferSource(), rf = audio.createBiquadFilter();
     rs.buffer = noiseBuf; rs.loop = true; rf.type = 'lowpass'; rf.frequency.value = 260; rf.Q.value = 0.9;
@@ -622,20 +621,6 @@ function noise(dur, vol, freq, type = 'lowpass', delay = 0, q = 0.7, bus = fxBus
   src.buffer = noiseBuf; f.type = type; f.frequency.value = freq; f.Q.value = q;
   g.gain.setValueAtTime(Math.max(0.0002, vol), t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(f).connect(g); out(g, bus); src.start(t, Math.random() * 2, dur + 0.05);
-}
-function startAmbience() {
-  // soft rain on the window
-  const src = audio.createBufferSource(), hp = audio.createBiquadFilter(), lp = audio.createBiquadFilter(), g = audio.createGain();
-  src.buffer = noiseBuf; src.loop = true; hp.type = 'highpass'; hp.frequency.value = 400; lp.type = 'lowpass'; lp.frequency.value = 1600; g.gain.value = 0.035;
-  src.connect(hp).connect(lp).connect(g).connect(ambBus); src.start();
-  const lfo = audio.createOscillator(), lg = audio.createGain();
-  lfo.frequency.value = 0.07; lg.gain.value = 0.012; lfo.connect(lg).connect(g.gain); lfo.start();
-  // vinyl crackle and the odd heavier raindrop
-  setInterval(() => {
-    if (!audio || muted || document.hidden) return;
-    for (let k = 0; k < 3; k++) if (Math.random() < 0.45) noise(0.004 + Math.random() * 0.006, 0.02 + Math.random() * 0.05, 2500 + Math.random() * 3000, 'highpass', Math.random() * 0.12, 0.7, ambBus);
-    if (Math.random() < 0.08) noise(0.03, 0.03, 900, 'bandpass', Math.random() * 0.1, 3, ambBus);
-  }, 120);
 }
 const CHORDS = [[146.83, 174.61, 220, 261.63, 329.63], [98, 174.61, 246.94, 329.63], [130.81, 164.81, 246.94, 293.66], [110, 196, 261.63, 329.63]];
 function epiano(f, t, len, vol) {
@@ -992,7 +977,7 @@ function updateUI() {
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { over: 'See result' };   // a cleared level moves on by itself
+  const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold); $('next').disabled = !aiming;
@@ -1073,7 +1058,7 @@ function showIntro() {
     <h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
-      <p>❤️ You have 3 lives. A miss costs one (level 1 is a free warm-up).</p>
+      <p>❤️ You have 4 lives. A miss costs one (level 1 is a free warm-up).</p>
       <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
@@ -1085,7 +1070,7 @@ function showHelp() {
     <h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
-      <p>❤️ You have <b>3 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
+      <p>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. The <b>target</b> button steps through the others (or tap a ball on the table).</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dotted line shows where the object ball will go.</p>

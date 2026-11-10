@@ -1,7 +1,7 @@
 {
   "name": "Daily Break",
   "short_name": "Daily Break",
-  "description": "A daily pool ladder: one ball, then two, then three. Three lives. How far can you get?",
+  "description": "A daily pool ladder: one ball, then two, then three. Four lives. How far can you get?",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
