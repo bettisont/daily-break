@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: mkdir -p dist && cp index.html dist/
+      - run: mkdir -p dist && cp index.html static/* dist/
       - run: npx --yes wrangler@4 deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

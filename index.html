@@ -4,7 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ece5d3">
-<title>Daily Break</title>
+<title>Daily Break · a daily pool game</title>
+<meta name="description" content="A daily pool ladder: one ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
+<link rel="canonical" href="https://daily-break.timbuilds.workers.dev/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Daily Break">
+<meta property="og:title" content="Daily Break · a daily pool game">
+<meta property="og:description" content="One ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
+<meta property="og:url" content="https://daily-break.timbuilds.workers.dev/">
+<meta property="og:image" content="https://daily-break.timbuilds.workers.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Daily Break: a pool table in a cosy room, shown on a phone">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Daily Break">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>
+  // Cloudflare Web Analytics (cookieless). Paste the site token from the Cloudflare dashboard; empty = off.
+  const CF_ANALYTICS_TOKEN = '';
+  if (CF_ANALYTICS_TOKEN && location.protocol === 'https:') {
+    const s = document.createElement('script'); s.defer = true;
+    s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+    s.dataset.cfBeacon = JSON.stringify({ token: CF_ANALYTICS_TOKEN });
+    document.head.appendChild(s);
+  }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet">
@@ -105,7 +134,7 @@
   .mini div.h{padding:5px 6px;color:var(--muted);border-left:0}
   .mini div.t{padding:5px 6px}
   .mini div.r0{border-top:0}
-  #share{white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:15px;text-align:left;margin:12px auto;max-width:300px}
+  #share{white-space:pre-wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:15px;text-align:left;margin:12px auto;max-width:300px;user-select:text;-webkit-user-select:text;overflow-wrap:anywhere}
   .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
   .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;font:700 14px 'DM Sans',sans-serif;cursor:pointer}
   .btn.primary{background:var(--green);border-color:var(--green);color:#f4f6ef}
@@ -559,6 +588,16 @@ function out(node, bus) {
   if (pan && audio.createStereoPanner) { const p = audio.createStereoPanner(); p.pan.value = pan; node.connect(p).connect(bus); }
   else node.connect(bus);
 }
+function unlockAudio() {
+  if (!audio) return;
+  if (audio.state !== 'running') audio.resume?.();
+  if (!unlockAudio.done) {  // a silent buffer started inside the gesture unlocks iOS Web Audio for good
+    unlockAudio.done = true;
+    try { const src = audio.createBufferSource(); src.buffer = audio.createBuffer(1, 1, 22050); src.connect(audio.destination); src.start(0); } catch {}
+  }
+}
+for (const ev of ['touchend', 'click', 'keydown']) addEventListener(ev, () => { if (!audio) ensureAudio(); unlockAudio(); }, { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && audio && audio.state !== 'running') audio.resume?.().catch(() => {}); });
 function tone(freq, dur, vol, type = 'sine', slide = 1, delay = 0, wet = 0.15, bus = fxBus) {
   if (!audio) return;
   const t = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
@@ -975,7 +1014,22 @@ function updateAimUI() {
 
 function shareText() {
   const title = isDailySeed(round.seed) && round.ranked ? `Daily Break #${dayNumber(round.seed)} 🎱` : `Daily Break · ${courseName(round.seed)} 🎱`;
-  return `${title}\nLevel ${round.level + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}\n${round.results.map(r => RESULT_EMOJI[r]).join('')}`;
+  return `${title}\nLevel ${round.level + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}\n${round.results.map(r => RESULT_EMOJI[r]).join('')}\n${gameUrl()}`;
+}
+const SITE_URL = 'https://daily-break.timbuilds.workers.dev/';
+function gameUrl() {
+  const base = location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL;
+  return isDailySeed(round.seed) && round.ranked ? base : `${base}?seed=${encodeURIComponent(round.seed)}`;
+}
+const canNativeShare = () => !!navigator.share && matchMedia('(pointer: coarse)').matches;
+async function shareResult(b) {
+  const text = shareText();
+  if (canNativeShare()) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(text); b.textContent = 'Copied!'; }
+  catch { b.textContent = 'Select the text to copy'; }
+  setTimeout(() => b.textContent = canNativeShare() ? 'Share result' : 'Copy result', 1400);
 }
 function showFinal(already) {
   $('card').innerHTML = `
@@ -988,7 +1042,7 @@ function showFinal(already) {
     <div class="k mono">🟢 clean clear · 🟡 cleared after a miss · ❌ out of lives</div>
     <div id="share">${shareText()}</div>
     <div class="row">
-      <button class="btn primary" data-copy>Copy result</button>
+      <button class="btn primary" data-copy>${canNativeShare() ? 'Share result' : 'Copy result'}</button>
       <button class="btn" data-practice>Practice run</button>
       <button class="btn" data-random>Random table</button>
       ${!round.ranked ? '<button class="btn" data-daily>Today\'s run</button>' : ''}
@@ -1022,7 +1076,7 @@ $('card').addEventListener('click', e => {
   if (!b) return;
   ensureAudio(); sfx.click();
   if ('close' in b.dataset) { ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
-  else if ('copy' in b.dataset) { navigator.clipboard?.writeText($('share').textContent); b.textContent = 'Copied!'; setTimeout(() => b.textContent = 'Copy result', 1200); }
+  else if ('copy' in b.dataset) shareResult(b);
   else if ('practice' in b.dataset) { $('overlay').classList.remove('show'); newRound(round.seed, false); }
   else if ('random' in b.dataset) { $('overlay').classList.remove('show'); newRound(Math.random().toString(36).slice(2, 8), false); }
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
