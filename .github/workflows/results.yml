@@ -1,0 +1,18 @@
+# Shows how far people get each day (anonymous ranked results from the game).
+# Run it from the Actions tab (Results > Run workflow); the table appears on the run's summary page.
+# Needs CLOUDFLARE_API_TOKEN to include Account > Account Analytics > Read.
+name: Results
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days to show"
+        default: "14"
+jobs:
+  results:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/results.py "${{ inputs.days }}" | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

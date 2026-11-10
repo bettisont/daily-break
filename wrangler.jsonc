@@ -10,5 +10,7 @@
     { "pattern": "dailybreak.app", "custom_domain": true },
     { "pattern": "www.dailybreak.app", "custom_domain": true }
   ],
+  // anonymous ranked results (day, level, balls, points) for .github/workflows/results.yml
+  "analytics_engine_datasets": [{ "binding": "RESULTS", "dataset": "daily_break_results" }],
   "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": true }
 }

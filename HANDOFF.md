@@ -99,3 +99,14 @@ mutes it. Vibration is Android-only; iOS ignores `navigator.vibrate`.
   streak, best and average level; nothing leaves the device), a live countdown to the next ladder
   at local midnight (`tickNext`) and a "Send feedback" mailto link, hidden while `FEEDBACK_EMAIL` is empty: set it to
   hello@dailybreak.app once Cloudflare Email Routing forwards that address to a real inbox.
+
+## Results (how far people get)
+
+At the end of a ranked daily run on dailybreak.app, `sendResult` posts one anonymous note
+(`{day, level, potted, points}`, no IDs) to `/api/result`. `src/worker.js` validates it (day within
+about a day of now, whole numbers in range) and writes it to Workers Analytics Engine, dataset
+`daily_break_results` (blob1 = day, double1 = level, double2 = balls, double3 = points; kept 3
+months). To read it: Actions › **Results** › Run workflow; the table (players, average/median/most
+common/best level per day, plus where runs ended on the latest day) appears on the run's summary
+page (`tools/results.py`). The token needs Account › Account Analytics › Read for that. Anyone can
+post to the endpoint, so treat the numbers as a guide, not a leaderboard.
