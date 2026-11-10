@@ -14,27 +14,21 @@
   html,body{height:100%}
   body{margin:0;background:var(--paper);color:var(--ink);font:500 15px/1.35 'DM Sans',system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
   #app{height:100vh;height:100dvh;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
-  header,#card9,#info,#controls{width:min(100%,640px);margin-inline:auto}
-  #card9,#info{border-left:1px solid var(--line);border-right:1px solid var(--line)}
-  @media (max-width:640px){ #card9,#info{border-left:0;border-right:0} }
+  header,#info,#controls{width:min(100%,640px);margin-inline:auto}
+  #info{border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  @media (max-width:640px){ #info{border-left:0;border-right:0} }
   .mono{font-family:'DM Mono',ui-monospace,monospace;text-transform:uppercase;letter-spacing:.14em}
-  header{display:flex;align-items:center;gap:10px;padding:10px 12px 8px 16px}
-  header .titles{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;flex:1;min-width:0}
+  header{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 14px;border-bottom:1px solid var(--line)}
+  header .titles{flex:none}
   .btns{display:flex;gap:6px}
-  h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
-  #course{font-size:12px;color:var(--muted)}
-  #card9{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel)}
-  #card9 .c{border-left:1px solid var(--line);text-align:center;font-family:'DM Mono',monospace;font-size:12px;line-height:1.2;transition:background .3s}
-  #card9 .c:first-child{border-left:0}
-  #card9 .c.cur{background:var(--hi)}
-  #card9 .n{padding-top:4px;color:var(--ink)}
-  #card9 .m{color:var(--muted);height:17px;line-height:17px}
-  #card9 .p{color:var(--muted);border-top:1px solid var(--line);padding:3px 0 4px}
-  .m .sc{display:inline-block;min-width:17px;height:17px;line-height:15px;border:1px solid transparent;color:var(--ink);font-weight:500}
-  .m .sc.b1{border-color:#3d7f57;border-radius:50%;color:#2f6b4f}
-  .m .sc.b2{border-color:var(--gold);border-radius:50%;color:var(--gold);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--gold)}
-  .m .sc.o1{border-color:var(--red);color:var(--red)}
-  .m .sc.o2{border-color:var(--red);color:var(--red);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--red)}
+  h1{margin:0;font-size:17px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+  #course{display:none}
+  /* the three racks as chips in the header: number, points (or ball count) and result */
+  #card9{flex:1;display:flex;justify-content:center;gap:4px;min-width:0}
+  #card9 .c{display:flex;align-items:center;gap:4px;padding:3px 7px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font:500 11px 'DM Mono',monospace;color:var(--muted);white-space:nowrap;transition:background .3s}
+  #card9 .c.cur{background:var(--hi);border-color:#b9c9a8;color:var(--ink)}
+  #card9 .c b{font-weight:500;color:var(--ink)}
+  #card9 .c.b1 .v{color:#2f6b4f} #card9 .c.b2 .v{color:var(--gold)} #card9 .c.o1 .v{color:var(--red)}
   #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:crosshair}
   canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block}
   #info{display:grid;grid-template-columns:1.6fr 1fr 1fr;border-bottom:1px solid var(--line);background:var(--paper)}
@@ -42,12 +36,12 @@
   #info > div + div{border-left:1px solid var(--line)}
   #info b{display:block;margin-top:2px;font-family:'DM Sans',sans-serif;font-weight:700;letter-spacing:-.01em;text-transform:none;font-size:18px;color:var(--ink);line-height:1.1}
   #info b small{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5a6556;font-weight:400;margin-left:4px}
-  .round{width:34px;height:34px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}
+  .round{width:30px;height:30px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}
   .round.off{opacity:.45}
   #controls{background:var(--panel);border-top:1px solid var(--line);padding:10px 16px max(10px,env(safe-area-inset-bottom))}
   #controls{position:relative;display:grid;grid-template-columns:1fr 78px;column-gap:12px;row-gap:12px}
   #rowA{grid-column:1;grid-row:1;display:grid;grid-template-columns:96px 1fr;gap:10px}
-  #rowB{grid-column:1;grid-row:2;display:flex;align-items:center;gap:12px;min-height:60px}
+  #rowB{grid-column:1;grid-row:2;display:flex;align-items:center;gap:12px;min-height:88px}
   #next{height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);box-shadow:0 3px 0 var(--line);display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px;padding:0 8px;cursor:pointer;touch-action:none;font:600 9px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;text-align:left}
   #next small{display:flex;flex-direction:column;gap:3px;color:var(--muted);line-height:1}
   #next small span.r{display:flex;align-items:center;gap:3px}
@@ -65,17 +59,20 @@
   #stripVal small{display:block;font:500 8.5px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   #strip.off,#rowB.off,#pull.off{opacity:.5}
   /* spin: a small cue ball; tap to cycle Stun, Follow, Draw. The dot is where the tip will hit. */
-  #spinBall{flex:none;display:flex;align-items:center;gap:10px;touch-action:none;cursor:ns-resize;color:var(--ink)}
-  #spinFace{position:relative;width:66px;height:66px;border-radius:50%;background:#2f3a31;box-shadow:0 3px 0 #1d251f,0 5px 12px rgba(60,45,25,.25)}
-  #spinFace .f{position:absolute;inset:6px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffdf7,#d8cdb4);box-shadow:inset 0 0 0 5px rgba(184,85,63,.25)}
+  #spinBall{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;touch-action:none;cursor:ns-resize;color:var(--ink)}
+  #spinFace{position:relative;width:88px;height:88px;border-radius:50%;background:#2f3a31;box-shadow:0 3px 0 #1d251f,0 5px 12px rgba(60,45,25,.25)}
+  #spinFace .f{position:absolute;inset:7px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffdf7,#d8cdb4);box-shadow:inset 0 0 0 5px rgba(184,85,63,.25)}
   #spinFace .f::before,#spinFace .f::after{content:'';position:absolute;background:rgba(60,45,25,.15)}
   #spinFace .f::before{left:0;right:0;top:50%;height:1px} #spinFace .f::after{top:0;bottom:0;left:50%;width:1px}
-  #spinFace .f i{position:absolute;left:0;right:0;font:700 6.5px 'DM Mono',monospace;letter-spacing:.06em;text-align:center;color:rgba(60,45,25,.45);font-style:normal}
-  #spinDot{position:absolute;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:rgba(226,177,60,.8);border:2px solid #b88a2e;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  #spinFace .f i{position:absolute;left:0;right:0;font:700 8.5px 'DM Mono',monospace;letter-spacing:.06em;text-align:center;color:rgba(60,45,25,.45);font-style:normal}
+  #spinDot{position:absolute;left:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:rgba(226,177,60,.8);border:2px solid #b88a2e;box-shadow:0 1px 3px rgba(0,0,0,.25)}
   #spinBall.drag #spinFace{transform:scale(1.08);box-shadow:0 3px 0 #1d251f,0 0 0 4px rgba(226,177,60,.5)}
   #spinTxt b{display:block;font:800 16px 'DM Sans',sans-serif}
   #spinTxt small{display:block;font:500 9px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  #hint{flex:1;font-size:9.5px;color:var(--muted);line-height:1.35;min-width:0;text-align:right}
+  #spinTxt{flex:1;min-width:0}
+  #spinFace{flex:none}
+  #hint{flex:0 0 auto;max-width:96px;font-size:9.5px;color:var(--muted);line-height:1.35;text-align:right}
+  @media (max-width:380px){ #strip::before,#strip::after{display:none} #spinFace{width:76px;height:76px} #rowB{min-height:76px;gap:8px} #spinTxt b{font-size:15px} #spinTxt small{font-size:8px} #hint{max-width:76px} }
   #hint b{font:800 16px 'DM Sans',sans-serif;color:var(--ink);letter-spacing:0}
   /* the pull-back cue: drag down to load power, release on the gold spot to shoot */
   #pull{grid-column:2;grid-row:1/3;position:relative;border-radius:16px;overflow:hidden;touch-action:none;cursor:ns-resize;background:#2f3a31;box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 3px 0 #1d251f}
@@ -107,20 +104,19 @@
   .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
   .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;font:700 14px 'DM Sans',sans-serif;cursor:pointer}
   .btn.primary{background:var(--green);border-color:var(--green);color:#f4f6ef}
-  @media (max-width:420px){ h1{font-size:20px} #course{font-size:10px;letter-spacing:.1em} header{padding:8px 10px 6px 14px} #info b{font-size:16px} #info > div{padding:6px 9px 7px} }
+  @media (max-width:420px){ h1{font-size:15px} header{padding:6px 8px 6px 12px} #card9 .c{padding:3px 5px;font-size:10px} #info b{font-size:16px} #info > div{padding:5px 9px 6px} }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
     <div class="titles"><h1>Daily Break</h1><span class="mono" id="course"></span></div>
+    <div id="card9"></div>
     <div class="btns">
-      <button class="round" id="snd" title="Sound">🔊</button>
-      <button class="round" id="mus" title="Music">♫</button>
+      <button class="round" id="snd" title="Sound: all / effects only / off">🔊</button>
       <button class="round" id="help" title="How to play">?</button>
     </div>
   </header>
-  <div id="card9"></div>
   <div id="info"><div id="iHole"></div><div id="iLie"></div><div id="iTilt"></div></div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">
@@ -631,7 +627,7 @@ function startHole(i) {
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
   fx.sinks = []; fx.confetti = [];
   lineUp();
-  banner = { title: `Rack ${i + 1} of ${HOLES}`, sub: `${hole.balls.length} balls · ${shotLimit(hole)} shots · ${AID_NAMES[aidLevel(hole)]}`, life: 1.5, max: 1.5 };
+  banner = { title: `Rack ${i + 1} of ${HOLES}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.balls.length} balls · ${shotLimit(hole)} shots · ${AID_NAMES[aidLevel(hole)]}`, life: 1.5, max: 1.5 };
   renderCard9(); updateUI();
 }
 
@@ -823,8 +819,7 @@ const totalPts = () => round.scores.reduce((a, s) => a + (s?.pts ?? 0), 0);
 function renderCard9() {
   $('card9').innerHTML = round.holes.map((h, i) => {
     const s = round.scores[i], live = h === hole && s == null && strokes > 0;
-    const mark = s ? `<span class="sc ${holeClass(s)}">${fmtPts(s.pts)}</span>` : live ? `<span class="sc">${fmtPts(hs.points)}</span>` : '·';
-    return `<div class="c ${h === hole ? 'cur' : ''}"><div class="n">${i + 1}</div><div class="m">${mark}</div><div class="p">${s ? holeIcon(s) : h.balls.length + '●'}</div></div>`;
+    return `<div class="c ${h === hole ? 'cur' : ''} ${s ? holeClass(s) : ''}"><b>${i + 1}</b><span class="v">${s ? fmtPts(s.pts) : live ? fmtPts(hs.points) : h.balls.length + '●'}</span>${s ? holeIcon(s) : ''}</div>`;
   }).join('');
 }
 function updateUI() {
@@ -1015,7 +1010,7 @@ function cycleSpin() {
 // path shows on the table while you drag, so you can see what the spin does.
 const spinEl = $('spinBall'), spinFaceEl = $('spinFace');
 let spinDrag = null;
-const faceY = e => { const r = spinFaceEl.getBoundingClientRect(); return (e.clientY - (r.top + r.height / 2)) / (r.height / 2 - 6); };
+const faceY = e => { const r = spinFaceEl.getBoundingClientRect(); return (e.clientY - (r.top + r.height / 2)) / (r.height / 2 - 7); };
 spinEl.addEventListener('pointerdown', e => {
   e.preventDefault(); ensureAudio();
   if (phase !== 'aim' || hold) return;
@@ -1030,7 +1025,7 @@ spinEl.addEventListener('pointermove', e => {
   if (!d.moved && Math.abs(dy) < 4) return;
   d.moved = true;
   const before = strikeName(aim.spin);
-  setSpot(d.y0 + dy / 70, true);
+  setSpot(d.y0 + dy / 90, true);
   if (strikeName(aim.spin) !== before) { sfx.click(); buzz(6); }
 });
 const endSpin = e => {
@@ -1098,18 +1093,25 @@ addEventListener('keydown', e => {
   else if (e.key === '-' || e.key === '[') { lastPower = power = clamp(lastPower - 0.05, 0.05, 1); updateUI(); }
 });
 function setSoundBtns() {
-  $('snd').textContent = muted ? '🔇' : '🔊';
-  $('mus').classList.toggle('off', !musicOn || muted);
+  const st = muted ? 'off' : musicOn ? 'all' : 'fx';
+  $('snd').textContent = { all: '🔊', fx: '🔉', off: '🔇' }[st];
+  $('snd').title = { all: 'Sound: music and effects', fx: 'Sound: effects only', off: 'Sound: off' }[st];
 }
-$('snd').onclick = () => { muted = !muted; ls('dailybreak:muted', muted ? '1' : '0'); setSoundBtns(); ensureAudio(); master?.gain.setTargetAtTime(muted ? 0 : 0.9, audio.currentTime, 0.05); };
-$('mus').onclick = () => { musicOn = !musicOn; ls('dailybreak:music', musicOn ? '1' : '0'); setSoundBtns(); ensureAudio(); musicBus?.gain.setTargetAtTime(musicOn ? 1 : 0, audio.currentTime, 0.4); if (musicOn) playChord(); };
+$('snd').onclick = () => {
+  if (!muted && musicOn) musicOn = false; else if (!muted) muted = true; else { muted = false; musicOn = true; }
+  ls('dailybreak:muted', muted ? '1' : '0'); ls('dailybreak:music', musicOn ? '1' : '0');
+  setSoundBtns(); ensureAudio();
+  master?.gain.setTargetAtTime(muted ? 0 : 0.9, audio.currentTime, 0.05);
+  musicBus?.gain.setTargetAtTime(musicOn ? 1 : 0, audio.currentTime, 0.4);
+  if (musicOn && !muted) playChord();
+};
 $('help').onclick = () => { ensureAudio(); showHelp(); };
 setSoundBtns();
 
 function resize() {
   const r = stage.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
-  const s = Math.min(r.width / (W + 2 * RAIL + 30), r.height / (H + 2 * RAIL + 30));
+  const s = Math.min(r.width / (W + 2 * RAIL + 16), r.height / (H + 2 * RAIL + 12));
   view = { s, dpr, cw: r.width, ch: r.height, ox: r.width / 2 - W / 2 * s, oy: r.height / 2 - H / 2 * s };
 }
 addEventListener('resize', resize);

@@ -34,8 +34,10 @@ Physics notes: fixed 1/240 s step, exact-contact ball collisions, tilt, felt fri
 Top-down retro room: plank floor, a patterned rug, walnut table with sage
 felt, swaying plants, armchair, a spinning record player, a sleeping cat,
 window light with rain shadows, cloud shadows, dust motes, vignette and
-grain. UI in DM Sans + DM Mono: scorecard strip (points and result per hole),
-info bar (hole points and balls left, shot count and streak multiplier,
+grain. UI in DM Sans + DM Mono, laid out to give the table as much height as possible:
+one slim header row (title, three rack chips with points/result, one sound
+button cycling all / effects only / off, and help; the course name shows in the
+rack 1 banner instead), info bar (hole points and balls left, shot count and streak multiplier,
 tilt), then the controls in play order: target button and aim strip, spin ball,
 and the pull-back cue down the right.
 Sound: clacks, cushions, pockets, rising pot notes for streaks, aim ticks, rain and vinyl
