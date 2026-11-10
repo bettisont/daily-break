@@ -27,7 +27,9 @@
   #card9{flex:1;display:flex;justify-content:center;gap:4px;min-width:0}
   #card9 .c{display:flex;align-items:center;gap:4px;padding:3px 7px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font:500 11px 'DM Mono',monospace;color:var(--muted);white-space:nowrap;transition:background .3s}
   #card9 .c.cur{background:var(--hi);border-color:#b9c9a8;color:var(--ink)}
-  #card9 .c b{font-weight:500;color:var(--ink)}
+  #card9 .c b{font-weight:700;color:var(--ink)}
+  #card9 .c.lives{font-size:12px;letter-spacing:1px}
+  #card9 .c.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #card9 .c.b1 .v{color:#2f6b4f} #card9 .c.b2 .v{color:var(--gold)} #card9 .c.o1 .v{color:var(--red)}
   #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:crosshair}
   canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -143,11 +145,9 @@
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
 const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1050;
-const HOLES = 3, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 9);
-const RACK_SIZES = [3, 4, 5];
-// Hazard level per rack (the old nine-rack scale): mild, medium, tough.
-const HAZARD = [1, 4, 7];
-const COLORS = ['#f4efe2', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b', '#24221f', '#e2b13c'];
+const LIVES = 3, MAX_BALLS = 15, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 9);
+// 0 is the cue ball; 1-8 solids, 9-15 stripes (a level can hold up to 15 balls).
+const COLORS = ['#f4efe2', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b', '#24221f', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b'];
 const POCKETS = [
   { x: 0, y: 0, cap: R * 1.75 }, { x: W, y: 0, cap: R * 1.75 },
   { x: -5, y: H / 2, cap: R * 1.55 }, { x: W + 5, y: H / 2, cap: R * 1.55 },
@@ -202,20 +202,33 @@ function lieAt(hole, x, y) {
   return 'felt';
 }
 
-// A hole is a small seeded rack to clear: everything is seeded by date + hole number.
+// Level i (0-based) is a seeded layout of i + 1 balls (up to 15), the same for everyone on the day.
+// It's re-rolled (deterministically) until the opening shot really drops.
 function makeHole(seed, i) {
-  // re-roll (deterministically) until the opening shot has at least one clean pot
+  const n = Math.min(i + 1, MAX_BALLS);
   let h = null;
-  for (let attempt = 0; attempt < 25; attempt++) {
+  for (let attempt = 0; attempt < 40; attempt++) {
     h = buildHole(seed, i, attempt);
-    if (allLines(new Table(h)).some(l => !l.blocked)) return h;
+    if (h.balls.length === n && openingPot(h)) return h;
   }
   return h;
 }
+// The opening shot must be a real pot: an unblocked, not-too-thin cut that a centre-ball hit at a
+// sensible pace actually sinks (tilt and felt included), without scratching.
+function openingPot(h) {
+  const t = new Table(h);
+  const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.55).sort((a, b) => b.q - a.q).slice(0, 4);
+  for (const l of ls) for (const pw of [0.3, 0.42, 0.55]) {
+    const s = simulate(t, l.angle, pw, 0), b = s.balls[l.bi];
+    if (!s.shot.scratch && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b)) return true;
+  }
+  return false;
+}
 function buildHole(seed, i, attempt) {
-  const rnd = rngFor(`${seed}:rack:${i}` + (attempt ? `:${attempt}` : ''));
-  const hz = HAZARD[i];
-  const closed = rnd() < 0.08 + hz * 0.04 ? [Math.floor(rnd() * 6)] : [];
+  const rnd = rngFor(`${seed}:level:${i}` + (attempt ? `:${attempt}` : ''));
+  // hazards start at level 3 and ramp up from there
+  const hz = clamp(i - 1, 0, 8), haz = p => hz > 0 && rnd() < p;
+  const closed = haz(0.04 + hz * 0.04) ? [Math.floor(rnd() * 6)] : [];
   const placed = [];
   const ok = (x, y, rad, gap) => x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6 &&
     placed.every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + gap) &&
@@ -229,13 +242,13 @@ function buildHole(seed, i, attempt) {
   };
   const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || { x: W / 2, y: H * 0.8 };
   const bumpers = [];
-  const nBump = rnd() < 0.12 + hz * 0.05 ? 1 + (hz > 5 && rnd() < 0.4 ? 1 : 0) : 0;
+  const nBump = haz(0.08 + hz * 0.05) ? 1 + (hz > 5 && rnd() < 0.4 ? 1 : 0) : 0;
   for (let k = 0; k < nBump; k++) {
     const o = place(() => [100 + rnd() * (W - 200), 160 + rnd() * (H - 420)], 18 + rnd() * 10, R * 2.5);
     if (o) bumpers.push({ x: o.x, y: o.y, r: o.r });
   }
-  const nums = shuffle(rnd, [1, 2, 3, 4, 5, 6, 7, 8, 9]), balls = [];
-  for (let k = 0; k < RACK_SIZES[i]; k++) {
+  const n = Math.min(i + 1, MAX_BALLS), nums = shuffle(rnd, Array.from({ length: 15 }, (_, k) => k + 1)), balls = [];
+  for (let k = 0; k < n; k++) {
     const mode = balls.length && rnd() < 0.35 ? 'cluster' : rnd() < 0.22 ? 'rail' : 'open';
     const o = place(() => {
       if (mode === 'cluster') { const b = balls[Math.floor(rnd() * balls.length)], a = rnd() * TAU, d = 2 * R + 3 + rnd() * R * 1.5; return [b.x + Math.cos(a) * d, b.y + Math.sin(a) * d]; }
@@ -245,13 +258,13 @@ function buildHole(seed, i, attempt) {
     if (o) balls.push({ x: o.x, y: o.y, n: nums[k] });
   }
   const patches = [];
-  if (rnd() < 0.22 + hz * 0.05) patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 60, ry: 45 + rnd() * 45, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
+  if (haz(0.12 + hz * 0.05)) patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 60, ry: 45 + rnd() * 45, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
   let tilt = { x: 0, y: 0, mag: 0, dir: 0 };
-  if (rnd() < 0.18 + hz * 0.06) {
-    const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (10 + hz * 3), a = dir * Math.PI / 4;
+  if (haz(0.1 + hz * 0.06)) {
+    const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (6 + hz * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
-  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, par: null };
+  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt };
 }
 
 class Table {
@@ -456,19 +469,18 @@ function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); l
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
-// Scoring: every pot scores, potting the lowest ball on the table (rotation order) scores double,
-// and consecutive potting shots build a streak multiplier.
-const PTS = { pot: 100, order: 100, bank: 50, combo: 50, multi: 50, foul: 50, spare: 50, runout: 300, perfect: 300 };
-const SHOT_SPARE = 3;
-const shotLimit = h => h.balls.length + SHOT_SPARE;
+// Scoring (the tiebreak under "level reached"): every pot is 100, banks and combos add 50, extra balls
+// in one shot add 50, and consecutive potting shots build a streak multiplier. Clearing a level adds
+// 100 per ball in it. A miss or a foul costs a life; clearing a level without one wins a life back.
+const PTS = { pot: 100, bank: 50, combo: 50, multi: 50, level: 100 };
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
-// The aiming guide fades over the round: full guide, short guide, then the aim line only.
-const aidLevel = h => 2 - h.i;
-const AID_NAMES = ['Aim line only', 'Short guide', 'Full guide'];
+const aidLevel = () => 2;
+const hearts = n => '❤️'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, LIVES - n));
+const potGain = () => Math.round(PTS.pot * streakMult(hs.streak + 1));
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
-let hs = null, shotLog = [];
+let hs = null, shotLog = [], levelMisses = 0;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0 };
@@ -583,6 +595,8 @@ const sfx = {
   // a streak of 3 or more: a warm bass swell under the pot
   boom(k) { tone(55, 0.5, 0.22, 'sine', 0.9, 0.04, 0.2); tone(110 * (1 + (k % 3) * 0.25), 0.4, 0.06, 'triangle', 1, 0.06, 0.4); },
   // two or more balls in one shot
+  lifeLost() { tone(392, 0.18, 0.09, 'triangle', 0.8, 0, 0.3); tone(294, 0.3, 0.09, 'triangle', 0.7, 0.14, 0.3); tone(70, 0.3, 0.25, 'sine', 0.6, 0, 0); },
+  lifeUp() { [659.25, 880, 1318.5].forEach((f, k) => tone(f, 0.3, 0.06, 'sine', 1, 0.5 + k * 0.08, 0.5)); },
   multi(n) { [784, 988, 1175, 1568].slice(0, n + 1).forEach((f, k) => tone(f, 0.25, 0.05, 'sine', 1, 0.05 + k * 0.06, 0.5)); },
   pot() { tone(170, 0.22, 0.35, 'sine', 0.5, 0, 0.1); noise(0.14, 0.25, 700, 'lowpass', 0.03); tone(1300, 0.025, 0.05, 'triangle', 1, 0.1, 0.1); tone(950, 0.025, 0.04, 'triangle', 1, 0.17, 0.1); },
   rattle() { for (let k = 0; k < 4; k++) tone(700 - k * 90, 0.04, 0.09, 'triangle', 0.8, k * 0.05, 0.1); noise(0.12, 0.2, 900, 'bandpass', 0, 2); },
@@ -613,7 +627,6 @@ function sparkle(x, y, color, n, speed = 120) {
 }
 function float(x, y, text, color, size = 20, life = 1.4) { fx.floats.push({ x, y, text, color, size, life, max: life }); }
 function ring(x, y, color, grow = 50, life = 0.6, r = R) { fx.rings.push({ x, y, r, grow, life, max: life, color }); }
-const lowestN = () => Math.min(...table.balls.filter(b => !b.potted).map(b => b.n));
 
 function onEvent(type, e) {
   if (type === 'hit') {
@@ -642,18 +655,18 @@ function onEvent(type, e) {
     hitStop = Math.max(hitStop, 0.045);
     if (b.isCue) { sfx.pot(); buzz(10); return; }
     // the event fires before the ball is marked potted, so it still counts as on the table here
-    const s = table.shot, inOrder = b.n === lowestN(), bank = (b.cush || 0) > 0, combo = !!s?.firstHit && s.firstHit !== b;
+    const s = table.shot, bank = (b.cush || 0) > 0, combo = !!s?.firstHit && s.firstHit !== b;
     const k = (hs?.streak || 0) + shotLog.length;   // pots in a row, counting this one's place
-    shotLog.push({ n: b.n, inOrder, bank, combo });
-    atX(tx, () => sfx.potNote(k, inOrder)); buzz(inOrder ? [18, 40, 12] : 12);
+    shotLog.push({ n: b.n, bank, combo });
+    const left = table.balls.filter(o => !o.potted && o !== b).length;
+    atX(tx, () => sfx.potNote(k, k >= 1)); buzz([18, 40, 12]);
     if (k >= 2) sfx.boom(k);
     if (shotLog.length >= 2) { sfx.multi(shotLog.length); float(W / 2, H * 0.22, shotLog.length === 2 ? 'Double!' : shotLog.length === 3 ? 'Triple!' : `${shotLog.length} in one!`, '#c4472f', 26, 1.4); }
     fx.glow = Math.min(1, 0.35 + k * 0.15);
     const fy = clamp(ty, 60, H - 60) + (ty < H / 2 ? 40 : -40), fxp = clamp(tx, 60, W - 60);
-    const tags = [inOrder ? 'In order' : `${b.n} ball`, bank && 'Bank', combo && 'Combo'].filter(Boolean).join(' · ');
-    if (inOrder) { ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18 + k * 6, 160 + k * 20); }
-    else sparkle(tx, ty, '#fbf8f0', 10, 120);
-    float(fxp, fy, tags + (bank || combo ? '!' : ''), inOrder ? '#b88a2e' : '#2f6b4f', 18 + Math.min(6, k * 1.5));
+    const tags = [bank && 'Bank', combo && 'Combo'].filter(Boolean).join(' · ');
+    ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18 + k * 6, 160 + k * 20);
+    float(fxp, fy, tags ? tags + '!' : left ? `${left} to go` : 'Level clear!', left ? '#b88a2e' : '#2f6b4f', 18 + Math.min(6, k * 1.5));
     if (k >= 2) fx.shake = Math.min(9, 2 + k * 1.5);
     if (cine && b.n === cine.n) { cine.hold = 0.9; ring(tx, ty, '226,177,60', 160, 1.3, 24); sparkle(tx, ty, '#e2b13c', 50, 260); }
   }
@@ -662,30 +675,35 @@ function onEvent(type, e) {
 /* ----- round / hole flow ----- */
 
 function newRound(seed, ranked) {
-  const r = round = { seed, ranked, scores: Array(HOLES).fill(null), holes: [] };
-  for (let i = 0; i < HOLES; i++) r.holes.push(makeHole(seed, i));
+  round = { seed, ranked, level: 0, lives: LIVES, potted: 0, results: [], bestStreak: 0, done: false };
+  hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? `#${dayNumber(seed)}` : 'practice'}`;
-  const saved = ranked ? ls('dailybreak:pts3:' + seed) : null;
+  const saved = ranked ? ls('dailybreak:ladder:' + seed) : null;
   startHole(0);
-  if (saved) { try { round.scores = JSON.parse(saved).scores; round.done = true; renderCard9(); showFinal(true); } catch {} }
+  if (saved) { try { Object.assign(round, JSON.parse(saved), { done: true }); hs.points = round.points; renderCard9(); showFinal(true); } catch {} }
 }
 
+// A new level: a fresh seeded layout with one more ball than the last.
 function startHole(i) {
-  hole = round.holes[i];
+  round.level = i;
+  hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
-  strokes = 0; shownPts = 0; hs = { points: 0, streak: 0, misses: 0, fouls: 0, outOfOrder: 0 };
+  strokes = 0; levelMisses = 0;
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
   fx.sinks = []; fx.confetti = [];
   lineUp();
-  banner = { title: `Rack ${i + 1} of ${HOLES}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.balls.length} balls · ${shotLimit(hole)} shots · ${AID_NAMES[aidLevel(hole)]}`, life: 1.5, max: 1.5 };
+  const n = hole.balls.length;
+  banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: 1.5, max: 1.5 };
   renderCard9(); updateUI();
 }
 
-// Each shot starts aimed straight at the lowest ball: the one that scores double.
-function lineUp() { phase = 'aim'; focusBall(lowestBall(), true); updateUI(); }
-function lowestBall() {
-  let bi = -1;
-  table.balls.forEach((b, k) => { if (!b.potted && (bi < 0 || b.n < table.balls[bi].n)) bi = k; });
+// Each shot starts lined up dead centre on the ball with the easiest pot.
+function lineUp() { phase = 'aim'; focusBall(bestBall(), true); updateUI(); }
+function bestBall() {
+  const ls = allLines(table).filter(l => !l.blocked).sort((a, b) => b.q - a.q);
+  if (ls.length) return ls[0].bi;
+  let bi = -1, bd = Infinity;
+  table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - table.cue.x, b.y - table.cue.y); if (d < bd) { bd = d; bi = k; } } });
   return bi;
 }
 function focusBall(bi, quiet) {
@@ -745,7 +763,7 @@ function setPower(p) {
 
 function act() {
   ensureAudio();
-  if (phase === 'holed') { if (hole.i < HOLES - 1) startHole(hole.i + 1); else showFinal(false); }
+  if (phase === 'holed') startHole(round.level + 1);
   else if (phase === 'over') showFinal(!!round.done);
   updateUI();
 }
@@ -792,7 +810,7 @@ function release() {
   lastPower = power;
   // Will this shot clear the rack? Then the last ball gets the slow-motion treatment.
   const sim = simulate(table, angle, ct.power, ct.spin), sp = sim.shot.pots;
-  cine = hole.i === HOLES - 1 && !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
+  cine = round.level >= 2 && !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
   strike = { angle, power: ct.power, spin: ct.spin, t: 0 };
   zoom = { t: 0, ct, d, from: contactPanel() };
   shotLog = [];
@@ -808,55 +826,66 @@ function resolveShot() {
   const s = table.shot, c = table.cue;
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
   const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
-  if (foul) {
-    hs.fouls++; hs.streak = 0; hs.points = Math.max(0, hs.points - PTS.foul);
+  round.potted += shotLog.length;
+  if (foul || !shotLog.length) {
+    // a miss or a foul costs a life (balls that dropped on a foul stay down)
+    round.lives--; levelMisses++;
     if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
-    say(`${foul} −${PTS.foul}`, table.cue.y + 44); sfx.penalty();
-  } else if (shotLog.length) {
-    hs.streak++;
+    say(foul || (hs.streak >= 2 ? 'Streak over' : 'Miss'), table.cue.y + 44);
+    float(clamp(c.x, 60, W - 60), clamp(table.cue.y - 50, 40, H - 40), '💔', '#b8553f', 34, 1.4);
+    sfx.lifeLost(); buzz([30, 60, 30]); fx.shake = 6;
+    hs.streak = 0;
+    bumpChip('lives');
+  } else {
+    hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
     setTimeout(() => { const el = $('iLie').querySelector('b'); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0);
     let base = PTS.multi * (shotLog.length - 1);
-    for (const p of shotLog) { base += PTS.pot + (p.inOrder ? PTS.order : 0) + (p.bank ? PTS.bank : 0) + (p.combo ? PTS.combo : 0); if (!p.inOrder) hs.outOfOrder++; }
+    for (const p of shotLog) base += PTS.pot + (p.bank ? PTS.bank : 0) + (p.combo ? PTS.combo : 0);
     const mult = streakMult(hs.streak), gain = Math.round(base * mult);
     hs.points += gain;
     float(W / 2, H * 0.3, `+${gain}${mult > 1 ? `  ×${mult}` : ''}`, '#b88a2e', 24 + Math.min(14, hs.streak * 3), 1.6);
     if (hs.streak >= 2) float(W / 2, H * 0.3 + 46, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.6);
-  } else {
-    hs.misses++;
-    say(hs.streak >= 2 ? 'Streak over' : 'Miss', c.y + 44, '#7a6a3a');
-    hs.streak = 0;
   }
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
-  if (!table.remaining()) finishHole(true);
-  else if (strokes >= shotLimit(hole)) finishHole(false);
+  if (round.lives <= 0) endRun();
+  else if (!table.remaining()) finishHole();
   else lineUp();
   renderCard9(); updateUI();
 }
 
-function finishHole(cleared) {
-  const spare = cleared ? shotLimit(hole) - strokes : 0, runout = cleared && !hs.misses && !hs.fouls, perfect = runout && !hs.outOfOrder;
-  const bonus = spare * PTS.spare + (runout ? PTS.runout : 0) + (perfect ? PTS.perfect : 0);
+// Level cleared: a bonus per ball, and a life back if it went without a miss.
+function finishHole() {
+  const n = hole.balls.length, clean = !levelMisses, bonus = PTS.level * n, refill = clean && round.lives < LIVES;
   hs.points += bonus;
-  round.scores[hole.i] = { pts: hs.points, cleared, runout, perfect, shots: strokes };
-  const name = perfect ? 'Perfect rack' : runout ? 'Run out!' : cleared ? 'Cleared' : 'Out of shots';
-  const color = perfect ? '#b88a2e' : runout ? '#2f6b4f' : cleared ? '#3c4a3f' : '#b8553f';
-  const bits = [spare && `${spare} spare`, perfect ? 'all in order' : runout && 'no misses'].filter(Boolean);
-  const forHole = hole;
+  if (refill) round.lives++;
+  round.results.push(clean ? 'clean' : 'life');
+  const forLevel = round.level;
   setTimeout(() => {
-    if (hole !== forHole) return;
-    stamp = { text: name, sub: `${hs.points.toLocaleString()} pts${bonus ? ` · +${bonus} (${bits.join(', ')})` : ''}`, color, t: 0 };
+    if (round.level !== forLevel || phase !== 'holed') return;
+    stamp = { text: clean ? 'Clean clear!' : 'Cleared', sub: `Level ${forLevel + 1} · +${bonus}${refill ? ' · +❤️' : ''}`, color: clean ? '#2f6b4f' : '#3c4a3f', t: 0 };
     sfx.stamp(); fx.shake = 6; buzz(25);
-    if (cleared) sfx.holed(runout);
-    if (runout) confettiBurst(perfect ? 140 : 80);
-  }, cleared ? 450 : 0);
+    sfx.holed(clean);
+    if (refill) { sfx.lifeUp(); bumpChip('lives'); }
+    if (clean) confettiBurst(Math.min(140, 50 + forLevel * 15));
+    renderCard9();
+  }, 450);
   phase = 'holed';
   // move on by itself after the stamp has landed (the button skips the wait)
-  setTimeout(() => { if (hole === forHole && phase === 'holed') act(); }, (cleared ? 450 : 0) + 1900);
-  if (hole.i === HOLES - 1) {
-    round.done = true;
-    if (round.ranked) ls('dailybreak:pts3:' + round.seed, JSON.stringify({ scores: round.scores }));
-  }
+  setTimeout(() => { if (round.level === forLevel && phase === 'holed') act(); }, 450 + 1700);
 }
+// Out of lives: the run ends on the level you were playing.
+function endRun() {
+  round.results.push('fail'); round.done = true; round.points = hs.points;
+  phase = 'over';
+  const forLevel = round.level;
+  setTimeout(() => {
+    stamp = { text: 'Out of lives', sub: `Reached level ${forLevel + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}`, color: '#b8553f', t: 0 };
+    sfx.stamp(); fx.shake = 6; buzz([40, 60, 40]);
+  }, 300);
+  if (round.ranked) ls('dailybreak:ladder:' + round.seed, JSON.stringify({ level: round.level, potted: round.potted, points: round.points, results: round.results, bestStreak: round.bestStreak }));
+  setTimeout(() => { if (phase === 'over' && round.level === forLevel) showFinal(false); }, 2300);
+}
+function bumpChip(id) { setTimeout(() => { const el = document.querySelector(`#card9 .c.${id}`); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0); }
 function confettiBurst(n) {
   const cols = ['#c4472f', '#e2b13c', '#3d8758', '#3b5ea6', '#f4efe2', '#dc7a30'];
   for (let i = 0; i < n; i++) fx.confetti.push({ x: Math.random() * W, y: -30 - Math.random() * H * 0.4, vx: (Math.random() - 0.5) * 40, vy: 110 + Math.random() * 90, rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 8, w: 6 + Math.random() * 6, h: 4 + Math.random() * 4, c: cols[i % cols.length], life: 5 });
@@ -864,30 +893,23 @@ function confettiBurst(n) {
 
 /* ----- UI ----- */
 
-const fmtPts = n => n >= 10000 ? (n / 1000).toFixed(1) + 'k' : String(n);
-const holeIcon = s => s == null ? '⬜' : s.perfect ? '✨' : s.runout ? '🔥' : s.cleared ? '🟩' : '🟥';
-const holeClass = s => s.perfect ? 'b2' : s.runout ? 'b1' : s.cleared ? '' : 'o1';
-const totalPts = () => round.scores.reduce((a, s) => a + (s?.pts ?? 0), 0);
+const RESULT_EMOJI = { clean: '🟢', life: '🟡', fail: '❌' };
+// The header: the level you're on and your lives.
 function renderCard9() {
-  $('card9').innerHTML = round.holes.map((h, i) => {
-    const s = round.scores[i], live = h === hole && s == null && strokes > 0;
-    return `<div class="c ${h === hole ? 'cur' : ''} ${s ? holeClass(s) : ''}"><b>${i + 1}</b><span class="v">${s ? fmtPts(s.pts) : live ? fmtPts(hs.points) : h.balls.length + '●'}</span>${s ? holeIcon(s) : ''}</div>`;
-  }).join('');
+  $('card9').innerHTML = `<div class="c cur lvl"><b>Level ${round.level + 1}</b></div><div class="c lives">${hearts(round.lives)}</div>`;
 }
 function updateUI() {
   if (!table) return;
-  const left = table.remaining(), lie = lieAt(hole, table.cue.x, table.cue.y), lim = shotLimit(hole);
-  $('iHole').innerHTML = `Rack ${hole.i + 1}/${HOLES} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
-  const on = phase === 'holed' || phase === 'over' ? strokes : Math.min(strokes + 1, lim);
-  $('iLie').innerHTML = `Shot ${on}/${lim}${lie !== 'felt' ? ` · ${lie}` : ''}<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
+  const left = table.remaining();
+  $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
+  $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { holed: hole.i < HOLES - 1 ? 'Next rack →' : 'Scorecard', over: 'Scorecard' };
+  const b = $('act'), labels = { holed: 'Next level →', over: 'See result' };
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold); $('next').disabled = !aiming;
-  const lo = lowestBall();
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
-    aim.bi !== lo ? `Out of order<br><b>+${potValue(false)}</b><br>the ${table.balls[lo].n} is +${potValue(true)}` : `In order<br><b>+${potValue(true)}</b>`;
+    `Pot it<br><b>+${potGain()}</b><br>${hearts(round.lives)}`;
   updateMeter(); updateAimUI(); updateSpinBall();
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
@@ -903,65 +925,58 @@ function updateMeter() {
   $('pullCue').style.transform = `translateY(${10 + p * (h - 40)}px)`;
   $('pullFill').style.height = `${p * 100}%`;
   $('pullLab').innerHTML = hold && power >= MIN_PULL ? `${Math.round(power * 100)}%<br><small>${paceName(power)}</small>` : 'PULL<br>↓';
-  el.classList.toggle('pulse', phase === 'aim' && !hold && strokes === 0 && hole.i === 0);
+  el.classList.toggle('pulse', phase === 'aim' && !hold && strokes === 0 && round.level === 0);
 }
 let stripOff = 0;
 function updateAimUI() {
   $('stripFace').style.backgroundPosition = `${stripOff}px 0`;
   const o = phase === 'aim' ? aimOffset() : 0, a = Math.abs(o);
   $('stripVal').innerHTML = phase !== 'aim' ? 'Aim' : `${a < 0.05 ? 'Centre' : `${a.toFixed(1)}° ${o > 0 ? 'right' : 'left'}`}<small>swipe to aim</small>`;
-  const b = table.balls[aim.bi], tb = phase === 'aim' ? table.balls[thenBall()] : null, lo = lowestBall();
+  const b = table.balls[aim.bi];
   const chip = (o, cls) => `<span class="${cls}" style="--bc:${o && !o.potted ? COLORS[o.n] : '#ccc'}">${o && !o.potted ? o.n : '–'}</span>`;
-  $('next').innerHTML = `${chip(b, 'nb')}<small><span>Target</span><span class="r">then ${tb ? chip(tb, 'nb sm') : '–'}</span><span>next ▸</span></small>`;
+  $('next').innerHTML = `${chip(b, 'nb')}<small><span>Target</span><span>tap for</span><span>next ▸</span></small>`;
 }
 
 function shareText() {
   const title = isDailySeed(round.seed) && round.ranked ? `Daily Break #${dayNumber(round.seed)} 🎱` : `Daily Break · ${courseName(round.seed)} 🎱`;
-  const runs = round.scores.filter(s => s?.runout).length;
-  return `${title}\n${round.scores.map(holeIcon).join('')}\n${totalPts().toLocaleString()} pts${runs ? ` · ${runs} run-out${runs > 1 ? 's' : ''}` : ''}`;
+  return `${title}\nLevel ${round.level + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}\n${round.results.map(r => RESULT_EMOJI[r]).join('')}`;
 }
 function showFinal(already) {
-  const cells = (arr, cls = '') => arr.map(v => `<div class="${cls}">${v}</div>`).join('');
   $('card').innerHTML = `
     <div class="k mono">${courseName(round.seed)}</div>
-    <h2>${already ? "Today's round is in" : 'Round complete'}</h2>
-    <div class="big">${totalPts().toLocaleString()}</div>
-    <div class="k mono">points · ${round.scores.filter(s => s?.cleared).length}/${HOLES} racks cleared</div>
-    <div class="mini">
-      <div class="h r0">Rack</div>${cells(round.holes.map((_, i) => i + 1), 'r0')}<div class="t r0">Tot</div>
-      <div class="h">Pts</div>${cells(round.scores.map(s => s ? fmtPts(s.pts) : '–'))}<div class="t">${fmtPts(totalPts())}</div>
-      <div class="h"></div>${cells(round.scores.map(holeIcon))}<div class="t"></div>
-    </div>
+    <h2>${already ? "Today's run is in" : 'Run over'}</h2>
+    <div class="k mono">reached</div>
+    <div class="big">Level ${round.level + 1}</div>
+    <div class="k mono">${round.potted} balls potted · ${(round.points ?? hs.points).toLocaleString()} pts${round.bestStreak > 1 ? ` · best streak ${round.bestStreak}` : ''}</div>
+    <div style="font-size:26px;letter-spacing:4px;margin:14px 0 4px">${round.results.map(r => RESULT_EMOJI[r]).join('')}</div>
+    <div class="k mono">🟢 clean clear · 🟡 cleared after a miss · ❌ out of lives</div>
     <div id="share">${shareText()}</div>
     <div class="row">
       <button class="btn primary" data-copy>Copy result</button>
-      <button class="btn" data-practice>Replay course</button>
-      <button class="btn" data-random>Random course</button>
-      ${!round.ranked ? '<button class="btn" data-daily>Today\'s course</button>' : ''}
+      <button class="btn" data-practice>Practice run</button>
+      <button class="btn" data-random>Random table</button>
+      ${!round.ranked ? '<button class="btn" data-daily>Today\'s run</button>' : ''}
     </div>
-    ${already ? '<div class="k mono" style="margin-top:12px">A new course opens at midnight</div>' : ''}`;
+    ${already ? '<div class="k mono" style="margin-top:12px">A new run opens at midnight</div>' : ''}`;
   $('overlay').classList.add('show');
   phase = 'over'; updateUI();
 }
 function showHelp() {
   $('card').innerHTML = `
     <div class="k mono">How to play</div>
-    <h2>Clear the rack</h2>
+    <h2>How far can you get?</h2>
     <div class="howto">
-      <p>🎱 Each hole is a small rack with a few spare shots. Pot every ball before you run out.</p>
+      <p>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
+      <p>❤️ You have <b>3 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
-      <p>1 · <b>Target:</b> the cue starts lined up dead centre on the lowest ball. The <b>target</b> button steps through the balls in number order (or tap a ball on the table).</p>
-      <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue; it moves slowly and relative to where you start, so your thumb never has to cover the line.</p>
-      <p>3 · <b>Spin:</b> the little cue ball shows where your cue will hit it. <b>Drag the gold spot</b> up for <b>follow</b> (rolls on), leave it in the middle for <b>stun</b> (stops dead) or drag it down for <b>draw</b> (comes back); the further from the middle, the stronger. It's the same gold spot you aim for when you shoot.</p>
-      <p>4 · <b>Shoot:</b> put your thumb on the <b>cue</b> on the right and pull it down: the further you pull, the harder you hit (too hard into a pocket and the ball rattles out). While you hold, a close-up shows the cue tip wobbling over the cue ball. <b>Let go when the tip is on the gold spot</b> for a clean strike. Off to the side pushes the shot off line, too high or low changes the spin, and right at the edge is a miscue. Long shots wobble more, and a small error matters more over a long distance. Push the cue back to the top and let go to cancel.</p>
-      <p>➰ While you pull back (or drag the spin spot), a line shows the cue ball's first half second after it hits: enough to see which way it's heading, not where it stops.</p>
-      <p>👀 The aim guide fades: rack 1 shows where the object ball goes, rack 2 only a short line, rack 3 just the ghost ball.</p>
-      <p>🔢 <b>Points:</b> you can pot <b>any ball</b> in any order: it's never a foul. Each pot is 100, but the <b>lowest ball</b> on the table scores <b>double</b> (200). The tag over your target shows what it's worth, and <b>THEN</b> marks the ball that comes after it. Banks and combos add 50. Pot on consecutive shots for a <b>streak</b>: ×1.5, ×2, up to ×3.</p>
-      <p>🔥 Clear the rack without a miss for a <b>Run out</b> (+300), all in number order for a <b>Perfect rack</b> (+300 more). Spare shots are worth 50 each.</p>
-      <p>⚠️ Scratching or missing everything costs 50 and ends the streak.</p>
-      <p>⛰️ Tilt, worn <b>rough</b> felt and <b>slick</b> felt bend every roll. The guide doesn't allow for them.</p>
+      <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. The <b>target</b> button steps through the others (or tap a ball on the table).</p>
+      <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dotted line shows where the object ball will go.</p>
+      <p>3 · <b>Spin:</b> <b>drag the gold spot</b> on the little cue ball: up for <b>follow</b> (rolls on), middle for <b>stun</b> (stops), down for <b>draw</b> (comes back). It's the same spot you aim for when you shoot.</p>
+      <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
+      <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
+      <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
-      <p>📅 Everyone plays the same three racks each day, about three minutes. One ranked round per day.</p>
+      <p>📅 Everyone plays the same levels each day. One ranked run per day; practise as much as you like.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
   $('overlay').classList.add('show');
@@ -1249,7 +1264,7 @@ function drawBall(b, x, y, sc = 1, alpha = 1) {
   ctx.save();
   ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.clip();
   ctx.fillStyle = COLORS[b.n]; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
-  if (b.n === 9) { ctx.fillStyle = '#f4efe2'; stripeCap(x, y, r, b.pole, 1); stripeCap(x, y, r, b.pole, -1); }
+  if (b.n >= 9) { ctx.fillStyle = '#f4efe2'; stripeCap(x, y, r, b.pole, 1); stripeCap(x, y, r, b.pole, -1); }
   const [sx, sy, sz] = b.spot;
   if (sz > 0) {
     ctx.save();
@@ -1554,20 +1569,12 @@ function tag(x, y, text, bg, fg, size = 11, below = false) {
   ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(best.l, best.t, tw, h, h / 2); ctx.fill();
   ctx.fillStyle = fg; ctx.fillText(text, best.cx, best.cy + 0.5);
 }
-// The ball you'd play after the target, to keep potting in order: the lowest one left once the target drops.
-function thenBall() {
-  let bi = -1;
-  table.balls.forEach((b, k) => { if (!b.potted && k !== aim.bi && (bi < 0 || b.n < table.balls[bi].n)) bi = k; });
-  return bi;
-}
-const potValue = inOrder => Math.round((PTS.pot + (inOrder ? PTS.order : 0)) * streakMult(hs.streak + 1));
-
 // Aiming: the line to the first thing the cue ball meets and a ghost ball where it touches, the object
 // ball's direction (long, then short, then none as the round goes on) and the cue ball's path for each spin.
 function drawAim(t) {
   if (phase !== 'aim') return;
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), lvl = aidLevel(hole);
-  const lo = lowestBall(), th = thenBall(), fb = table.balls[aim.bi];
+  const fb = table.balls[aim.bi];
   drawSpinPaths();
   if (fb && !fb.potted) {
     ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = t * 12; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5;
@@ -1578,32 +1585,15 @@ function drawAim(t) {
   ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(gx, gy); ctx.stroke(); ctx.restore();
   ctx.strokeStyle = 'rgba(251,248,240,.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gx, gy, R, 0, TAU); ctx.stroke();
   if (hit.ball && lvl > 0) {
-    const b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R), len = lvl === 2 ? 200 : 70;
+    const b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R), len = 330;
     const g = ctx.createLinearGradient(b.x, b.y, b.x + nx * len, b.y + ny * len);
     g.addColorStop(0, 'rgba(251,248,240,.9)'); g.addColorStop(1, 'rgba(251,248,240,0)');
     ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(b.x + nx * (R + 3), b.y + ny * (R + 3)); ctx.lineTo(b.x + nx * len, b.y + ny * len); ctx.stroke();
   }
-  // the ball that comes after the target wears a dotted ring
-  if (th >= 0) {
-    const b = table.balls[th];
-    ctx.save(); ctx.setLineDash([3, 5]); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(b.x, b.y, R + 6, 0, TAU); ctx.stroke(); ctx.restore();
-  }
 }
-// Drawn above the balls: what the target is worth, which ball scores double, what comes next,
-// and where the cue ball finishes with each spin.
-function drawAimLabels() {
-  placed = [];
-  if (phase !== 'aim') return;
-  const lvl = aidLevel(hole), lo = lowestBall(), th = thenBall(), fb = table.balls[aim.bi];
-  if (fb && !fb.potted) {
-    const inOrder = aim.bi === lo;
-    tag(fb.x, fb.y, inOrder ? `IN ORDER +${potValue(true)}` : `OUT OF ORDER +${potValue(false)}`, inOrder ? 'rgba(184,138,46,.97)' : 'rgba(251,248,240,.97)', inOrder ? '#fbf8f0' : '#8a5a3a', 11);
-  }
-  if (th >= 0 && th !== lo) { const b = table.balls[th]; tag(b.x, b.y, 'THEN', 'rgba(45,58,48,.8)', '#fbf8f0', 8); }
-  if (lo >= 0 && lo !== aim.bi) { const b = table.balls[lo]; tag(b.x, b.y, `${b.n}: 2×`, 'rgba(184,138,46,.95)', '#fbf8f0', 9); }
-}
+// Labels drawn above the balls (none at the moment; kept for the placement pass).
+function drawAimLabels() { placed = []; }
 
 let spinTouched = false, zoom = null;
 
