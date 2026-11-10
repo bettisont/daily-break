@@ -13,25 +13,33 @@ worn rough felt, slick felt, brass bumpers and an occasional closed pocket.
 
 A shot:
 
-1. **Call it.** The game suggests a call (`bestCall`): ball, pocket and
-   shot type. Tap another ball to call it (its best pocket is picked) or tap
-   a pocket to send the called ball there; the flag moves to the called
-   pocket. Green dots mark other balls with a clean pot on.
-2. **Pick a shot type** from the chip row, like choosing a club:
-   Soft, Stun, Follow, Draw, Power (`SHOTS`: object-ball arrival speed and
-   cue-ball spin). For the called line every type is simulated
-   (`playCall`, which nudges the line a hair to allow for tilt and felt), so
-   each chip shows whether it pots ("risky" if not) and the table shows the
-   cue ball's dotted path and finishing spot. ★ marks the best leave
-   (`nextQ`: the best clean pot available afterwards).
-3. **Lock the line.** A line swings like a pendulum inside a cone from the
+1. **Call it.** The easiest pot is called to start. Tap another ball to
+   call it (its easiest pocket is picked) or tap a pocket to send the called
+   ball there; the flag moves to the called pocket. Green dots mark other
+   balls with a clean pot on; coloured dots by the pockets show how hard
+   each pot is for the called ball.
+2. **Pick a shot type** from the chip row, like choosing a club: Soft,
+   Stun, Follow, Draw, Power (`SHOTS`: object-ball arrival speed and cue-ball
+   spin). Nothing is pre-selected and there is no suggestion: the player has
+   to choose (the action button reads "Pick a shot" until they do). Every
+   type is simulated for the called line (`playCall`, which nudges the line
+   a hair to allow for tilt and felt), so the chosen chip shows the cue
+   ball's dotted path and finishing spot, and "risky" if it may not drop.
+3. **Difficulty.** Every call is rated Easy / Fair / Tricky / Hard / Very
+   hard (`shotDifficulty`: cut angle, distance, blockers, lie, tilt, and the
+   shot type: Draw and Power are harder). It shows by the ball, in the info
+   bar and on the pocket dots. Difficulty sets the timing: the line swings
+   faster (`swingPeriod` × 1.05 → 0.6) with a thinner gold band (`perfA`
+   6.8% → 2.4% of the sweep), and the power needle is quicker (`fillT`
+   1.5 → 0.95 s) with a thinner band (`perfP` 4.2% → 1.6%). Calibrated so
+   most tables have an Easy or Fair route but typical shots are Fair–Hard.
+4. **Lock the line.** A line swings like a pendulum inside a cone from the
    cue ball to a bullseye at the contact point (drawn `CONE_VIS` = 3× wider
-   than the real error, ±`swingAmp` ≈ 3°; `swingPeriod` 3 s on hole 1, down
-   to 2.2 s). Tap inside the gold band (±`PERF_A` = 7.5% of the sweep) for
-   zero error.
-4. **Power.** Swing, then Stop in the gold band at the pin (±`PERF_P` =
-   3.5% of the bar, `FILL_T` 1.4 s); the pin is the chosen type's power.
-   Perfect line + perfect power plays exactly the previewed shot.
+   than the real error, ±`swingAmp` ≈ 3°). Tap inside the gold band for zero
+   error.
+5. **Power.** Swing, then Stop in the gold band at the pin; the pin is the
+   chosen type's power. Perfect line + perfect power plays exactly the
+   previewed shot.
 
 Rules: fouls are +1 (no contact, not hitting the called ball first, or a
 scratch, which also puts the cue ball back where it was). Other balls that
