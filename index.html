@@ -956,7 +956,16 @@ function endRun() {
     sfx.stamp(); fx.shake = 6; buzz([40, 60, 40]);
   }, 300);
   if (round.ranked) ls('dailybreak:ladder:' + round.seed, JSON.stringify({ level: round.level, potted: round.potted, points: round.points, results: round.results, bestStreak: round.bestStreak }));
+  if (round.ranked) sendResult();
   setTimeout(() => { if (phase === 'over' && round.level === forLevel) showFinal(false); }, 2300);
+}
+// One anonymous note per ranked day (day, level, balls, points; no IDs) so we can see how far people get.
+// Only from the live site, so local tests and previews don't count.
+function sendResult() {
+  if (location.hostname !== 'dailybreak.app' || !isDailySeed(round.seed)) return;
+  const body = JSON.stringify({ day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
+  try { if (navigator.sendBeacon?.('/api/result', new Blob([body], { type: 'application/json' }))) return; } catch {}
+  fetch('/api/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
 }
 function bumpChip(id) { setTimeout(() => { const el = document.querySelector(`#card9 .c.${id}`); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0); }
 function confettiBurst(n) {
