@@ -14,10 +14,9 @@ A shot (built for one thumb on a phone). The controls run in play order, top to 
 1. **Target.** Each shot starts aimed dead centre at the lowest-numbered ball (`lineUp` → `focusBall`). The target button (top left; Tab on desktop) steps through the balls in number order and shows "then N"; tapping a ball on the table targets it too.
 2. **Aim.** The full-width **aim strip** is swiped left/right like a scroll wheel: 0.04° per pixel when slow, gearing up to 6× when fast; a tap near either end nudges 0.1°. Its centre reads the offset from dead centre. Dragging anywhere on the table also turns the cue, relative to where you start and geared by how far your finger moves around the cue ball (0.08° per screen pixel), so your thumb never covers the line. Arrow keys: 0.1° (Shift: 1°).
 3. **Guide fades** (`aidLevel`): holes 1–3 show the aim line, ghost ball and a 200 px object-ball line; holes 4–6 a 70 px object-ball line; holes 7–9 only the aim line and ghost ball. The object-ball line is pure geometry (no tilt or felt).
-4. **Order is a choice, not a rule.** Any ball can be targeted; the tag over the target reads "IN ORDER +200" (gold) or "OUT OF ORDER +100", with the streak multiplier applied (`potValue`), and the hint under the power bar repeats it. The lowest ball carries a "N: 2×" tag when it isn't the target. The ball that comes after the target (`thenBall`: lowest left once the target drops) gets a dotted ring and a THEN tag, and the clicker shows "Target N / then M".
-5. **Spin, position and the strike.** The **strike ball** (bottom right) replaces both the spin picker and the Shoot button: press and hold where you want to hit the cue ball (Follow / Stun / Draw zones in blue, white and orange), slide up and down while the table shows where the cue ball will finish, and release to shoot. Sliding off the ball and letting go cancels and keeps the spin (`strikeHold`). It pulses until first used. `spinPaths` simulates the shot and draws the cue ball's path after contact to where it stops (ghost ball + label, or a red X for a scratch). Only the chosen spin is drawn, to keep the table uncluttered. Labels are sized in screen pixels (`spx`) and placed to avoid balls and each other (`tag`).
-6. **Power** is a slider (Soft → Smash) next to the strike ball, drawn as the cue pulling back. Too fast into a pocket (`POT_MAX_SPEED`) rattles out.
-7. **No timing mini-games**: the shot plays exactly as aimed, so skill is judging the cut and the pace.
+4. **Order is a choice, not a rule.** Any ball can be targeted; the tag over the target reads "IN ORDER +200" (gold) or "OUT OF ORDER +100", with the streak multiplier applied (`potValue`), and the hint next to the spin ball repeats it. The lowest ball carries a "N: 2×" tag when it isn't the target. The ball that comes after the target (`thenBall`: lowest left once the target drops) gets a dotted ring and a THEN tag, and the clicker shows "Target N / then M".
+5. **Spin and position.** A small cue ball in the controls cycles Stun → Follow → Draw on tap (S or ↑/↓ on desktop); the dot shows where the tip will hit. `spinPaths` simulates the shot and draws the cue ball's path after contact to where it stops (ghost ball + label, or a red X for a scratch) for the chosen spin only. Labels are sized in screen pixels (`spx`) and placed to avoid balls and each other (`tag`).
+6. **Pull back and release.** The tall cue on the right is the power and the trigger: drag down to load power (150 px = full; the table cue pulls back to match), let go to shoot, or push back to the top and let go to cancel (hold Space on desktop). While you hold, a close-up of the cue ball (bottom left of the table) shows the gold spot (your spin) and the cue tip wobbling over it (`tipPos`). When you let go is the timing challenge (`contact`): on the spot plays the shot exactly; off to the side pushes the line up to 3° the other way; high/low error changes the spin; out at the edge is a miscue (−4°, 35% power). `contactDiff` sets the spot size and the wobble, mostly from distance (cue ball to first ball, plus that ball's run on), plus spin, power and rough felt. On release the close-up zooms to the middle and plays the strike with a grade (Clean / Nearly / Off-centre / Miscue) before the balls move (`zoom`, `drawContact`).
 
 Scoring (`PTS`, `resolveShot`, `finishHole`): every pot 100; the lowest ball on the table (rotation order) +100; bank +50; combo +50; each extra ball in one shot +50. Consecutive potting shots build a streak multiplier ×1, ×1.5, ×2, ×2.5, ×3 (`streakMult`). A miss ends the streak; a foul (no contact, scratch) costs 50 and ends it. Wrong order is legal, just worth less. Clearing the rack: +50 per spare shot, **Run out** (no misses or fouls) +300, **Perfect rack** (run out, all in order) +300 more. Running out of shots ends the hole with what you have.
 
@@ -34,8 +33,8 @@ felt, swaying plants, armchair, a spinning record player, a sleeping cat,
 window light with rain shadows, cloud shadows, dust motes, vignette and
 grain. UI in DM Sans + DM Mono: scorecard strip (points and result per hole),
 info bar (hole points and balls left, shot count and streak multiplier,
-tilt), then the controls in play order: target button and aim strip, power
-slider and strike ball.
+tilt), then the controls in play order: target button and aim strip, spin ball,
+and the pull-back cue down the right.
 Sound: clacks, cushions, pockets, rising pot notes for streaks, aim ticks, rain and vinyl
 ambience, and an electric-piano loop.
 
@@ -47,7 +46,7 @@ ambience, and an electric-piano loop.
 - Bottom half: audio, events (`onEvent` scores each pot as it drops),
   round/hole flow (`lineUp`, `focusBall`, `nextBall`, `setAngle`, `setSpot`,
   `setPower`, `shoot`, `resolveShot`, `finishHole`), UI, input (table drag,
-  aim strip, power slider, strike ball, keys) and the canvas renderer
+  aim strip, spin ball, pull-back cue, keys) and the canvas renderer
   (`drawAim`, `drawAimLabels`).
 
 ## Next ideas
