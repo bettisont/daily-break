@@ -89,3 +89,13 @@ page views, not individual returning players.
 Audio on iPhone: Web Audio is unlocked on the first touchend/click (iOS doesn't
 count pointerdown) and resumed when the tab comes back. The ring/silent switch
 mutes it. Vibration is Android-only; iOS ignores `navigator.vibrate`.
+
+## Launch polish (10 Nov 2026)
+
+- Day numbers count from launch: `EPOCH` = 11 Nov 2026 is Daily Break #1.
+- Level 1 is a free warm-up: a miss or foul there costs no life (`resolveShot`).
+- First visit shows a three-line intro (`showIntro`); the full guide stays behind **?** (`showHelp`).
+- The result card shows the player's own stats from localStorage (`ladderStats`: days played, day
+  streak, best and average level; nothing leaves the device), a live countdown to the next ladder
+  at local midnight (`tickNext`) and a "Send feedback" mailto link (`FEEDBACK_EMAIL`,
+  hello@dailybreak.app, which needs Cloudflare Email Routing to forward it to a real inbox).
