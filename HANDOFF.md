@@ -66,3 +66,26 @@ ambience, and an electric-piano loop.
 - Replay of the best shot at the end of a run.
 - Optional position target: drop a zone for the cue ball for a bonus.
 - Leaderboard and friends with server-side shot replay.
+
+## Hosting
+
+Cloudflare Worker `daily-break` (static assets, `wrangler.jsonc`). Every push
+to `main` deploys via `.github/workflows/deploy.yml` (needs the repo secret
+`CLOUDFLARE_API_TOKEN`); it can also be run by hand from the Actions tab.
+By hand: `mkdir -p dist && cp index.html static/* dist/ && npx wrangler deploy`.
+
+`static/` holds the link-preview card (`og.png`, 1200×630), app icons and
+`manifest.webmanifest` (Add to Home Screen opens it standalone). The meta tags
+and `SITE_URL` in `index.html` assume https://daily-break.timbuilds.workers.dev/;
+change them together if it moves to its own domain. The share button uses the
+phone's share sheet (`navigator.share`) and falls back to copying; the shared
+text ends with the game's URL (with `?seed=` for non-daily courses).
+
+Analytics: Cloudflare Web Analytics, off until `CF_ANALYTICS_TOKEN` in the
+`<head>` is filled in (dashboard › Analytics & Logs › Web Analytics › Add a
+site › daily-break.timbuilds.workers.dev). It's cookieless: daily visits and
+page views, not individual returning players.
+
+Audio on iPhone: Web Audio is unlocked on the first touchend/click (iOS doesn't
+count pointerdown) and resumed when the tab comes back. The ring/silent switch
+mutes it. Vibration is Android-only; iOS ignores `navigator.vibrate`.

@@ -1,0 +1,7 @@
+// Cloudflare static hosting for Daily Break: serves index.html + static/ from ./dist
+// (the deploy copies only index.html and static/ there, so HANDOFF.md and .git stay private).
+{
+  "name": "daily-break",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "./dist" }
+}
