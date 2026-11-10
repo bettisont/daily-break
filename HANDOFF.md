@@ -17,7 +17,7 @@ A shot (built for one thumb on a phone). The controls run in play order, top to 
 4. **Order is a choice, not a rule.** Any ball can be targeted; the tag over the target reads "IN ORDER +200" (gold) or "OUT OF ORDER +100", with the streak multiplier applied (`potValue`), and the hint under the power bar repeats it. The lowest ball carries a "N: 2×" tag when it isn't the target. The ball that comes after the target (`thenBall`: lowest left once the target drops) gets a dotted ring and a THEN tag, and the clicker shows "Target N / then M".
 5. **Spin, position and the strike.** The **strike ball** (bottom right) replaces both the spin picker and the Shoot button: press and hold where you want to hit the cue ball (Follow / Stun / Draw zones in blue, white and orange), slide up and down while the table shows where the cue ball will finish, and release to shoot. Sliding off the ball and letting go cancels and keeps the spin (`strikeHold`). It pulses until first used. `spinPaths` simulates the shot and draws the cue ball's path after contact to where it stops (ghost ball + label, or a red X for a scratch). Holes 1–6 also draw the other two spins faintly for comparison; holes 7–9 show only the chosen spin. Labels are sized in screen pixels (`spx`) and placed to avoid balls and each other (`tag`).
 6. **Power** is a slider (Soft → Smash) next to the strike ball, drawn as the cue pulling back. Too fast into a pocket (`POT_MAX_SPEED`) rattles out.
-7. **Shoot.** No timing mini-games: the shot plays exactly as aimed, so skill is judging the cut and the pace.
+7. **No timing mini-games**: the shot plays exactly as aimed, so skill is judging the cut and the pace.
 
 Scoring (`PTS`, `resolveShot`, `finishHole`): every pot 100; the lowest ball on the table (rotation order) +100; bank +50; combo +50; each extra ball in one shot +50. Consecutive potting shots build a streak multiplier ×1, ×1.5, ×2, ×2.5, ×3 (`streakMult`). A miss ends the streak; a foul (no contact, scratch) costs 50 and ends it. Wrong order is legal, just worth less. Clearing the rack: +50 per spare shot, **Run out** (no misses or fouls) +300, **Perfect rack** (run out, all in order) +300 more. Running out of shots ends the hole with what you have.
 
@@ -34,8 +34,9 @@ felt, swaying plants, armchair, a spinning record player, a sleeping cat,
 window light with rain shadows, cloud shadows, dust motes, vignette and
 grain. UI in DM Sans + DM Mono: scorecard strip (points and result per hole),
 info bar (hole points and balls left, shot count and streak multiplier,
-tilt), the power slider, and a thumb row: Next-ball clicker, Shoot, dial.
-Sound: clacks, cushions, pockets, rising pot notes for streaks, dial ticks, rain and vinyl
+tilt), then the controls in play order: target button and aim strip, power
+slider and strike ball.
+Sound: clacks, cushions, pockets, rising pot notes for streaks, aim ticks, rain and vinyl
 ambience, and an electric-piano loop.
 
 ## Code layout
@@ -46,11 +47,12 @@ ambience, and an electric-piano loop.
 - Bottom half: audio, events (`onEvent` scores each pot as it drops),
   round/hole flow (`lineUp`, `focusBall`, `nextBall`, `setAngle`, `setSpot`,
   `setPower`, `shoot`, `resolveShot`, `finishHole`), UI, input (table drag,
-  dial, power slider, keys) and the canvas renderer (`drawAim`, `drawBubble`).
+  aim strip, power slider, strike ball, keys) and the canvas renderer
+  (`drawAim`, `drawAimLabels`).
 
 ## Next ideas
 
-- Playtest the difficulty: `SHOT_SPARE` (3), the dial gearing (8° a turn)
+- Playtest the difficulty: `SHOT_SPARE` (3), the aim-strip gearing (0.04°/px)
   and the guide levels are the main knobs. A bot with perfect geometric aim
   and a fixed medium pace cleared about half the racks.
 - Replay of the best shot at the end of each hole.
