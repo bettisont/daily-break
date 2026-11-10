@@ -45,19 +45,28 @@
   .round{width:34px;height:34px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}
   .round.off{opacity:.45}
   #controls{background:var(--panel);border-top:1px solid var(--line);padding:10px 16px max(10px,env(safe-area-inset-bottom))}
-  #meter{position:relative;height:26px;border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:hidden}
-  #mOver{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(-45deg,var(--hatch) 0 7px,transparent 7px 14px)}
-  #mFill{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,#eef2e6,#9fc495)}
-  #mPin{position:absolute;top:0;bottom:0;background:rgba(226,177,60,.35);border-left:2px solid var(--gold);border-right:2px solid var(--gold);transition:background .15s}
-  #meter.hit #mPin{background:rgba(226,177,60,.85)}
-  #mNeedle{position:absolute;top:-2px;bottom:-2px;width:3px;margin-left:-1.5px;background:var(--ink);opacity:0}
-  .mlabels{position:relative;height:15px;margin:5px 2px 8px;font-size:11px;color:var(--muted)}
-  .mlabels span{position:absolute;top:0}
-  #lEase{left:0} #lOver{right:0} #lPin{transform:translateX(-50%)}
-  #act{width:100%;height:50px;touch-action:none;border:0;border-radius:14px;background:var(--green);color:#f4f6ef;font:800 20px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 0 var(--green-dark);transition:transform .08s,box-shadow .08s,background .2s}
+  #powerRow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  #powerRow .lab{font-size:10.5px;color:#5a6556}
+  #pVal{width:52px;text-align:right;font:700 13px 'DM Sans',sans-serif;color:var(--ink)}
+  #meter{flex:1;position:relative;height:30px;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden;touch-action:none;cursor:ew-resize}
+  #mFill{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,#eef2e6,#9fc495 60%,#e3a07a)}
+  #mKnob{position:absolute;top:3px;bottom:3px;width:8px;margin-left:-4px;border-radius:4px;background:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  #ctrlRow{display:grid;grid-template-columns:76px 1fr 84px;gap:12px;align-items:center}
+  #next{height:76px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);box-shadow:0 3px 0 var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;cursor:pointer;touch-action:none;font:600 10px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em}
+  #next small{font-size:9px;color:var(--muted)}
+  #next:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--line)}
+  #next:disabled{opacity:.5}
+  #next .nb{width:30px;height:30px;border-radius:50%;background:var(--bc);display:grid;place-items:center;font:700 13px 'DM Mono',monospace;color:#24221f;position:relative;box-shadow:inset -3px -4px 6px rgba(0,0,0,.25);isolation:isolate}
+  #next .nb::before{content:'';position:absolute;inset:7px;border-radius:50%;background:#f4efe2;z-index:-1}
+  #act{width:100%;height:76px;touch-action:none;border:0;border-radius:14px;background:var(--green);color:#f4f6ef;font:800 22px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 0 var(--green-dark);transition:transform .08s,box-shadow .08s,background .2s}
   #act:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--green-dark)}
   #act:disabled{opacity:.5;cursor:default}
-  #act.stop{background:#b5603f;box-shadow:0 3px 0 #7d3f28}
+  #dial{width:84px;height:84px;border-radius:50%;position:relative;touch-action:none;cursor:grab;background:#d9d0bb;box-shadow:0 3px 0 #c4b99f,0 6px 14px rgba(60,45,25,.18)}
+  #dial.off{opacity:.5}
+  #dialFace{position:absolute;inset:4px;border-radius:50%;background:repeating-conic-gradient(from -1deg,#a99d82 0 2deg,transparent 2deg 12deg),radial-gradient(circle,#fbf8f0 0 58%,#efe7d4 59%)}
+  #dialFace::after{content:'';position:absolute;left:50%;top:4px;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:var(--red)}
+  #dialVal{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;font:700 13px 'DM Sans',sans-serif;color:var(--ink);line-height:1}
+  #dialVal small{font:500 8.5px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:2px}
   #hint{margin-top:8px;text-align:center;font-size:11px;color:var(--muted);min-height:14px}
   #overlay{position:fixed;inset:0;z-index:10;background:rgba(236,229,211,.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;opacity:0;pointer-events:none;transition:opacity .3s}
   #overlay.show{opacity:1;pointer-events:auto}
@@ -95,16 +104,19 @@
   <div id="info"><div id="iHole"></div><div id="iLie"></div><div id="iTilt"></div></div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">
-    <div id="meter"><div id="mFill"></div><div id="mOver"></div><div id="mPin"></div><div id="mNeedle"></div></div>
-    <div class="mlabels mono"><span id="lEase">Ease</span><span id="lPin">Pin</span><span id="lOver">Over</span></div>
-    <button id="act">Lining up…</button>
+    <div id="powerRow"><span class="lab mono">Power</span><div id="meter"><div id="mFill"></div><div id="mKnob"></div></div><span id="pVal"></span></div>
+    <div id="ctrlRow">
+      <button id="next" title="Next ball (Tab)"></button>
+      <button id="act">…</button>
+      <div id="dial" title="Fine aim (← →)"><div id="dialFace"></div><div id="dialVal"></div></div>
+    </div>
     <div id="hint" class="mono"></div>
   </div>
 </div>
 <div id="overlay"><div class="card" id="card"></div></div>
 
 <script>
-/* =================== core: racks, physics, solver (no DOM) =================== */
+/* =================== core: racks and physics (no DOM) =================== */
 
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
@@ -116,14 +128,6 @@ const POCKETS = [
   { x: 0, y: 0, cap: R * 1.75 }, { x: W, y: 0, cap: R * 1.75 },
   { x: -5, y: H / 2, cap: R * 1.55 }, { x: W + 5, y: H / 2, cap: R * 1.55 },
   { x: 0, y: H, cap: R * 1.75 }, { x: W, y: H, cap: R * 1.75 },
-];
-// Shot types, the "clubs": how fast the object ball should reach the pocket, and cue-ball spin.
-const SHOTS = [
-  { id: 'soft', name: 'Soft', arrive: 110, spin: 0.25, hint: 'gentle' },
-  { id: 'stun', name: 'Stun', arrive: 320, spin: 0, hint: 'stops' },
-  { id: 'follow', name: 'Follow', arrive: 320, spin: 0.75, hint: 'rolls on' },
-  { id: 'draw', name: 'Draw', arrive: 380, spin: -0.75, hint: 'back' },
-  { id: 'power', name: 'Power', arrive: 750, spin: 0, hint: 'firm' },
 ];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -240,6 +244,7 @@ class Table {
   shoot(angle, power, spin = 0) {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
+    for (const b of this.balls) b.cush = 0;
     this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false };
   }
 
@@ -320,6 +325,7 @@ class Table {
       if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx) * CUSHION_E; hitWall = true; }
       if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * CUSHION_E; hitWall = true; }
       if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) * CUSHION_E; hitWall = true; }
+      if (hitWall) b.cush = (b.cush || 0) + 1;
       if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp }); }
     }
   }
@@ -357,13 +363,6 @@ function cloneTable(t) {
   return c;
 }
 
-// Launch speed so a ball travels d and is still moving at vf (dv/dt = -(a + k v)).
-function launchSpeed(d, vf, a = ROLL_DECEL, k = LIN_DAMP) {
-  const dist = v0 => ((v0 - vf) - (a / k) * Math.log((a + k * v0) / (a + k * vf))) / k;
-  let lo = vf, hi = 40000;
-  for (let n = 0; n < 50; n++) { const mid = (lo + hi) / 2; if (dist(mid) < d) lo = mid; else hi = mid; }
-  return hi;
-}
 function segDist(px, py, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, u = clamp(((px - ax) * dx + (py - ay) * dy) / l2, 0, 1);
   return Math.hypot(ax + dx * u - px, ay + dy * u - py);
@@ -389,7 +388,7 @@ function trace(t, px, py, dx, dy, skip = null) {
   return best;
 }
 
-// ---- called shots ----
+// ---- shot helpers ----
 
 // The geometric line for potting ball bi into pocket i: where the cue ball must strike (the ghost ball).
 function potLine(t, bi, i, from = t.cue) {
@@ -412,15 +411,6 @@ function allLines(t) {
   t.balls.forEach((b, bi) => { if (!b.potted) for (let i = 0; i < 6; i++) { const l = potLine(t, bi, i); if (l) out.push(l); } });
   return out;
 }
-// No pot on for this ball: just play it full, at medium pace.
-function safeLine(t, bi) {
-  const b = t.balls[bi], c = t.cue, d = Math.hypot(b.x - c.x, b.y - c.y) || 1;
-  return { bi, pocket: -1, angle: Math.atan2(b.y - c.y, b.x - c.x), cos: 1, d1: Math.max(1, d - 2 * R), d2: 260, blocked: true, q: 0, ghost: { x: b.x - (b.x - c.x) / d * 2 * R, y: b.y - (b.y - c.y) / d * 2 * R } };
-}
-function shotPower(line, type) {
-  const vObj = launchSpeed(line.d2, type.arrive);
-  return Math.min(1, launchSpeed(line.d1, vObj / (line.cos * (1 + BALL_E) / 2)) / MAX_SPEED);
-}
 function simulate(t, angle, power, spin = 0, path = null) {
   const s = cloneTable(t);
   s.shoot(angle, power, spin);
@@ -431,66 +421,6 @@ function simulate(t, angle, power, spin = 0, path = null) {
   if (path && !s.cue.potted) path.push([s.cue.x, s.cue.y]);
   return s;
 }
-// A clean pot: no scratch, the called ball is hit first and drops in the called pocket.
-function clean(s, line) {
-  const b = s.balls[line.bi];
-  return !s.shot.scratch && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b && p.pocket === line.pocket);
-}
-// Play a called shot as well as it can be played: nudge the line a hair to allow for tilt and felt.
-function playCall(t, line, type, withPath = false) {
-  const base = shotPower(line, type);
-  if (line.pocket >= 0) for (const pm of [1, 1.15]) for (const da of [0, -0.003, 0.003, -0.007, 0.007, -0.012, 0.012]) {
-    const power = Math.min(1, base * pm), angle = line.angle + da, s = simulate(t, angle, power, type.spin);
-    if (clean(s, line)) {
-      if (!withPath) return { ok: true, angle, power, state: s };
-      const path = []; return { ok: true, angle, power, state: simulate(t, angle, power, type.spin, path), path };
-    }
-  }
-  const path = withPath ? [] : null;
-  return { ok: false, angle: line.angle, power: base, state: simulate(t, line.angle, base, type.spin, path), path };
-}
-// How good is the leave? The best clean pot available from where everything stopped.
-function nextQ(s) {
-  if (s.shot?.scratch || s.cue.potted) return -1;
-  if (!s.remaining()) return 3;
-  let q = 0;
-  s.balls.forEach((b, bi) => { if (!b.potted) for (let i = 0; i < 6; i++) { const l = potLine(s, bi, i); if (l && !l.blocked) q = Math.max(q, l.q); } });
-  return q;
-}
-// The best call from here: ball, pocket and shot type, judged by the leave.
-function bestCall(t) {
-  let best = null;
-  for (const l of allLines(t).filter(l => !l.blocked).sort((a, b) => b.q - a.q).slice(0, 4)) {
-    for (const ti of [1, 2, 3, 0]) {
-      const r = playCall(t, l, SHOTS[ti]);
-      if (!r.ok) continue;
-      const v = nextQ(r.state);
-      if (!best || v > best.v) best = { v, line: l, ti, state: r.state };
-    }
-  }
-  return best;
-}
-// Par: a perfect-execution bot clears the rack; par is its score + 1.
-function solveRack(hole) {
-  let t = new Table(hole), strokes = 0;
-  while (t.remaining() && strokes < 12) {
-    strokes++;
-    const b = bestCall(t);
-    let s;
-    if (b) s = b.state;
-    else {
-      // nothing clean: roll into the nearest ball and try again
-      let bi = -1, bd = Infinity;
-      t.balls.forEach((ball, k) => { if (!ball.potted) { const d = Math.hypot(ball.x - t.cue.x, ball.y - t.cue.y); if (d < bd) { bd = d; bi = k; } } });
-      const l = safeLine(t, bi);
-      s = simulate(t, l.angle, shotPower(l, SHOTS[1]));
-    }
-    if (s.cue.potted) s.respot(s.cue, t.cue.x, t.cue.y);
-    s.shot = null; t = s;
-  }
-  return strokes;
-}
-function parFor(hole) { const n = hole.balls.length; return clamp(solveRack(hole), n, n + 2); }
 
 /* =================== browser =================== */
 
@@ -499,12 +429,23 @@ const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
-const STRIKE_T = 0.1, PIN_AT = 0.62;
+const STRIKE_T = 0.1, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
+// Scoring: every pot scores, potting the lowest ball on the table (rotation order) scores double,
+// and consecutive potting shots build a streak multiplier.
+const PTS = { pot: 100, order: 100, bank: 50, combo: 50, multi: 50, foul: 50, spare: 50, runout: 300, perfect: 300 };
+const SHOT_SPARE = 3;
+const shotLimit = h => h.balls.length + SHOT_SPARE;
+const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
+// The aiming guide fades over the round: full guide, short guide, then the aim line only.
+const aidLevel = h => h.i < 3 ? 2 : h.i < 6 ? 1 : 0;
+const AID_NAMES = ['Aim line only', 'Short guide', 'Full guide'];
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
-let call = null, lines = [], swayT = 0, locked = null, meter = null, strike = null, strokeStart = null;
-let marks = [], trails = [], curTrail = null, stamp = null, banner = null, flagPop = 0;
+let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
+let hs = null, shotLog = [];
+let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
+let cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0 };
 
 
@@ -583,6 +524,7 @@ function playChord() {
   const mel = [523.25, 587.33, 659.25, 783.99, 880];
   for (let k = 0; k < 3; k++) if (Math.random() < 0.55) epiano(mel[Math.floor(Math.random() * mel.length)], t + 1.6 + k * 1.3 + Math.random() * 0.3, 2.2, 0.012);
 }
+const POT_SCALE = [392, 440, 523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];
 const sfx = {
   clack(v) { v = Math.min(1, v / 1600); if (v < 0.03) return; noise(0.03, 0.6 * v, 3200, 'bandpass', 0, 1.4); tone(2100 + Math.random() * 500, 0.045, 0.12 * v, 'sine', 1, 0, 0.05); },
   cushion(v) { v = Math.min(1, v / 2000); if (v < 0.03) return; noise(0.09, 0.35 * v, 380); tone(95, 0.12, 0.18 * v, 'sine', 0.7, 0, 0); },
@@ -590,8 +532,14 @@ const sfx = {
   rattle() { for (let k = 0; k < 4; k++) tone(700 - k * 90, 0.04, 0.09, 'triangle', 0.8, k * 0.05, 0.1); noise(0.12, 0.2, 900, 'bandpass', 0, 2); },
   strike(p) { noise(0.02, 0.3 + 0.4 * p, 2400, 'bandpass', 0, 1); tone(820, 0.035, 0.08 + 0.1 * p, 'triangle', 1, 0, 0); },
   bumper() { tone(523, 0.25, 0.1, 'sine', 1.5, 0, 0.4); tone(784, 0.25, 0.06, 'sine', 1.5, 0.03, 0.4); },
-  lock() { tone(1046, 0.05, 0.08, 'square', 1, 0, 0.1); tone(1568, 0.08, 0.05, 'sine', 1, 0.03, 0.2); },
-  tick(k) { tone(380 + k * 45, 0.025, 0.03, 'sine', 1, 0, 0); },
+  tick() { tone(2400, 0.012, 0.02, 'square', 1, 0, 0); },
+  // pots climb a pentatonic scale as the streak builds; in-order pots add a bell on top
+  potNote(k, gold) {
+    sfx.pot();
+    const f = POT_SCALE[Math.min(k, POT_SCALE.length - 1)];
+    tone(f, 0.35, 0.07, 'triangle', 1, 0.06, 0.5); tone(f * 2, 0.25, 0.025, 'sine', 1, 0.08, 0.5);
+    if (gold) { tone(f * 1.5, 0.5, 0.045, 'sine', 1, 0.14, 0.6); tone(f * 3, 0.4, 0.02, 'sine', 1, 0.16, 0.6); }
+  },
   holed(good) { const n = good ? [523.25, 659.25, 783.99, 1046.5, 1318.5] : [523.25, 659.25, 783.99]; n.forEach((f, k) => { tone(f, 0.7, 0.08, 'triangle', 1, k * 0.09, 0.6); tone(f * 2, 0.4, 0.025, 'sine', 1, k * 0.09 + 0.02, 0.6); }); },
   stamp() { noise(0.12, 0.5, 300); tone(80, 0.18, 0.3, 'sine', 0.6, 0, 0.1); },
   penalty() { tone(330, 0.2, 0.08, 'triangle', 0.7, 0, 0.3); tone(262, 0.3, 0.08, 'triangle', 0.7, 0.15, 0.3); },
@@ -609,7 +557,7 @@ function sparkle(x, y, color, n, speed = 120) {
 }
 function float(x, y, text, color, size = 20, life = 1.4) { fx.floats.push({ x, y, text, color, size, life, max: life }); }
 function ring(x, y, color, grow = 50, life = 0.6, r = R) { fx.rings.push({ x, y, r, grow, life, max: life, color }); }
-const calledBall = () => call ? table.balls[call.line.bi] : null;
+const lowestN = () => Math.min(...table.balls.filter(b => !b.potted).map(b => b.n));
 
 function onEvent(type, e) {
   if (type === 'hit') {
@@ -619,16 +567,23 @@ function onEvent(type, e) {
   else if (type === 'bumper') { sfx.bumper(); e.o.flash = 1; ring(e.o.x, e.o.y, '230,190,100', 34, 0.5, e.o.r); }
   else if (type === 'rattle') { sfx.rattle(); float(e.x, e.y - 30, 'Rattled out', '#b8553f', 18); fx.shake = 4; }
   else if (type === 'pot') {
-    sfx.pot(); buzz(10);
     const p = POCKETS[e.pocket], b = e.ball, tx = clamp(p.x, 0, W), ty = clamp(p.y, 0, H);
     ensureSpin(b);
     fx.sinks.push({ x: e.x, y: e.y, tx, ty, b: { n: b.n, spot: b.spot, pole: b.pole }, t: 0 });
     ring(tx, ty, '255,250,235', 46, 0.6);
-    if (!b.isCue) {
-      const fy = clamp(ty, 60, H - 60) + (ty < H / 2 ? 40 : -40), fxp = clamp(tx, 60, W - 60);
-      if (b === calledBall() && e.pocket === call.line.pocket) { ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18, 160); flagPop = 1; float(fxp, fy, 'Called it', '#2f6b4f', 18); }
-      else float(fxp, fy, `Bonus ${b.n}`, '#7a6a3a', 16);
-    }
+    if (b.isCue) { sfx.pot(); buzz(10); return; }
+    // the event fires before the ball is marked potted, so it still counts as on the table here
+    const s = table.shot, inOrder = b.n === lowestN(), bank = (b.cush || 0) > 0, combo = !!s?.firstHit && s.firstHit !== b;
+    const k = (hs?.streak || 0) + shotLog.length;   // pots in a row, counting this one's place
+    shotLog.push({ n: b.n, inOrder, bank, combo });
+    sfx.potNote(k, inOrder); buzz(inOrder ? 18 : 10);
+    const fy = clamp(ty, 60, H - 60) + (ty < H / 2 ? 40 : -40), fxp = clamp(tx, 60, W - 60);
+    const tags = [inOrder ? 'In order' : `${b.n} ball`, bank && 'Bank', combo && 'Combo'].filter(Boolean).join(' · ');
+    if (inOrder) { ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18 + k * 6, 160 + k * 20); }
+    else sparkle(tx, ty, '#fbf8f0', 10, 120);
+    float(fxp, fy, tags + (bank || combo ? '!' : ''), inOrder ? '#b88a2e' : '#2f6b4f', 18 + Math.min(6, k * 1.5));
+    if (k >= 2) fx.shake = Math.min(9, 2 + k * 1.5);
+    if (cine && b.n === cine.n) { cine.hold = 0.9; ring(tx, ty, '226,177,60', 160, 1.3, 24); sparkle(tx, ty, '#e2b13c', 50, 260); }
   }
 }
 
@@ -637,205 +592,153 @@ function onEvent(type, e) {
 function newRound(seed, ranked) {
   const r = round = { seed, ranked, scores: Array(HOLES).fill(null), holes: [] };
   for (let i = 0; i < HOLES; i++) r.holes.push(makeHole(seed, i));
-  // par needs a solver run per hole: do the first now and the rest in the background
-  r.holes[0].par = parFor(r.holes[0]);
-  let k = 1;
-  const more = () => { if (round !== r || k >= HOLES) return; if (r.holes[k].par == null) r.holes[k].par = parFor(r.holes[k]); k++; renderCard9(); setTimeout(more, 60); };
-  setTimeout(more, 900);
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? `#${dayNumber(seed)}` : 'practice'}`;
-  const saved = ranked ? ls('dailybreak:rack:' + seed) : null;
+  const saved = ranked ? ls('dailybreak:pts:' + seed) : null;
   startHole(0);
-  if (saved) { try { round.scores = JSON.parse(saved).scores; round.done = true; ensurePars(); renderCard9(); showFinal(true); } catch {} }
+  if (saved) { try { round.scores = JSON.parse(saved).scores; round.done = true; renderCard9(); showFinal(true); } catch {} }
 }
-function ensurePars() { for (const h of round.holes) if (h.par == null) h.par = parFor(h); }
 
 function startHole(i) {
   hole = round.holes[i];
-  if (hole.par == null) hole.par = parFor(hole);
   table = new Table(hole, onEvent);
-  strokes = 0; marks = []; trails = []; curTrail = null; stamp = null; locked = null; meter = null; strike = null;
+  strokes = 0; hs = { points: 0, streak: 0, misses: 0, fouls: 0, outOfOrder: 0 };
+  marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
   fx.sinks = []; fx.confetti = [];
   lineUp();
-  banner = { title: `Hole ${i + 1}`, sub: `Par ${hole.par} · clear ${hole.balls.length} balls`, life: 2.4, max: 2.4 };
+  banner = { title: `Hole ${i + 1}`, sub: `${hole.balls.length} balls · ${shotLimit(hole)} shots · ${AID_NAMES[aidLevel(hole)]}`, life: 2.6, max: 2.6 };
   renderCard9(); updateUI();
 }
 
-// Work out the suggested call a frame later, so the table never freezes while it thinks.
-function lineUp() {
-  phase = 'lining'; call = null; locked = null; meter = null; updateUI();
-  setTimeout(() => { if (phase !== 'lining') return; suggestCall(); phase = 'aim'; swayT = Math.random() * 10; updateUI(); }, 30);
+// Each shot starts aimed straight at the lowest ball: the one that scores double.
+function lineUp() { phase = 'aim'; focusBall(lowestBall(), true); updateUI(); }
+function lowestBall() {
+  let bi = -1;
+  table.balls.forEach((b, k) => { if (!b.potted && (bi < 0 || b.n < table.balls[bi].n)) bi = k; });
+  return bi;
 }
-// Nothing is called for you: work out the pot lines, then wait for the player to pick a ball.
-function suggestCall() {
-  lines = allLines(table);
-  call = null;
-}
-// Calling a line. The hit is chosen by tapping the cue ball in the bubble; that sets the spin.
-function selectLine(line, keepSpot) {
-  call = { line, spot: null, spin: 0, prev: null };
-  if (keepSpot) setSpot(keepSpot.y, true);
+function focusBall(bi, quiet) {
+  if (bi < 0) return;
+  const b = table.balls[bi], c = table.cue;
+  aim.bi = bi; aim.angle = Math.atan2(b.y - c.y, b.x - c.x);
+  if (!quiet) { tone(1175, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
   updateUI();
 }
-function selectBall(bi) {
-  const mine = lines.filter(l => l.bi === bi).sort((a, b) => (a.blocked - b.blocked) || (b.q - a.q));
-  selectLine(mine[0] || safeLine(table, bi), call?.spot);
-  sayDifficulty();
-  tone(1175, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6);
+// The clicker: step through the balls on the table in number order.
+function nextBall() {
+  if (phase !== 'aim') return;
+  const order = table.balls.map((_, k) => k).filter(k => !table.balls[k].potted).sort((a, b) => table.balls[a].n - table.balls[b].n);
+  focusBall(order[(order.indexOf(aim.bi) + 1) % order.length]);
 }
-function selectPocket(i) {
-  const l = lines.find(l => l.bi === call.line.bi && l.pocket === i);
-  if (!l) { tone(220, 0.08, 0.05, 'triangle', 1, 0, 0); return; }
-  selectLine(l, call.spot);
-  sayDifficulty();
-  tone(1568, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6);
+// Fine aim: the dial, arrow keys or dragging on the felt all come through here.
+let lastTick = 0;
+function setAngle(a) {
+  if (phase !== 'aim') return;
+  const before = Math.round(aim.angle / TICK);
+  aim.angle = Math.atan2(Math.sin(a), Math.cos(a));
+  if (Math.round(aim.angle / TICK) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; sfx.tick(); buzz(2); }
+  updateAimUI();
 }
+const turnAim = da => setAngle(aim.angle + da);
+// The aim offset from dead centre on the focused ball, in degrees (+ is right of centre, from behind the cue ball).
+function aimOffset() {
+  const b = table.balls[aim.bi], c = table.cue;
+  if (!b || b.potted) return 0;
+  const d = aim.angle - Math.atan2(b.y - c.y, b.x - c.x);
+  return Math.atan2(Math.sin(d), Math.cos(d)) * 180 / Math.PI;
+}
+
 // Where you hit the cue ball (height on its face, -1 top … +1 bottom) sets the spin: high follows, low draws.
 const spinFor = y => clamp(-y * 1.4, -0.95, 0.95);
 function strikeName(spin) {
   return spin >= 0.6 ? 'Follow' : spin >= 0.2 ? 'Roll' : spin > -0.2 ? 'Stun' : spin > -0.6 ? 'Draw' : 'Deep draw';
 }
 function setSpot(y, quiet) {
-  if (phase !== 'aim' || !call) return;
-  y = clamp(y, -0.7, 0.7);
-  const spin = spinFor(y), type = { arrive: 320 + Math.max(0, -spin) * 120, spin };
-  const r = playCall(table, call.line, type, true);
-  call.spot = { x: 0, y }; call.spin = spin;
-  call.prev = { ok: r.ok, angle: r.angle, power: r.power, path: r.path };
+  if (phase !== 'aim') return;
+  aim.spotY = clamp(Math.abs(y) < 0.08 ? 0 : y, -0.7, 0.7); aim.spin = spinFor(aim.spotY);
   if (!quiet) { sfx.click(); buzz(5); }
   updateUI();
 }
-const pv = () => call?.prev || null;
-
-// How hard is this shot? Cut, distance, traffic, lie, tilt and the shot type all count.
-// Harder shots swing faster with a thinner gold band, and the power needle is quicker and tighter.
-const TIERS = [['Easy', '#3d8758'], ['Fair', '#6f8f35'], ['Tricky', '#b88a2e'], ['Hard', '#c96a2c'], ['Very hard', '#b8553f']];
-function shotDifficulty(line, spin) {
-  const cut = Math.acos(clamp(line.cos, -1, 1)) * 180 / Math.PI, lie = lieAt(hole, table.cue.x, table.cue.y);
-  let d = 0.42 * clamp(cut / 65, 0, 1) ** 1.3 + 0.3 * clamp((line.d1 + line.d2 - 250) / 950, 0, 1) + (line.blocked ? 0.3 : 0)
-    + (lie === 'rough' ? 0.1 : lie === 'slick' ? 0.05 : 0) + hole.tilt.mag / 260 + (line.pocket < 0 ? 0.15 : 0);
-  if (spin != null) d += Math.abs(spin) * 0.09;
-  return clamp(d, 0, 1);
+const PACE = [[0.2, 'Soft'], [0.4, 'Medium'], [0.6, 'Firm'], [0.8, 'Hard'], [1.01, 'Smash']];
+const paceName = p => PACE.find(([v]) => p < v)[1];
+function setPower(p) {
+  if (phase !== 'aim') return;
+  const before = Math.round(power * 20);
+  power = clamp(p, 0.04, 1);
+  if (Math.round(power * 20) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; tone(300 + power * 500, 0.02, 0.025, 'sine', 1, 0, 0); }
+  updateMeter();
 }
-const tierOf = d => TIERS[Math.min(4, Math.floor(d / 0.2))];
-const curDiff = () => call ? shotDifficulty(call.line, call.spot ? call.spin : null) : 0.3;
-const perfP = () => lerp(0.042, 0.016, curDiff());
-const fillT = () => lerp(1.5, 0.95, curDiff());
-function sayDifficulty() {
-  const b = calledBall(), [name, col] = tierOf(curDiff());
-  float(b.x, b.y - 44 < 20 ? b.y + 44 : b.y - 44, name, col, 18, 1.1);
-}
-
-// The line: a pendulum swing inside the cone; lock as it crosses the bullseye.
-// Striking the cue ball: in the close-up bubble the cue tip drifts over the ball's face like a real hand.
-// The gold spot sits where this shot type needs the hit (centre for stun, high for follow, low for draw).
-// Tip on the spot: the line is exact and you get the spin you chose. Off to the side squirts the cue
-// ball off line; too high or low changes the spin. Harder shots: smaller spot, faster and wider drift.
-const tipTarget = () => ({ x: 0, y: call?.spot ? call.spot.y : 0 });
-const tipRadius = () => lerp(0.24, 0.09, curDiff());
-function tipPos() {
-  const d = curDiff(), lie = lieAt(hole, table.cue.x, table.cue.y);
-  const A = lerp(0.3, 0.58, d) * (lie === 'rough' ? 1.25 : 1), w = lerp(1.1, 2.1, d) * (lie === 'rough' ? 1.15 : 1), t = swayT * w, tg = tipTarget();
-  let x = tg.x + A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
-  let y = tg.y + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
-  const m = Math.hypot(x, y);
-  if (m > 0.85) { x *= 0.85 / m; y *= 0.85 / m; }
-  return { x, y };
-}
-const tipOnSpot = () => { const p = tipPos(), g = tipTarget(); return Math.hypot(p.x - g.x, p.y - g.y) <= tipRadius(); };
-function lockLine() {
-  if (phase !== 'aim' || !call) return;
-  if (!call.spot) { const c = table.cue; float(c.x, c.y - 46 < 30 ? c.y + 46 : c.y - 46, 'Tap the cue ball to choose your hit', '#7a6a3a', 18); sfx.penalty(); return; }
-  const tip = tipPos(), g = tipTarget(), rr = tipRadius(), dist = Math.hypot(tip.x - g.x, tip.y - g.y), perfect = dist <= rr;
-  const want = call.spin;
-  let off = 0, spin = want;
-  if (!perfect) {
-    // a near miss (within one spot-width of the spot) costs only a little; further out costs in full
-    const ex = dist - rr, eff = ex <= rr ? ex * 0.3 : 0.3 * rr + (ex - rr), dxEx = (tip.x - g.x) / dist * eff;
-    const len = 0.7 + (call.line.d1 + call.line.d2) / 900;   // long shots punish a bad strike more
-    off = -clamp(dxEx * 9 * len, -6, 6) * Math.PI / 180;   // right-hand side squirts the cue ball left, and vice versa
-    spin = lerp(want, clamp(-tip.y * 1.4, -0.95, 0.95), Math.min(1, ex / (2 * rr)));   // high = follow, low = draw
-  }
-  locked = { angle: pv().angle + off, off, perfect, spin, tip };
-  const c = table.cue, fy = c.y - 46 < 30 ? c.y + 46 : c.y - 46, deg = off * 180 / Math.PI, bits = [];
-  if (!perfect) {
-    if (Math.abs(deg) >= 0.3) bits.push(deg < 0 ? 'Squirted left' : 'Squirted right');
-    if (spin - want > 0.15) bits.push('more follow'); else if (want - spin > 0.15) bits.push('more draw');
-  }
-  const txt = perfect ? 'Perfect strike' : bits.length ? bits.join(', ').replace(/^./, ch => ch.toUpperCase()) : 'Near enough';
-  float(c.x, fy, txt, perfect ? '#b88a2e' : bits.length ? '#b8553f' : '#7a6a3a', 20);
-  if (perfect) { sfx.chime(); sparkle(c.x, c.y, '#e2b13c', 10, 90); buzz(12); } else { sfx.lock(); buzz(8); }
-  phase = 'locked';
-  updateUI();
-}
-function flashMeter(hit) { const m = $('meter'); m.classList.toggle('hit', hit); clearTimeout(flashMeter.t); flashMeter.t = setTimeout(() => m.classList.remove('hit'), 450); }
 
 function act() {
   ensureAudio();
-  if (phase === 'aim') { lockLine(); return; }
-  if (phase === 'locked') {
-    const p = pv().power, barMax = clamp(p / PIN_AT, 0.12, 1);
-    meter = { b: 0, barMax, pinPos: p / barMax, tick: -1 };
-    phase = 'power'; sfx.click();
-  } else if (phase === 'power') stopPower();
-  else if (phase === 'holed') {
-    if (hole.i < HOLES - 1) startHole(hole.i + 1);
-    else showFinal(false);
-  } else if (phase === 'over') showFinal(!!round.done);
+  if (phase === 'aim') shoot();
+  else if (phase === 'holed') { if (hole.i < HOLES - 1) startHole(hole.i + 1); else showFinal(false); }
+  else if (phase === 'over') showFinal(!!round.done);
   updateUI();
 }
 
-function stopPower() {
-  const m = meter, diff = m.b - m.pinPos, c = table.cue, perfect = Math.abs(diff) <= perfP();
-  const power = perfect ? pv().power : clamp(m.b * m.barMax, 0.02, 1);
-  if (perfect) { sfx.chime(); buzz(12); }
-  flashMeter(perfect);
-  if (perfect && locked.perfect && pv().ok) float(c.x, c.y - 90 < 30 ? c.y + 110 : c.y - 90, 'Perfect shot!', '#b88a2e', 24, 1.8);
-  const [txt, col] = perfect ? ['Perfect power', '#b88a2e'] : diff < 0 ? (diff < -0.08 ? ['Way short', '#b8553f'] : ['Soft', '#7a6a3a']) : (diff > 0.08 ? ['Heavy!', '#b8553f'] : ['Firm', '#7a6a3a']);
-  float(c.x, c.y + (c.y + 70 > H ? -70 : 70), txt, col, 18);
-  m.stopped = m.b;
-  strike = { angle: locked.angle, power, spin: locked.spin, t: 0 };
+function shoot() {
+  const c = table.cue;
+  // Will this shot clear the rack? Then the last ball gets the slow-motion treatment.
+  const sim = simulate(table, aim.angle, power, aim.spin), sp = sim.shot.pots;
+  cine = !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
+  strike = { angle: aim.angle, power, spin: aim.spin, t: 0 };
+  shotLog = [];
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
   curTrail = { pts: [[c.x, c.y]] }; trails.push(curTrail);
-  phase = 'strike';
+  phase = 'strike'; sfx.click();
   renderCard9();
 }
 
 function resolveShot() {
-  const s = table.shot, called = calledBall(), c = table.cue;
-  let pen = 0;
-  const say = (t, y) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, '#b8553f', 18, 1.8);
-  if (!s.firstHit) { pen++; say('No contact +1', c.y + 44); }
-  else if (s.firstHit !== called) { pen++; say(`Hit the ${s.firstHit.n} first +1`, c.y + 44); }
-  if (s.scratch) { pen++; table.respot(table.cue, strokeStart.x, strokeStart.y); say('Scratch +1', table.cue.y - 40); }
-  if (pen) { strokes += pen; sfx.penalty(); }
-  table.shot = null; curTrail = null; locked = null; meter = null;
-  if (!table.remaining()) finishHole(false);
-  else if (strokes >= hole.par + 4) finishHole(true);
+  const s = table.shot, c = table.cue;
+  const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
+  const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
+  if (foul) {
+    hs.fouls++; hs.streak = 0; hs.points = Math.max(0, hs.points - PTS.foul);
+    if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
+    say(`${foul} −${PTS.foul}`, table.cue.y + 44); sfx.penalty();
+  } else if (shotLog.length) {
+    hs.streak++;
+    let base = PTS.multi * (shotLog.length - 1);
+    for (const p of shotLog) { base += PTS.pot + (p.inOrder ? PTS.order : 0) + (p.bank ? PTS.bank : 0) + (p.combo ? PTS.combo : 0); if (!p.inOrder) hs.outOfOrder++; }
+    const mult = streakMult(hs.streak), gain = Math.round(base * mult);
+    hs.points += gain;
+    float(W / 2, H * 0.3, `+${gain}${mult > 1 ? `  ×${mult}` : ''}`, '#b88a2e', 24 + Math.min(14, hs.streak * 3), 1.6);
+    if (hs.streak >= 2) float(W / 2, H * 0.3 + 46, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.6);
+  } else {
+    hs.misses++;
+    say(hs.streak >= 2 ? 'Streak over' : 'Miss', c.y + 44, '#7a6a3a');
+    hs.streak = 0;
+  }
+  table.shot = null; curTrail = null; cine = null; shotLog = [];
+  if (!table.remaining()) finishHole(true);
+  else if (strokes >= shotLimit(hole)) finishHole(false);
   else lineUp();
   renderCard9(); updateUI();
 }
 
-const SCORE_NAMES = { '-3': 'Albatross', '-2': 'Eagle', '-1': 'Birdie', '0': 'Par', '1': 'Bogey', '2': 'Double bogey' };
-function finishHole(pickedUp) {
-  round.scores[hole.i] = strokes;
-  call = null;
-  const diff = strokes - hole.par;
-  const name = pickedUp ? 'Picked up' : SCORE_NAMES[diff] ?? (diff < 0 ? 'Albatross' : 'Triple bogey');
-  const color = diff < 0 ? '#2f6b4f' : diff === 0 ? '#3c4a3f' : '#b8553f';
+function finishHole(cleared) {
+  const spare = cleared ? shotLimit(hole) - strokes : 0, runout = cleared && !hs.misses && !hs.fouls, perfect = runout && !hs.outOfOrder;
+  const bonus = spare * PTS.spare + (runout ? PTS.runout : 0) + (perfect ? PTS.perfect : 0);
+  hs.points += bonus;
+  round.scores[hole.i] = { pts: hs.points, cleared, runout, perfect, shots: strokes };
+  const name = perfect ? 'Perfect rack' : runout ? 'Run out!' : cleared ? 'Cleared' : 'Out of shots';
+  const color = perfect ? '#b88a2e' : runout ? '#2f6b4f' : cleared ? '#3c4a3f' : '#b8553f';
+  const bits = [spare && `${spare} spare`, perfect ? 'all in order' : runout && 'no misses'].filter(Boolean);
   const forHole = hole;
   setTimeout(() => {
     if (hole !== forHole) return;
-    stamp = { text: name, sub: `${strokes} shot${strokes > 1 ? 's' : ''} · par ${hole.par}`, color, t: 0 };
+    stamp = { text: name, sub: `${hs.points.toLocaleString()} pts${bonus ? ` · +${bonus} (${bits.join(', ')})` : ''}`, color, t: 0 };
     sfx.stamp(); fx.shake = 6; buzz(25);
-    if (!pickedUp) sfx.holed(diff < 0);
-    if (diff <= 0 && !pickedUp) confettiBurst(diff < 0 ? 110 : 60);
-  }, pickedUp ? 0 : 350);
+    if (cleared) sfx.holed(runout);
+    if (runout) confettiBurst(perfect ? 140 : 80);
+  }, cleared ? 450 : 0);
   phase = 'holed';
   if (hole.i === HOLES - 1) {
     round.done = true;
-    if (round.ranked) ls('dailybreak:rack:' + round.seed, JSON.stringify({ scores: round.scores }));
+    if (round.ranked) ls('dailybreak:pts:' + round.seed, JSON.stringify({ scores: round.scores }));
   }
 }
 function confettiBurst(n) {
@@ -845,64 +748,62 @@ function confettiBurst(n) {
 
 /* ----- UI ----- */
 
-function toPar(n) { return n === 0 ? 'E' : n > 0 ? `+${n}` : `${n}`; }
-function scoreClass(s, par) { const d = s - par; return d <= -2 ? 'b2' : d === -1 ? 'b1' : d === 1 ? 'o1' : d >= 2 ? 'o2' : ''; }
+const fmtPts = n => n >= 10000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+const holeIcon = s => s == null ? '⬜' : s.perfect ? '✨' : s.runout ? '🔥' : s.cleared ? '🟩' : '🟥';
+const holeClass = s => s.perfect ? 'b2' : s.runout ? 'b1' : s.cleared ? '' : 'o1';
+const totalPts = () => round.scores.reduce((a, s) => a + (s?.pts ?? 0), 0);
 function renderCard9() {
   $('card9').innerHTML = round.holes.map((h, i) => {
     const s = round.scores[i], live = h === hole && s == null && strokes > 0;
-    const mark = s != null ? `<span class="sc ${scoreClass(s, h.par)}">${s}</span>` : live ? `<span class="sc">${strokes}</span>` : '·';
-    return `<div class="c ${h === hole ? 'cur' : ''}"><div class="n">${i + 1}</div><div class="m">${mark}</div><div class="p">${h.par ?? '·'}</div></div>`;
+    const mark = s ? `<span class="sc ${holeClass(s)}">${fmtPts(s.pts)}</span>` : live ? `<span class="sc">${fmtPts(hs.points)}</span>` : '·';
+    return `<div class="c ${h === hole ? 'cur' : ''}"><div class="n">${i + 1}</div><div class="m">${mark}</div><div class="p">${s ? holeIcon(s) : h.balls.length + '●'}</div></div>`;
   }).join('');
 }
 function updateUI() {
   if (!table) return;
-  const left = table.remaining(), lie = lieAt(hole, table.cue.x, table.cue.y);
-  $('iHole').innerHTML = `Hole ${hole.i + 1} · Par ${hole.par}<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
-  const tier = call && ['aim', 'locked', 'power'].includes(phase) ? tierOf(curDiff()) : null;
-  $('iLie').innerHTML = `Shot ${Math.min(strokes + (phase === 'holed' || phase === 'over' ? 0 : 1), 99)} · ${lie}<b${tier ? ` style="color:${tier[1]}"` : ''}>${tier ? tier[0] : '–'}</b>`;
+  const left = table.remaining(), lie = lieAt(hole, table.cue.x, table.cue.y), lim = shotLimit(hole);
+  $('iHole').innerHTML = `Hole ${hole.i + 1} · ${hs.points.toLocaleString()} pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
+  const on = phase === 'holed' || phase === 'over' ? strokes : Math.min(strokes + 1, lim);
+  $('iLie').innerHTML = `Shot ${on}/${lim}${lie !== 'felt' ? ` · ${lie}` : ''}<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { lining: 'Lining up…', aim: !call ? 'Pick a ball' : !call.spot ? 'Choose your hit' : 'Lock the tip', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
+  const b = $('act'), labels = { lining: '…', aim: 'Shoot', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
   b.textContent = labels[phase];
-  b.disabled = phase === 'strike' || phase === 'moving' || phase === 'lining' || (phase === 'aim' && !call?.spot);
-  b.classList.toggle('stop', phase === 'power');
+  b.disabled = phase === 'strike' || phase === 'moving' || phase === 'lining';
+  $('dial').classList.toggle('off', phase !== 'aim'); $('next').disabled = phase !== 'aim';
   const narrow = innerWidth < 460;
-  const hints = { lining: '', aim: !call ? 'Tap the ball you want to pot' : !call.spot ? 'Tap the cue ball in the corner where you want to hit it' : narrow ? 'Lock when the tip is on the gold spot' : 'Lock when the tip is on the gold spot · tap the cue ball to change the hit', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
-  $('hint').textContent = hints[phase];
-  updateMeter();
+  $('hint').textContent = phase === 'aim' ? (narrow ? 'Dial: fine aim · bubble: spin' : 'Next ball cycles targets · turn the dial to fine-tune · drag on the table to swing the cue · tap the cue ball for spin') : '';
+  updateMeter(); updateAimUI();
 }
 function updateMeter() {
-  const pct = v => (clamp(v, 0, 1) * 100).toFixed(2) + '%';
-  const p = pv()?.power ?? 0.3;
-  const barMax = meter ? meter.barMax : clamp(p / PIN_AT, 0.12, 1);
-  const pinPos = meter ? meter.pinPos : clamp(p / barMax, 0, 1);
-  const showPin = ['locked', 'power', 'strike', 'moving'].includes(phase) || (phase === 'aim' && !!call?.spot);
-  $('mPin').style.left = pct(pinPos - perfP()); $('mPin').style.width = pct(2 * perfP()); $('mPin').style.opacity = showPin ? 1 : 0;
-  $('lPin').style.left = pct(pinPos); $('lPin').style.opacity = showPin ? 1 : 0;
-  $('mOver').style.opacity = showPin ? 1 : 0; $('mOver').style.left = pct(Math.min(1, pinPos + perfP() + 0.03));
-  const b = meter ? (meter.stopped ?? meter.b) : 0;
-  $('mFill').style.width = pct(b);
-  $('mNeedle').style.opacity = meter ? 1 : 0; $('mNeedle').style.left = pct(b);
+  const pct = (power * 100).toFixed(1) + '%';
+  $('mFill').style.width = pct; $('mKnob').style.left = pct;
+  $('pVal').textContent = paceName(power);
+}
+let dialRot = 0;
+function updateAimUI() {
+  $('dialFace').style.transform = `rotate(${dialRot}rad)`;
+  const o = phase === 'aim' ? aimOffset() : 0, a = Math.abs(o);
+  $('dialVal').innerHTML = phase !== 'aim' ? '' : a < 0.05 ? 'centre' : `${a.toFixed(1)}°<small>${o > 0 ? 'right' : 'left'}</small>`;
+  const b = table.balls[aim.bi];
+  $('next').innerHTML = `<small>Target</small><span class="nb" style="--bc:${b && !b.potted ? COLORS[b.n] : '#ccc'}">${b && !b.potted ? b.n : '–'}</span><small>next ▸</small>`;
 }
 
 function shareText() {
-  const pars = round.holes.map(h => h.par), total = round.scores.reduce((a, b) => a + (b ?? 0), 0), parT = pars.reduce((a, b) => a + b, 0);
-  const em = round.scores.map((s, i) => s == null ? '⬜' : ['🦅', '🐦', '🟩', '🟨', '🟧', '🟥'][clamp(s - pars[i] + 2, 0, 5)]).join('');
   const title = isDailySeed(round.seed) && round.ranked ? `Daily Break #${dayNumber(round.seed)} 🎱` : `Daily Break · ${courseName(round.seed)} 🎱`;
-  return `${title}\n${em}\n${total} (${toPar(total - parT)})`;
+  const runs = round.scores.filter(s => s?.runout).length;
+  return `${title}\n${round.scores.map(holeIcon).join('')}\n${totalPts().toLocaleString()} pts${runs ? ` · ${runs} run-out${runs > 1 ? 's' : ''}` : ''}`;
 }
 function showFinal(already) {
-  ensurePars();
-  const pars = round.holes.map(h => h.par), total = round.scores.reduce((a, b) => a + (b ?? 0), 0), parT = pars.reduce((a, b) => a + b, 0);
   const cells = (arr, cls = '') => arr.map(v => `<div class="${cls}">${v}</div>`).join('');
   $('card').innerHTML = `
     <div class="k mono">${courseName(round.seed)}</div>
     <h2>${already ? "Today's round is in" : 'Round complete'}</h2>
-    <div class="big">${toPar(total - parT)}</div>
-    <div class="k mono">${total} shots · par ${parT}</div>
+    <div class="big">${totalPts().toLocaleString()}</div>
+    <div class="k mono">points · ${round.scores.filter(s => s?.cleared).length}/${HOLES} racks cleared</div>
     <div class="mini">
-      <div class="h r0">Hole</div>${cells(pars.map((_, i) => i + 1), 'r0')}<div class="t r0">Tot</div>
-      <div class="h">Par</div>${cells(pars)}<div class="t">${parT}</div>
-      <div class="h">You</div>${cells(round.scores.map(s => s ?? '–'))}<div class="t">${total}</div>
+      <div class="h r0">Hole</div>${cells(round.holes.map((_, i) => i + 1), 'r0')}<div class="t r0">Tot</div>
+      <div class="h">Pts</div>${cells(round.scores.map(s => s ? fmtPts(s.pts) : '–'))}<div class="t">${fmtPts(totalPts())}</div>
+      <div class="h"></div>${cells(round.scores.map(holeIcon))}<div class="t"></div>
     </div>
     <div id="share">${shareText()}</div>
     <div class="row">
@@ -918,16 +819,16 @@ function showFinal(already) {
 function showHelp() {
   $('card').innerHTML = `
     <div class="k mono">How to play</div>
-    <h2>Clear the rack in par</h2>
+    <h2>Clear the rack</h2>
     <div class="howto">
-      <p>🎱 Each hole is a small rack. Pot every ball in as few shots as you can.</p>
-      <p>1 · <b>Call your shot:</b> tap the <b>ball</b> you want to pot; its easiest pocket is picked. Tap another <b>pocket</b> to send it there instead (the flag moves to it). Par is one shot per ball, so plan your route.</p>
-      <p>2 · <b>Choose your hit:</b> tap the cue ball in the corner bubble where you want to strike it. High rolls on (<b>Follow</b>), centre stops (<b>Stun</b>), low comes back (<b>Draw</b>). The dotted line shows which way the cue ball heads after contact; where it ends up is for you to judge. “Risky” means it may not drop.</p>
-      <p>📈 Every call gets a <b>difficulty</b> (Easy → Very hard), and the dots by each pocket show how hard that pot is. Harder shots (and more spin) have a smaller spot, a twitchier cue tip and a quicker, tighter power gauge, so plan an easy route.</p>
-      <p>3 · <b>Lock the tip:</b> the cue tip drifts over the ball in the bubble. Lock it on your gold spot. Off to the side squirts the shot off line; too high or low changes the spin.</p>
-      <p>4 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the pin. Perfect tip + perfect power plays exactly the previewed shot.</p>
-      <p>⛰️ Tilt, worn <b>rough</b> felt and <b>slick</b> felt change every roll. The preview already allows for them.</p>
-      <p>⚠️ Fouls cost <b>+1</b>: scratching the cue ball, or not hitting your called ball first. Other balls that drop are a bonus.</p>
+      <p>🎱 Each hole is a small rack with a few spare shots. Pot every ball before you run out.</p>
+      <p>🎯 <b>Aim:</b> the cue starts lined up dead centre on your target ball. <b>Next ball</b> steps through the balls in number order. Turn the <b>dial</b> to fine-tune the angle (a quick tap on its left or right edge nudges it a hair), or drag on the table to swing the cue round.</p>
+      <p>👀 The guide fades: holes 1–3 show where the object ball goes, 4–6 only a short line, 7–9 just the ghost ball. Cut angles are yours to judge.</p>
+      <p>💪 <b>Power:</b> slide the bar. Hit a ball into the pocket too hard and it rattles out. Tap the cue ball in the corner for <b>follow</b> (high) or <b>draw</b> (low).</p>
+      <p>🔢 <b>Points:</b> every pot is 100. Pot the <b>lowest ball</b> on the table for double. Banks and combos add 50. Pot on consecutive shots for a <b>streak</b>: ×1.5, ×2, up to ×3.</p>
+      <p>🔥 Clear the rack without a miss for a <b>Run out</b> (+300), all in number order for a <b>Perfect rack</b> (+300 more). Spare shots are worth 50 each.</p>
+      <p>⚠️ Scratching or missing everything costs 50 and ends the streak.</p>
+      <p>⛰️ Tilt, worn <b>rough</b> felt and <b>slick</b> felt bend every roll. The guide doesn't allow for them.</p>
       <p>📅 Everyone plays the same nine racks each day. One ranked round per day.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
@@ -955,27 +856,88 @@ function toWorld(e) {
   const r = canvas.getBoundingClientRect();
   return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
 }
-// Tap a ball to call it, or a pocket to send the called ball there.
+// On the table: tap a ball to target it, tap the cue-ball bubble for spin, or drag to swing the cue round.
+let drag = null;
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
-  if (phase === 'power') return act();
   if (phase !== 'aim') return;
   const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-  if (call && bubble && Math.hypot(mx - bubble.x, my - bubble.y) <= bubble.R) return setSpot((my - bubble.y) / bubble.rb);
+  if (bubble && Math.hypot(mx - bubble.x, my - bubble.y) <= bubble.R) return setSpot((my - bubble.y) / bubble.rb);
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+});
+stage.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id || phase !== 'aim') return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
+  drag.moved = true;
+  const p = toWorld(e), c = table.cue;
+  if (Math.hypot(p.x - c.x, p.y - c.y) > R) setAngle(Math.atan2(p.y - c.y, p.x - c.x));
+});
+stage.addEventListener('pointerup', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const moved = drag.moved; drag = null;
+  if (moved || phase !== 'aim') return;
   const p = toWorld(e);
   let bi = -1, bd = R * 2.2;
   table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; bi = k; } } });
-  if (bi >= 0) return selectBall(bi);
-  let pi = -1, pd = R * 3.5;
-  POCKETS.forEach((pk, k) => { const d = Math.hypot(pk.x - p.x, pk.y - p.y); if (d < pd) { pd = d; pi = k; } });
-  if (pi >= 0 && call) selectPocket(pi);
+  if (bi >= 0) focusBall(bi);
 });
+stage.addEventListener('pointercancel', () => { drag = null; });
+
+// The dial: turn it round with a thumb. A full turn is 8° of aim; spin it fast and it gears up.
+const dialEl = $('dial');
+let dialDrag = null;
+dialEl.addEventListener('pointerdown', e => {
+  e.preventDefault(); ensureAudio();
+  if (phase !== 'aim') return;
+  const r = dialEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  dialDrag = { id: e.pointerId, cx, cy, a: Math.atan2(e.clientY - cy, e.clientX - cx), t: e.timeStamp, t0: e.timeStamp, turned: 0, side: e.clientX - cx };
+  try { dialEl.setPointerCapture(e.pointerId); } catch {}
+});
+dialEl.addEventListener('pointermove', e => {
+  const d = dialDrag;
+  if (!d || e.pointerId !== d.id) return;
+  const dx = e.clientX - d.cx, dy = e.clientY - d.cy;
+  if (Math.hypot(dx, dy) < 10) return;   // too near the middle to read a direction
+  const a = Math.atan2(dy, dx);
+  let da = a - d.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+  const speed = Math.abs(da) / Math.max(0.008, (e.timeStamp - d.t) / 1000);
+  const gear = (8 * Math.PI / 180) / TAU * (1 + clamp((speed - 5) / 4, 0, 3));
+  d.a = a; d.t = e.timeStamp; d.turned += Math.abs(da);
+  dialRot += da; turnAim(da * gear);
+});
+const endDial = e => {
+  const d = dialDrag;
+  if (!d || e.pointerId !== d.id) return;
+  dialDrag = null;
+  // a quick tap on either side nudges the aim by a hair
+  if (e.type === 'pointerup' && d.turned < 0.08 && e.timeStamp - d.t0 < 350 && Math.abs(d.side) > 8) { dialRot += Math.sign(d.side) * 0.15; turnAim(Math.sign(d.side) * 0.1 * Math.PI / 180); }
+};
+dialEl.addEventListener('pointerup', endDial);
+dialEl.addEventListener('pointercancel', endDial);
+
+// The power bar: slide anywhere along it.
+const meterEl = $('meter');
+let powerDrag = null;
+const powerAt = e => { const r = meterEl.getBoundingClientRect(); setPower((e.clientX - r.left) / r.width); };
+meterEl.addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); if (phase !== 'aim') return; powerDrag = e.pointerId; try { meterEl.setPointerCapture(e.pointerId); } catch {} powerAt(e); });
+meterEl.addEventListener('pointermove', e => { if (powerDrag === e.pointerId) powerAt(e); });
+meterEl.addEventListener('pointerup', () => { powerDrag = null; });
+meterEl.addEventListener('pointercancel', () => { powerDrag = null; });
+
 const actBtn = $('act');
 actBtn.addEventListener('pointerdown', e => { e.preventDefault(); if (!actBtn.disabled) act(); });
+$('next').addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); nextBall(); });
 addEventListener('keydown', e => {
   if ($('overlay').classList.contains('show')) return;
+  const deg = (e.shiftKey ? 1 : 0.1) * Math.PI / 180;
   if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat && !actBtn.disabled) act(); }
-  else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && phase === 'aim' && call) { e.preventDefault(); setSpot((call.spot?.y ?? 0) + (e.key === 'ArrowUp' ? -0.1 : 0.1)); }
+  else if (phase !== 'aim') return;
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const s = e.key === 'ArrowRight' ? 1 : -1; dialRot += s * 0.15; turnAim(s * deg); }
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setSpot(aim.spotY + (e.key === 'ArrowUp' ? -0.1 : 0.1)); }
+  else if (e.key === 'Tab' || e.key === 'n') { e.preventDefault(); nextBall(); }
+  else if (e.key === '+' || e.key === '=' || e.key === ']') setPower(power + 0.05);
+  else if (e.key === '-' || e.key === '[') setPower(power - 0.05);
 });
 function setSoundBtns() {
   $('snd').textContent = muted ? '🔇' : '🔊';
@@ -1284,11 +1246,6 @@ function drawTable(t, dt) {
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
     }
   });
-  if (call && call.line.pocket >= 0 && ['aim', 'locked', 'power'].includes(phase)) {
-    const fp = POCKETS[call.line.pocket];
-    ctx.save(); ctx.setLineDash([6, 6]); ctx.lineDashOffset = -t * 14; ctx.strokeStyle = 'rgba(255,244,215,.85)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(fp.x, fp.y, R * 2.9, 0, TAU); ctx.stroke(); ctx.restore();
-  }
   for (const o of hole.bumpers) {
     o.flash = Math.max(0, (o.flash || 0) - dt * 3);
     ctx.drawImage(SOFT_SHADOW, o.x - o.r * 1.3 + 3, o.y - o.r * 1.3 + 6, o.r * 2.6, o.r * 2.6);
@@ -1300,22 +1257,6 @@ function drawTable(t, dt) {
   }
 }
 
-function drawFlag(t, dt) {
-  if (!call || call.line.pocket < 0 || !['aim', 'locked', 'power', 'strike', 'moving'].includes(phase)) return;
-  const p = POCKETS[call.line.pocket], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H);
-  flagPop = Math.max(0, flagPop - dt);
-  const lift = 46 + flagPop * 24, lean = x < W / 2 ? 1 : -1;
-  const topX = x + lean * 10, topY = y - lift;
-  ctx.strokeStyle = 'rgba(40,25,10,.3)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + lean * 26 + 12, y + 14); ctx.stroke();
-  ctx.strokeStyle = '#efe4ca'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(topX, topY); ctx.stroke();
-  const wv = Math.sin(t * 5) * 4, wv2 = Math.sin(t * 5 + 1.4) * 3;
-  ctx.fillStyle = '#c4472f';
-  ctx.beginPath(); ctx.moveTo(topX, topY); ctx.quadraticCurveTo(topX + lean * 14, topY + 2 + wv, topX + lean * 28, topY + 8 + wv2); ctx.lineTo(topX, topY + 16); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#efe4ca'; ctx.beginPath(); ctx.arc(topX, topY, 2.5, 0, TAU); ctx.fill();
-}
-
 function arrowTo(a, b, col) {
   const ang = Math.atan2(b.y - a.y, b.x - a.x);
   ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -1324,106 +1265,77 @@ function arrowTo(a, b, col) {
   ctx.lineTo(b.x - Math.cos(ang - 0.45) * 13, b.y - Math.sin(ang - 0.45) * 13);
   ctx.lineTo(b.x - Math.cos(ang + 0.45) * 13, b.y - Math.sin(ang + 0.45) * 13); ctx.fill();
 }
-// The call: the called ball's route to the pocket, the cue ball's path after contact,
-// and the cone with its bullseye and swinging line.
-function drawCall(t) {
-  if (!call) return;
-  const c = table.cue, l = call.line, picked = !!call.spot, p = pv() || { angle: l.angle, ok: true, path: null }, ball = table.balls[l.bi], aiming = phase === 'aim';
-  // called ball
-  ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = t * 12; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.arc(ball.x, ball.y, R + 7, 0, TAU); ctx.stroke(); ctx.restore();
-  if (l.pocket >= 0) arrowTo(ball, pocketAim(l.pocket), !picked ? 'rgba(251,248,240,.85)' : p.ok ? 'rgba(127,224,168,.9)' : 'rgba(240,160,100,.95)');
-  // every pocket this ball can go in, coloured by how hard that pot is
-  if (aiming) for (const o of lines) {
-    if (o.bi !== l.bi) continue;
-    const pk = POCKETS[o.pocket], [, col] = tierOf(shotDifficulty(o, call.spot ? call.spin : null)), on = o.pocket === l.pocket;
-    const px = clamp(pk.x, 0, W) + (pk.x <= 0 ? 34 : pk.x >= W ? -34 : 0), py = clamp(pk.y, 0, H) + (pk.y <= 0 ? 34 : pk.y >= H ? -34 : 0);
-    ctx.fillStyle = col; ctx.strokeStyle = '#fbf8f0'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(px, py, on ? 9 : 7, 0, TAU); ctx.fill(); ctx.stroke();
+// Aiming: the line to the first thing the cue ball meets and a ghost ball where it touches.
+// Earlier holes add the object ball's direction (long, then short) and the cue ball's deflection.
+function drawAim(t) {
+  if (phase !== 'aim') return;
+  const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), lvl = aidLevel(hole);
+  // the next ball in order wears a gold tag: it scores double
+  const lo = table.balls[lowestBall()];
+  if (lo) {
+    ctx.font = "700 17px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ty = lo.y - R - 22 < 12 ? lo.y + R + 22 : lo.y - R - 22;
+    ctx.fillStyle = 'rgba(184,138,46,.95)'; ctx.beginPath(); ctx.roundRect(lo.x - 32, ty - 14, 64, 28, 14); ctx.fill();
+    ctx.fillStyle = '#fbf8f0'; ctx.fillText('NEXT', lo.x, ty + 0.5);
   }
-  // which way the cue ball heads after contact: just the start of its path, fading out
-  if (p.path && p.path.length > 1 && (aiming || phase === 'locked' || phase === 'power')) {
-    let start = 0;
-    while (start < p.path.length - 1 && Math.hypot(p.path[start][0] - c.x, p.path[start][1] - c.y) < l.d1 - R) start++;
-    let run = 0;
-    for (let k = start + 2; k < p.path.length; k += 2) {
-      run += Math.hypot(p.path[k][0] - p.path[k - 2][0], p.path[k][1] - p.path[k - 2][1]);
-      if (run > 170) break;
-      ctx.fillStyle = `rgba(251,248,240,${0.8 * (1 - run / 170)})`;
-      ctx.beginPath(); ctx.arc(p.path[k][0], p.path[k][1], 2.2, 0, TAU); ctx.fill();
+  const fb = table.balls[aim.bi];
+  if (fb && !fb.potted) {
+    ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = t * 12; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(fb.x, fb.y, R + 7, 0, TAU); ctx.stroke(); ctx.restore();
+  }
+  const hit = trace(table, c.x, c.y, dx, dy), gx = c.x + dx * hit.t, gy = c.y + dy * hit.t;
+  ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(gx, gy); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle = 'rgba(251,248,240,.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gx, gy, R, 0, TAU); ctx.stroke();
+  if (!hit.ball || lvl === 0) return;
+  const b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R);
+  const len = lvl === 2 ? 200 : 70;
+  const g = ctx.createLinearGradient(b.x, b.y, b.x + nx * len, b.y + ny * len);
+  g.addColorStop(0, 'rgba(251,248,240,.9)'); g.addColorStop(1, 'rgba(251,248,240,0)');
+  ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(b.x + nx * (R + 3), b.y + ny * (R + 3)); ctx.lineTo(b.x + nx * len, b.y + ny * len); ctx.stroke();
+  if (lvl === 2) {
+    // the cue ball's natural deflection: along the tangent line (before any spin)
+    const dot = dx * nx + dy * ny; let tx = dx - dot * nx, ty = dy - dot * ny; const tl = Math.hypot(tx, ty);
+    if (tl > 0.05) {
+      tx /= tl; ty /= tl;
+      for (let k = 1; k <= 6; k++) { ctx.fillStyle = `rgba(251,248,240,${0.7 * (1 - k / 7)})`; ctx.beginPath(); ctx.arc(gx + tx * k * 11, gy + ty * k * 11, 2, 0, TAU); ctx.fill(); }
     }
   }
-  if (!(aiming || phase === 'locked' || phase === 'power')) return;
-  const base = p.angle;
-  const bh = trace(table, c.x, c.y, Math.cos(base), Math.sin(base));
-  const L = bh.ball ? bh.t : Math.min(bh.t, l.d1);
-  const bx = c.x + Math.cos(base) * L, by = c.y + Math.sin(base) * L;
-  // the planned line and the ghost ball
-  ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(c.x + Math.cos(base) * R, c.y + Math.sin(base) * R); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore();
-  ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bx, by, R, 0, TAU); ctx.stroke();
-  // once locked: where the strike really sends it
-  if (!aiming) {
-    const dx = Math.cos(locked.angle), dy = Math.sin(locked.angle), hit = trace(table, c.x, c.y, dx, dy), LL = Math.min(hit.t, L + 2 * R);
-    const col = locked.perfect ? '#e2b13c' : '#d08a2e';
-    ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(c.x + dx * LL, c.y + dy * LL); ctx.stroke();
-  }
-  // label
-  const [tierName, tierCol] = tierOf(curDiff());
-  const label = `${tierName}${picked ? ' · ' + strikeName(call.spin) : ''}${l.pocket < 0 ? ' · no pot' : picked && !p.ok ? ' · risky' : ''}`;
-  ctx.font = "500 19px 'DM Mono', monospace"; const tw = ctx.measureText(label).width;
-  const lx = bx + 34 + tw + 22 > W + RAIL ? bx - 34 - tw - 22 : bx + 34, ly = clamp(by - 52, -RAIL, H);
-  ctx.fillStyle = 'rgba(251,248,240,.95)'; ctx.strokeStyle = 'rgba(120,100,70,.35)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.roundRect(lx, ly, tw + 22, 32, 16); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = tierCol; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx + 11, ly + 16.5);
 }
 
-
-// The close-up bubble beside the cue ball: its face, the gold spot and the drifting cue tip.
+// The cue-ball bubble in the bottom-left corner: tap high for follow, low for draw.
 let bubbleT = 0, bubble = null;
 function drawBubble(dt) {
-  const show = call && ['aim', 'locked', 'power'].includes(phase);
+  const show = phase === 'aim';
   bubbleT = show ? bubbleT + dt : 0;
   if (!show) { bubble = null; return; }
   const { cw, ch } = view;
-  const Rb = clamp(cw * 0.165, 56, 90), k = Math.min(1, bubbleT / 0.28);
+  const Rb = clamp(cw * 0.12, 42, 64), k = Math.min(1, bubbleT / 0.28);
   const sc = Math.max(0.01, 1 - (1 - k) ** 3 + Math.sin(k * Math.PI) * 0.08);
-  const bx = cw - Rb - 8, by = ch - Rb - 8;
-  bubble = { x: bx, y: by, R: Rb, rb: Rb * 0.8 };
+  const bx = Rb + 8, by = ch - Rb - 8;
+  bubble = { x: bx, y: by, R: Rb, rb: Rb * 0.78 };
   ctx.save();
   ctx.translate(bx, by); ctx.scale(sc, sc);
   ctx.shadowColor = 'rgba(40,25,10,.35)'; ctx.shadowBlur = 16 * view.dpr; ctx.shadowOffsetY = 6 * view.dpr;
   ctx.fillStyle = '#2f3a31'; ctx.beginPath(); ctx.arc(0, 0, Rb, 0, TAU); ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.strokeStyle = '#fbf8f0'; ctx.lineWidth = 3; ctx.stroke();
-  // the cue ball's face
-  const rb = Rb * 0.8, face = ctx.createRadialGradient(-rb * 0.35, -rb * 0.4, rb * 0.1, 0, 0, rb);
+  const rb = Rb * 0.78, face = ctx.createRadialGradient(-rb * 0.35, -rb * 0.4, rb * 0.1, 0, 0, rb);
   face.addColorStop(0, '#fffdf7'); face.addColorStop(1, '#ddd3bd');
   ctx.fillStyle = face; ctx.beginPath(); ctx.arc(0, 0, rb, 0, TAU); ctx.fill();
   ctx.strokeStyle = 'rgba(60,45,25,.18)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(-rb, 0); ctx.lineTo(rb, 0); ctx.moveTo(0, -rb); ctx.lineTo(0, rb); ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, rb * 0.5, 0, TAU); ctx.stroke();
-  ctx.font = "500 8px 'DM Mono', monospace"; ctx.fillStyle = 'rgba(251,248,240,.8)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  if (!call.spot) { ctx.fillText('FOLLOW', 0, -(Rb + rb) / 2); ctx.fillText('DRAW', 0, (Rb + rb) / 2); }
-  if (!call.spot) {
-    const pulse = 0.55 + 0.45 * Math.sin(bubbleT * 4);
-    ctx.font = "700 13px 'DM Sans', sans-serif"; ctx.fillStyle = `rgba(47,107,79,${0.6 + 0.4 * pulse})`; ctx.fillText('Tap where', 0, -8); ctx.fillText('to hit', 0, 9);
-    ctx.restore(); return;
-  }
-  // the name of the hit, on the rim
-  ctx.font = "700 10px 'DM Sans', sans-serif"; ctx.fillStyle = '#fbf8f0';
-  ctx.fillText(strikeName(call.spin), 0, call.spot.y < 0 ? (Rb + rb) / 2 : -(Rb + rb) / 2);
-  const g = tipTarget(), rr = tipRadius(), tip = locked ? locked.tip : tipPos(), on = locked ? locked.perfect : tipOnSpot();
-  ctx.fillStyle = on ? 'rgba(226,177,60,.75)' : 'rgba(226,177,60,.4)'; ctx.strokeStyle = '#b88a2e'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(g.x * rb, g.y * rb, rr * rb, 0, TAU); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#b88a2e'; ctx.beginPath(); ctx.arc(g.x * rb, g.y * rb, 2, 0, TAU); ctx.fill();
+  // the hit's name on the rim, on the side away from the tip
+  ctx.font = "700 9px 'DM Sans', sans-serif"; ctx.fillStyle = '#fbf8f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(strikeName(aim.spin).toUpperCase(), 0, aim.spotY < 0 ? (Rb + rb) / 2 : -(Rb + rb) / 2);
   // the cue tip (seen end-on), with a soft shadow on the ball
-  const tx = tip.x * rb, ty = tip.y * rb, tr = rb * 0.13;
-  ctx.fillStyle = 'rgba(40,25,10,.22)'; ctx.beginPath(); ctx.arc(tx + 3, ty + 4, tr * 1.1, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#fbf8f0'; ctx.beginPath(); ctx.arc(tx, ty, tr * 1.25, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#3b5ea6'; ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
-  if (on) { ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx, ty, tr * 1.6, 0, TAU); ctx.stroke(); }
+  const ty = aim.spotY * rb, tr = rb * 0.15;
+  ctx.fillStyle = 'rgba(40,25,10,.22)'; ctx.beginPath(); ctx.arc(3, ty + 4, tr * 1.1, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fbf8f0'; ctx.beginPath(); ctx.arc(0, ty, tr * 1.25, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#3b5ea6'; ctx.beginPath(); ctx.arc(0, ty, tr, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, ty, tr * 1.6, 0, TAU); ctx.stroke();
   ctx.restore();
 }
 
@@ -1477,8 +1389,10 @@ function draw(t, dt) {
   const sx = (Math.random() - 0.5) * fx.shake, sy = (Math.random() - 0.5) * fx.shake;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(s * dpr, 0, 0, s * dpr, (ox + sx) * dpr, (oy + sy) * dpr);
-  const x0 = -ox / s - 20, y0 = -oy / s - 20, x1 = (cw - ox) / s + 20, y1 = (ch - oy) / s + 20;
+  // the camera can push in on a point (cam.x, cam.y) for the slow-motion finish
+  const S = s * cam.k, OX = ox + cam.x * s * (1 - cam.k), OY = oy + cam.y * s * (1 - cam.k);
+  ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
+  const x0 = -OX / S - 20, y0 = -OY / S - 20, x1 = (cw - OX) / S + 20, y1 = (ch - OY) / S + 20;
 
   drawFloor(x0, y0, x1, y1);
   drawWindowLight(t);
@@ -1498,7 +1412,7 @@ function draw(t, dt) {
     ctx.fillStyle = '#2d3a30'; ctx.font = "500 11px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(m.n, m.x, m.y + 0.5);
   }
 
-  drawCall(t);
+  drawAim(t);
 
   for (const b of table.live()) updateSpin(b, dt);
   for (const sk of fx.sinks) {
@@ -1509,8 +1423,7 @@ function draw(t, dt) {
   fx.sinks = fx.sinks.filter(sk => sk.t < 1);
   for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
   if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
-  drawFlag(t, dt);
-  if (phase === 'locked' || phase === 'power') drawCue(locked.angle, phase === 'power' ? meter.b * meter.barMax : 0, 0);
+  if (phase === 'aim') drawCue(aim.angle, power, 0);
   if (phase === 'strike') drawCue(strike.angle, strike.power, Math.min(1, strike.t / STRIKE_T));
 
   for (const g of fx.rings) {
@@ -1570,7 +1483,7 @@ function draw(t, dt) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawBubble(dt);
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
-  vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, 'rgba(60,40,20,.28)');
+  vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + (1 - timeScale) * 0.45})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
   ctx.save(); ctx.translate((t * 37) % 160, (t * 53) % 160); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
 }
@@ -1580,19 +1493,6 @@ function draw(t, dt) {
 function frame(now) {
   const t = now / 1000, dt = Math.min(0.05, t - (frame.last ?? t));
   frame.last = t;
-  if (phase === 'aim') {
-    const was = !!call?.spot && tipOnSpot();
-    swayT += dt;
-    if (!was && call?.spot && tipOnSpot()) tone(1046, 0.03, 0.015, 'sine', 1, 0, 0);
-    updateMeter();
-  }
-  if (phase === 'power') {
-    meter.b += dt / fillT();
-    const k = Math.floor(meter.b * 10);
-    if (k !== meter.tick) { meter.tick = k; sfx.tick(k); }
-    if (meter.b >= 1) { meter.b = 1; stopPower(); updateUI(); }
-    updateMeter();
-  }
   if (phase === 'strike') {
     strike.t += dt;
     if (strike.t >= STRIKE_T) {
@@ -1603,12 +1503,22 @@ function frame(now) {
       acc = 0; phase = 'moving'; updateUI();
     }
   }
+  // Slow motion and a push-in as the rack's last ball heads for the pocket.
+  let slow = false, tk = 1, tx = W / 2, ty = H / 2;
+  if (cine) {
+    const b = table.balls.find(o => o.n === cine.n), p = POCKETS[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
+    if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
+    else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
+  }
+  timeScale = lerp(timeScale, slow ? 0.25 : 1, Math.min(1, dt * 10));
+  const ck = Math.min(1, dt * 5);
+  cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
   if (phase === 'moving') {
-    acc += dt;
+    acc += dt * timeScale;
     while (acc >= DT) { table.step(); acc -= DT; }
     const c = table.cue, last = curTrail?.pts[curTrail.pts.length - 1];
     if (curTrail && !c.potted && last && Math.hypot(c.x - last[0], c.y - last[1]) > 14) curTrail.pts.push([c.x, c.y]);
-    if (!table.moving()) resolveShot();
+    if (!table.moving() && !(cine && cine.hold > 0)) resolveShot();
   }
   draw(t, dt);
   requestAnimationFrame(frame);

@@ -5,91 +5,52 @@ nine-hole course for everyone each day, one ranked round, golf scoring and a
 shareable emoji scorecard. Single file: `index.html` (no build, open it in a
 browser).
 
-## The game (as of 2026-11-09): call your shot
+## The game (as of 2026-11-10): aim it yourself, pot in order
 
-Each hole is a seeded rack (3, 3, 4, 4, 5, 5, 6, 6, 7 balls; about a third placed in clusters and some on the cushions; pockets are tight: corner capture 1.75 R, side 1.55 R). Clear
-it in as few shots as possible, against par. Hazards per hole: table tilt,
-worn rough felt, slick felt, brass bumpers and an occasional closed pocket.
+Each hole is a seeded rack (3, 3, 4, 4, 5, 5, 6, 6, 7 balls; about a third in clusters, some on the cushions; tight pockets: corner capture 1.75 R, side 1.55 R) with a shot limit of rack size + 3 (`shotLimit`). Hazards per hole: table tilt, rough felt, slick felt, brass bumpers and an occasional closed pocket. Every rack is generated so the opening shot has at least one clean pot (`makeHole` re-rolls deterministically).
 
-A shot:
+A shot (built for one thumb on a phone):
 
-Every rack is generated so the opening shot has at least one clean pot
-(`makeHole` re-rolls deterministically until it does).
+1. **Target.** Each shot starts aimed dead centre at the lowest-numbered ball (`lineUp` → `focusBall`). The **Next ball** clicker (bottom left, Tab on desktop) steps through the balls in number order; tapping a ball on the table targets it too.
+2. **Fine aim.** The **dial** (bottom right) turns the aim: a full turn is 8°, and it gears up to 4× when spun fast. A quick tap on its left or right edge nudges 0.1°. Its centre reads the offset from dead centre ("2.4° right"). Dragging on the table swings the cue to point at your finger for big changes. Arrow keys: 0.1° (Shift: 1°).
+3. **Guide fades** (`aidLevel`): holes 1–3 show the aim line, ghost ball, a 200 px object-ball line and the cue ball's tangent; holes 4–6 a 70 px object-ball line; holes 7–9 only the aim line and ghost ball. The guide is pure geometry: it doesn't allow for tilt or felt.
+4. **Power** is a slider (Soft → Smash), drawn as the cue pulling back. Too fast into a pocket (`POT_MAX_SPEED`) rattles out. **Spin**: tap high/low on the cue-ball bubble (bottom left of the table) for follow/draw.
+5. **Shoot.** No timing mini-games: the shot plays exactly as aimed, so skill is judging the cut and the pace.
 
-1. **Call it.** Nothing is called for you: tap the ball you want (its
-   easiest pocket is picked) and tap a pocket to send it there instead; the
-   flag moves to the called pocket. Coloured dots by the pockets show how
-   hard each pot is for the called ball.
-2. **Choose the hit.** A close-up bubble pinned to the bottom-right corner
-   shows the cue ball's face. Tap where to strike it: the height sets the
-   spin (`spinFor`: high = follow, centre = stun, low = draw; taps snap to
-   the vertical line because side spin isn't modelled) and the game names
-   it (`strikeName`: Follow, Roll, Stun, Draw, Deep draw). The call is then
-   simulated (`setSpot` → `playCall`, nudging the line a hair for tilt and
-   felt), so the table shows the first ~170 px of the cue ball's path after contact (fading; no finishing spot),
-   and "risky" if it may not drop. Pace is set by the power gauge: the pin is
-   a normal pace (a bit more for draw). Nothing is pre-selected; the action
-   button reads "Choose your hit" until you tap. Arrow keys nudge the hit.
-3. **Difficulty.** Every call is rated Easy / Fair / Tricky / Hard / Very
-   hard (`shotDifficulty`: cut angle, distance, blockers, lie, tilt, and the
-   amount of spin). It shows by the ball, in the info
-   bar and on the pocket dots. Harder shots get a smaller strike spot
-   (`tipRadius` 0.24 → 0.09 of the ball's radius), a faster, wider cue-tip
-   drift, a quicker power needle (`fillT` 1.5 → 0.95 s) and a thinner power
-   band (`perfP` 4.2% → 1.6%). Calibrated so most tables have an Easy or
-   Fair route but typical shots are Fair–Hard.
-4. **Lock the tip.** The table shows only the planned line and ghost ball.
-   In the bubble the cue tip drifts over the ball (`tipPos`, faster and
-   wider on rough felt). The gold spot is the hit you chose. Tip on the spot
-   gives an exact line and the chosen spin. Missing by less than one spot
-   width costs 30% of the error; beyond that it costs in full. Off to the
-   side squirts the cue ball off line (9° per unit of ball radius, scaled up
-   for long shots, capped at 6°, opposite side to the hit); too high or low
-   blends towards the spin actually hit. Pockets reject balls faster than
-   `POT_MAX_SPEED` = 1050 (they rattle out).
-5. **Power.** Swing, then Stop in the gold band at the pin; the pin is the
-   chosen type's power. Perfect tip + perfect power plays exactly the
-   previewed shot.
+Scoring (`PTS`, `resolveShot`, `finishHole`): every pot 100; the lowest ball on the table (rotation order) +100; bank +50; combo +50; each extra ball in one shot +50. Consecutive potting shots build a streak multiplier ×1, ×1.5, ×2, ×2.5, ×3 (`streakMult`). A miss ends the streak; a foul (no contact, scratch) costs 50 and ends it. Wrong order is legal, just worth less. Clearing the rack: +50 per spare shot, **Run out** (no misses or fouls) +300, **Perfect rack** (run out, all in order) +300 more. Running out of shots ends the hole with what you have.
 
-Rules: fouls are +1 (no contact, not hitting the called ball first, or a
-scratch, which also puts the cue ball back where it was). Other balls that
-drop are a bonus. A hole is picked up at par + 4.
+Feedback: pot sounds climb a pentatonic scale as the streak builds (`sfx.potNote`), with a bell on in-order pots; floats name the pot (In order, Bank, Combo); screen shake grows with the streak. When a shot will clear the rack (`shoot` simulates it first), the last ball gets slow motion (0.25×), a camera push-in and a darker vignette as it nears the pocket (`cine`, `cam`, `timeScale` in `frame`).
 
-Physics notes: fixed 1/240 s step, exact-contact ball collisions, tilt,
-felt friction, pocket rattle above `POT_MAX_SPEED`, and spin applied at the
-cue ball's first contact (follow carries through, draw comes back). Resting
-balls are skipped, so simulation is cheap.
+Share card: one emoji per hole (✨ perfect rack, 🔥 run out, 🟩 cleared, 🟥 out of shots) and total points. Ranked results are stored under `dailybreak:pts:<date>`.
 
-Par: a bot clears the rack by always taking `bestCall` with perfect
-execution; par is its strokes, clamped to rack size … + 2 (`parFor`), so
-one shot per ball is par. Hole 1 is solved at load, the rest in the background (about
-0.08 s each). Playtest bots: perfect timing with naive planning lands around par;
-"decent" timing (often just off the spot, power within ~2 band widths)
-misses about 35% of shots and finishes about 2 over par per hole.
+Physics notes: fixed 1/240 s step, exact-contact ball collisions, tilt, felt friction, pocket rattle above `POT_MAX_SPEED`, spin applied at the cue ball's first contact, per-ball cushion count (`cush`) for banks. Deterministic, so a server could re-run shots to validate.
 
 ## Look and feel
 
 Top-down retro room: plank floor, a patterned rug, walnut table with sage
 felt, swaying plants, armchair, a spinning record player, a sleeping cat,
 window light with rain shadows, cloud shadows, dust motes, vignette and
-grain. UI in DM Sans + DM Mono: scorecard strip, info bar (hole/par, balls
-left, shot and lie, tilt), chip row, the gauge and one big action button.
-Sound: clacks, cushions, pockets, chimes for perfect taps, rain and vinyl
+grain. UI in DM Sans + DM Mono: scorecard strip (points and result per hole),
+info bar (hole points and balls left, shot count and streak multiplier,
+tilt), the power slider, and a thumb row: Next-ball clicker, Shoot, dial.
+Sound: clacks, cushions, pockets, rising pot notes for streaks, dial ticks, rain and vinyl
 ambience, and an electric-piano loop.
 
 ## Code layout
 
 - Top half of the script, no DOM: seeded RNG, `makeHole`, `Table`
-  physics, `trace`, called-shot helpers (`potLine`, `allLines`, `safeLine`,
-  `shotPower`, `simulate`, `clean`, `playCall`, `nextQ`, `bestCall`) and the
-  par solver. Deterministic, so a server could re-run shots to validate.
-- Bottom half: audio, events, round/hole flow (`lineUp`, `suggestCall`,
-  `selectLine/Ball/Pocket/Type`, `lockLine`, `act`, `stopPower`,
-  `resolveShot`, `finishHole`), UI, input and the canvas renderer.
+  physics, `trace`, `potLine`/`allLines` (used to guarantee an opening pot)
+  and `simulate`.
+- Bottom half: audio, events (`onEvent` scores each pot as it drops),
+  round/hole flow (`lineUp`, `focusBall`, `nextBall`, `setAngle`, `setSpot`,
+  `setPower`, `shoot`, `resolveShot`, `finishHole`), UI, input (table drag,
+  dial, power slider, keys) and the canvas renderer (`drawAim`, `drawBubble`).
 
 ## Next ideas
 
-- Playtest the feel: swing speed, gold band sizes, whether the suggestion
-  should be hidden on later holes or behind a "hint" button.
-- English (side spin) as a sixth chip; banks and combos as callable shots.
+- Playtest the difficulty: `SHOT_SPARE` (3), the dial gearing (8° a turn)
+  and the guide levels are the main knobs. A bot with perfect geometric aim
+  and a fixed medium pace cleared about half the racks.
+- Replay of the best shot at the end of each hole.
+- Optional position target: drop a zone for the cue ball for a bonus.
 - Leaderboard and friends with server-side shot replay.
