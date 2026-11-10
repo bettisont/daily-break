@@ -1062,7 +1062,7 @@ function showFinal(already) {
     </div>
     ${statsHtml()}
     <div class="k mono" id="nextIn" style="margin-top:10px"></div>
-    <div class="fbrow"><a href="${feedbackHref()}">Send feedback</a></div>`;
+    ${feedbackLink()}`;
   tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
   $('overlay').classList.add('show');
   phase = 'over'; updateUI();
@@ -1097,7 +1097,7 @@ function showHelp() {
       <p>📅 Everyone plays the same levels each day. One ranked run per day; practise as much as you like.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>
-    <div class="fbrow"><a href="${feedbackHref()}">Send feedback</a></div>`;
+    ${feedbackLink()}`;
   $('overlay').classList.add('show');
 }
 $('card').addEventListener('click', e => {
@@ -1141,7 +1141,8 @@ function tickNext() {
   const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60, sec = Math.floor(ms / 1e3) % 60;
   el.textContent = `Next ladder in ${h ? `${h}h ${m}m` : `${m}m ${String(sec).padStart(2, '0')}s`}`;
 }
-const FEEDBACK_EMAIL = 'hello@dailybreak.app';
+const FEEDBACK_EMAIL = '';   // hidden until hello@dailybreak.app forwards somewhere (set it to show the link)
+const feedbackLink = () => FEEDBACK_EMAIL ? `<div class="fbrow"><a href="${feedbackHref()}">Send feedback</a></div>` : '';
 function feedbackHref() {
   const body = round?.done ? `\n\n---\n${shareText()}` : '';
   return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('Daily Break feedback')}&body=${encodeURIComponent(body)}`;
