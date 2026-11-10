@@ -13,32 +13,36 @@ worn rough felt, slick felt, brass bumpers and an occasional closed pocket.
 
 A shot:
 
+Every rack is generated so the opening shot has at least one clean pot
+(`makeHole` re-rolls deterministically until it does).
+
 1. **Call it.** The easiest pot is called to start. Tap another ball to
    call it (its easiest pocket is picked) or tap a pocket to send the called
    ball there; the flag moves to the called pocket. Green dots mark other
    balls with a clean pot on; coloured dots by the pockets show how hard
    each pot is for the called ball.
-2. **Pick a shot type** from the chip row, like choosing a club: Soft,
-   Stun, Follow, Draw, Power (`SHOTS`: object-ball arrival speed and cue-ball
-   spin). Nothing is pre-selected and there is no suggestion: the player has
-   to choose (the action button reads "Pick a shot" until they do). Every
-   type is simulated for the called line (`playCall`, which nudges the line
-   a hair to allow for tilt and felt), so the chosen chip shows the cue
-   ball's dotted path and finishing spot, and "risky" if it may not drop.
+2. **Choose the hit.** A close-up bubble pinned to the bottom-right corner
+   shows the cue ball's face. Tap where to strike it: the height sets the
+   spin (`spinFor`: high = follow, centre = stun, low = draw; taps snap to
+   the vertical line because side spin isn't modelled) and the game names
+   it (`strikeName`: Follow, Roll, Stun, Draw, Deep draw). The call is then
+   simulated (`setSpot` → `playCall`, nudging the line a hair for tilt and
+   felt), so the table shows the cue ball's dotted path and finishing spot,
+   and "risky" if it may not drop. Pace is set by the power gauge: the pin is
+   a normal pace (a bit more for draw). Nothing is pre-selected; the action
+   button reads "Choose your hit" until you tap. Arrow keys nudge the hit.
 3. **Difficulty.** Every call is rated Easy / Fair / Tricky / Hard / Very
    hard (`shotDifficulty`: cut angle, distance, blockers, lie, tilt, and the
-   shot type: Draw and Power are harder). It shows by the ball, in the info
+   amount of spin). It shows by the ball, in the info
    bar and on the pocket dots. Harder shots get a smaller strike spot
    (`tipRadius` 0.24 → 0.09 of the ball's radius), a faster, wider cue-tip
    drift, a quicker power needle (`fillT` 1.5 → 0.95 s) and a thinner power
    band (`perfP` 4.2% → 1.6%). Calibrated so most tables have an Easy or
    Fair route but typical shots are Fair–Hard.
 4. **Lock the tip.** The table shows only the planned line and ghost ball.
-   A close-up bubble beside the cue ball shows its face with the cue tip
-   drifting over it (`tipPos`, faster and wider on rough felt). The gold spot
-   sits where the shot type needs the hit (`SPIN_SPOT`: centre for Stun and
-   Power, a little high for Soft, high for Follow, low for Draw). Tip on the
-   spot gives an exact line and the chosen spin. Off to the side squirts the
+   In the bubble the cue tip drifts over the ball (`tipPos`, faster and
+   wider on rough felt). The gold spot is the hit you chose. Tip on the spot
+   gives an exact line and the chosen spin. Off to the side squirts the
    cue ball off line (up to about 2.5°, opposite side to the hit); too high
    or low delivers the spin actually hit (high = follow, low = draw).
 5. **Power.** Swing, then Stop in the gold band at the pin; the pin is the
