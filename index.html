@@ -204,14 +204,49 @@ function lieAt(hole, x, y) {
 
 // Level i (0-based) is a seeded layout of i + 1 balls (up to 15), the same for everyone on the day.
 // It's re-rolled (deterministically) until the opening shot really drops.
+const holeCache = new Map();
 function makeHole(seed, i) {
+  const key = `${seed}:${i}`;
+  if (holeCache.has(key)) return holeCache.get(key);
   const n = Math.min(i + 1, MAX_BALLS);
-  let h = null;
-  for (let attempt = 0; attempt < 40; attempt++) {
+  let h = null, fallback = null;
+  for (let attempt = 0; attempt < 60; attempt++) {
     h = buildHole(seed, i, attempt);
-    if (h.balls.length === n && openingPot(h)) return h;
+    if (h.balls.length !== n || !openingPot(h)) continue;
+    fallback = fallback || h;
+    if (clearable(h)) { holeCache.set(key, h); return h; }
   }
+  h = fallback || h;
+  holeCache.set(key, h);
   return h;
+}
+// Can the whole level be cleared? A bot with perfect execution plays it: each shot it tries the best
+// few pots (stun, follow and draw at three paces), keeps the one that leaves the best next pot, and
+// must clear every ball in as many shots as there are balls, with no fouls. This rules out layouts
+// that only become impossible after the first pot (two balls frozen together on a rail, say).
+function clearable(h) {
+  let t = new Table(h);
+  for (let shot = 0; shot < h.balls.length; shot++) {
+    if (!t.remaining()) return true;
+    const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.45).sort((a, b) => b.q - a.q).slice(0, 4);
+    let best = null;
+    search: for (const l of ls) for (const pw of [0.4, 0.3, 0.55]) for (const sp of [0, 0.6, -0.6]) {
+      const s = simulate(t, l.angle, pw, sp), b = s.balls[l.bi];
+      if (s.shot.scratch || s.shot.firstHit !== b || !s.shot.pots.some(p => p.ball === b)) continue;
+      const v = s.remaining() ? leaveQ(s) : 9;
+      if (!best || v > best.v) best = { v, s };
+      if (v >= 0.45) break search;   // a comfortable next pot: good enough
+    }
+    if (!best || (best.v <= 0 && best.s.remaining())) return false;
+    best.s.shot = null; t = best.s;
+  }
+  return !t.remaining();
+}
+// How good is the leave: the best clean, not-too-thin pot available from where everything stopped.
+function leaveQ(t) {
+  let q = 0;
+  for (const l of allLines(t)) if (!l.blocked && l.cos > 0.45) q = Math.max(q, l.q);
+  return q;
 }
 // The opening shot must be a real pot: an unblocked, not-too-thin cut that a centre-ball hit at a
 // sensible pace actually sinks (tilt and felt included), without scratching.
@@ -692,6 +727,7 @@ function startHole(i) {
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
   fx.sinks = []; fx.confetti = [];
   lineUp();
+  setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: 1.5, max: 1.5 };
   renderCard9(); updateUI();
