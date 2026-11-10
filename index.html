@@ -1929,7 +1929,10 @@ function draw(t, dt) {
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
   vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + (1 - timeScale) * 0.45})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
-  ctx.save(); ctx.translate((t * 37) % 160, (t * 53) % 160); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
+  // film grain: hop the noise tile to a new random offset ~12 times a second, so it shimmers in place
+  // (sliding it steadily made it read as diagonal rain)
+  const gf = Math.floor(t * 12), gx = hash01(gf) * 160, gy = hash01(gf + 0.5) * 160;
+  ctx.save(); ctx.translate(gx, gy); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
 }
 
 /* ----- loop ----- */
