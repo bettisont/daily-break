@@ -23,7 +23,7 @@
   .btns{display:flex;gap:6px}
   h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
   #course{font-size:12px;color:var(--muted)}
-  #card9{display:grid;grid-template-columns:repeat(9,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel)}
+  #card9{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel)}
   #card9 .c{border-left:1px solid var(--line);text-align:center;font-family:'DM Mono',monospace;font-size:12px;line-height:1.2;transition:background .3s}
   #card9 .c:first-child{border-left:0}
   #card9 .c.cur{background:var(--hi)}
@@ -98,7 +98,7 @@
   .howto{text-align:left;font-size:14px;color:#4c574a}
   .howto p{margin:9px 0}
   .howto b{color:var(--ink)}
-  .mini{display:grid;grid-template-columns:auto repeat(9,1fr) auto;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0;font-family:'DM Mono',monospace;font-size:12px}
+  .mini{display:grid;grid-template-columns:auto repeat(3,1fr) auto;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0;font-family:'DM Mono',monospace;font-size:12px}
   .mini div{padding:5px 0;border-left:1px solid var(--line);border-top:1px solid var(--line)}
   .mini div.h{padding:5px 6px;color:var(--muted);border-left:0}
   .mini div.t{padding:5px 6px}
@@ -144,8 +144,10 @@
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
 const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1050;
-const HOLES = 9, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 9);
-const RACK_SIZES = [3, 3, 4, 4, 5, 5, 6, 6, 7];
+const HOLES = 3, PX_PER_IN = 10, EPOCH = Date.UTC(2026, 10, 9);
+const RACK_SIZES = [3, 4, 5];
+// Hazard level per rack (the old nine-rack scale): mild, medium, tough.
+const HAZARD = [1, 4, 7];
 const COLORS = ['#f4efe2', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b', '#24221f', '#e2b13c'];
 const POCKETS = [
   { x: 0, y: 0, cap: R * 1.75 }, { x: W, y: 0, cap: R * 1.75 },
@@ -213,7 +215,8 @@ function makeHole(seed, i) {
 }
 function buildHole(seed, i, attempt) {
   const rnd = rngFor(`${seed}:rack:${i}` + (attempt ? `:${attempt}` : ''));
-  const closed = rnd() < 0.08 + i * 0.04 ? [Math.floor(rnd() * 6)] : [];
+  const hz = HAZARD[i];
+  const closed = rnd() < 0.08 + hz * 0.04 ? [Math.floor(rnd() * 6)] : [];
   const placed = [];
   const ok = (x, y, rad, gap) => x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6 &&
     placed.every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + gap) &&
@@ -227,7 +230,7 @@ function buildHole(seed, i, attempt) {
   };
   const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || { x: W / 2, y: H * 0.8 };
   const bumpers = [];
-  const nBump = rnd() < 0.12 + i * 0.05 ? 1 + (i > 5 && rnd() < 0.4 ? 1 : 0) : 0;
+  const nBump = rnd() < 0.12 + hz * 0.05 ? 1 + (hz > 5 && rnd() < 0.4 ? 1 : 0) : 0;
   for (let k = 0; k < nBump; k++) {
     const o = place(() => [100 + rnd() * (W - 200), 160 + rnd() * (H - 420)], 18 + rnd() * 10, R * 2.5);
     if (o) bumpers.push({ x: o.x, y: o.y, r: o.r });
@@ -243,10 +246,10 @@ function buildHole(seed, i, attempt) {
     if (o) balls.push({ x: o.x, y: o.y, n: nums[k] });
   }
   const patches = [];
-  if (rnd() < 0.22 + i * 0.05) patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 60, ry: 45 + rnd() * 45, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
+  if (rnd() < 0.22 + hz * 0.05) patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 60, ry: 45 + rnd() * 45, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
   let tilt = { x: 0, y: 0, mag: 0, dir: 0 };
-  if (rnd() < 0.18 + i * 0.06) {
-    const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (10 + i * 3), a = dir * Math.PI / 4;
+  if (rnd() < 0.18 + hz * 0.06) {
+    const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (10 + hz * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
   return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, par: null };
@@ -461,14 +464,14 @@ const SHOT_SPARE = 3;
 const shotLimit = h => h.balls.length + SHOT_SPARE;
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 // The aiming guide fades over the round: full guide, short guide, then the aim line only.
-const aidLevel = h => h.i < 3 ? 2 : h.i < 6 ? 1 : 0;
+const aidLevel = h => 2 - h.i;
 const AID_NAMES = ['Aim line only', 'Short guide', 'Full guide'];
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [];
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
-let cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
+let ffwd = false, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0 };
 
 
@@ -616,7 +619,7 @@ function newRound(seed, ranked) {
   const r = round = { seed, ranked, scores: Array(HOLES).fill(null), holes: [] };
   for (let i = 0; i < HOLES; i++) r.holes.push(makeHole(seed, i));
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? `#${dayNumber(seed)}` : 'practice'}`;
-  const saved = ranked ? ls('dailybreak:pts:' + seed) : null;
+  const saved = ranked ? ls('dailybreak:pts3:' + seed) : null;
   startHole(0);
   if (saved) { try { round.scores = JSON.parse(saved).scores; round.done = true; renderCard9(); showFinal(true); } catch {} }
 }
@@ -628,7 +631,7 @@ function startHole(i) {
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
   fx.sinks = []; fx.confetti = [];
   lineUp();
-  banner = { title: `Hole ${i + 1}`, sub: `${hole.balls.length} balls · ${shotLimit(hole)} shots · ${AID_NAMES[aidLevel(hole)]}`, life: 2.6, max: 2.6 };
+  banner = { title: `Rack ${i + 1} of ${HOLES}`, sub: `${hole.balls.length} balls · ${shotLimit(hole)} shots · ${AID_NAMES[aidLevel(hole)]}`, life: 1.5, max: 1.5 };
   renderCard9(); updateUI();
 }
 
@@ -742,7 +745,7 @@ function release() {
   lastPower = power;
   // Will this shot clear the rack? Then the last ball gets the slow-motion treatment.
   const sim = simulate(table, angle, ct.power, ct.spin), sp = sim.shot.pots;
-  cine = !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
+  cine = hole.i === HOLES - 1 && !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
   strike = { angle, power: ct.power, spin: ct.spin, t: 0 };
   zoom = { t: 0, ct, d, from: contactPanel() };
   shotLog = [];
@@ -775,7 +778,7 @@ function resolveShot() {
     say(hs.streak >= 2 ? 'Streak over' : 'Miss', c.y + 44, '#7a6a3a');
     hs.streak = 0;
   }
-  table.shot = null; curTrail = null; cine = null; shotLog = [];
+  table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (!table.remaining()) finishHole(true);
   else if (strokes >= shotLimit(hole)) finishHole(false);
   else lineUp();
@@ -799,9 +802,11 @@ function finishHole(cleared) {
     if (runout) confettiBurst(perfect ? 140 : 80);
   }, cleared ? 450 : 0);
   phase = 'holed';
+  // move on by itself after the stamp has landed (the button skips the wait)
+  setTimeout(() => { if (hole === forHole && phase === 'holed') act(); }, (cleared ? 450 : 0) + 1900);
   if (hole.i === HOLES - 1) {
     round.done = true;
-    if (round.ranked) ls('dailybreak:pts:' + round.seed, JSON.stringify({ scores: round.scores }));
+    if (round.ranked) ls('dailybreak:pts3:' + round.seed, JSON.stringify({ scores: round.scores }));
   }
 }
 function confettiBurst(n) {
@@ -825,16 +830,16 @@ function renderCard9() {
 function updateUI() {
   if (!table) return;
   const left = table.remaining(), lie = lieAt(hole, table.cue.x, table.cue.y), lim = shotLimit(hole);
-  $('iHole').innerHTML = `Hole ${hole.i + 1} · ${hs.points.toLocaleString()} pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
+  $('iHole').innerHTML = `Rack ${hole.i + 1}/${HOLES} · ${hs.points.toLocaleString()} pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   const on = phase === 'holed' || phase === 'over' ? strokes : Math.min(strokes + 1, lim);
   $('iLie').innerHTML = `Shot ${on}/${lim}${lie !== 'felt' ? ` · ${lie}` : ''}<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
+  const b = $('act'), labels = { holed: hole.i < HOLES - 1 ? 'Next rack →' : 'Scorecard', over: 'Scorecard' };
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold); $('next').disabled = !aiming;
   const lo = lowestBall();
-  $('hint').innerHTML = !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
+  $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
     aim.bi !== lo ? `Out of order<br><b>+${potValue(false)}</b><br>the ${table.balls[lo].n} is +${potValue(true)}` : `In order<br><b>+${potValue(true)}</b>`;
   updateMeter(); updateAimUI(); updateSpinBall();
 }
@@ -876,7 +881,7 @@ function showFinal(already) {
     <div class="big">${totalPts().toLocaleString()}</div>
     <div class="k mono">points · ${round.scores.filter(s => s?.cleared).length}/${HOLES} racks cleared</div>
     <div class="mini">
-      <div class="h r0">Hole</div>${cells(round.holes.map((_, i) => i + 1), 'r0')}<div class="t r0">Tot</div>
+      <div class="h r0">Rack</div>${cells(round.holes.map((_, i) => i + 1), 'r0')}<div class="t r0">Tot</div>
       <div class="h">Pts</div>${cells(round.scores.map(s => s ? fmtPts(s.pts) : '–'))}<div class="t">${fmtPts(totalPts())}</div>
       <div class="h"></div>${cells(round.scores.map(holeIcon))}<div class="t"></div>
     </div>
@@ -903,12 +908,13 @@ function showHelp() {
       <p>3 · <b>Spin:</b> the little cue ball shows where your cue will hit it. <b>Drag the gold spot</b> up for <b>follow</b> (rolls on), leave it in the middle for <b>stun</b> (stops dead) or drag it down for <b>draw</b> (comes back); the further from the middle, the stronger. It's the same gold spot you aim for when you shoot.</p>
       <p>4 · <b>Shoot:</b> put your thumb on the <b>cue</b> on the right and pull it down: the further you pull, the harder you hit (too hard into a pocket and the ball rattles out). While you hold, a close-up shows the cue tip wobbling over the cue ball. <b>Let go when the tip is on the gold spot</b> for a clean strike. Off to the side pushes the shot off line, too high or low changes the spin, and right at the edge is a miscue. Long shots wobble more, and a small error matters more over a long distance. Push the cue back to the top and let go to cancel.</p>
       <p>➰ While you pull back (or drag the spin spot), a line shows the cue ball's first half second after it hits: enough to see which way it's heading, not where it stops.</p>
-      <p>👀 The aim guide fades: holes 1–3 show where the object ball goes, 4–6 only a short line, 7–9 just the ghost ball.</p>
+      <p>👀 The aim guide fades: rack 1 shows where the object ball goes, rack 2 only a short line, rack 3 just the ghost ball.</p>
       <p>🔢 <b>Points:</b> you can pot <b>any ball</b> in any order: it's never a foul. Each pot is 100, but the <b>lowest ball</b> on the table scores <b>double</b> (200). The tag over your target shows what it's worth, and <b>THEN</b> marks the ball that comes after it. Banks and combos add 50. Pot on consecutive shots for a <b>streak</b>: ×1.5, ×2, up to ×3.</p>
       <p>🔥 Clear the rack without a miss for a <b>Run out</b> (+300), all in number order for a <b>Perfect rack</b> (+300 more). Spare shots are worth 50 each.</p>
       <p>⚠️ Scratching or missing everything costs 50 and ends the streak.</p>
       <p>⛰️ Tilt, worn <b>rough</b> felt and <b>slick</b> felt bend every roll. The guide doesn't allow for them.</p>
-      <p>📅 Everyone plays the same nine racks each day. One ranked round per day.</p>
+      <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
+      <p>📅 Everyone plays the same three racks each day, about three minutes. One ranked round per day.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
   $('overlay').classList.add('show');
@@ -940,6 +946,7 @@ function toWorld(e) {
 let drag = null;
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
+  if (phase === 'moving' && !(cine && cine.hold > 0)) { ffwd = true; return; }   // tap to hurry the balls along
   if (phase !== 'aim') return;
   const p = toWorld(e), c = table.cue;
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, a: Math.atan2(p.y - c.y, p.x - c.x) };
@@ -1794,7 +1801,11 @@ function frame(now) {
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
     else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
   }
-  timeScale = lerp(timeScale, slow ? 0.25 : 1, Math.min(1, dt * 10));
+  // Fast-forward the dead time: a tap while the balls roll plays it at 6×, and once everything is
+  // just creeping (nothing faster than 160) it runs at 2.5× by itself. Never during the slow-motion finish.
+  const creeping = phase === 'moving' && table.live().every(b => Math.hypot(b.vx, b.vy) < 160);
+  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 6 : creeping ? 2.5 : 1;
+  timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
   if (phase === 'moving') {
