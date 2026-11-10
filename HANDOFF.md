@@ -28,17 +28,21 @@ A shot:
 3. **Difficulty.** Every call is rated Easy / Fair / Tricky / Hard / Very
    hard (`shotDifficulty`: cut angle, distance, blockers, lie, tilt, and the
    shot type: Draw and Power are harder). It shows by the ball, in the info
-   bar and on the pocket dots. Difficulty sets the timing: the line swings
-   faster (`swingPeriod` × 1.05 → 0.6) with a thinner gold band (`perfA`
-   6.8% → 2.4% of the sweep), and the power needle is quicker (`fillT`
-   1.5 → 0.95 s) with a thinner band (`perfP` 4.2% → 1.6%). Calibrated so
-   most tables have an Easy or Fair route but typical shots are Fair–Hard.
-4. **Lock the line.** A line swings like a pendulum inside a cone from the
-   cue ball to a bullseye at the contact point (drawn `CONE_VIS` = 3× wider
-   than the real error, ±`swingAmp` ≈ 3°). Tap inside the gold band for zero
-   error.
+   bar and on the pocket dots. Harder shots get a smaller strike spot
+   (`tipRadius` 0.24 → 0.09 of the ball's radius), a faster, wider cue-tip
+   drift, a quicker power needle (`fillT` 1.5 → 0.95 s) and a thinner power
+   band (`perfP` 4.2% → 1.6%). Calibrated so most tables have an Easy or
+   Fair route but typical shots are Fair–Hard.
+4. **Lock the tip.** The table shows only the planned line and ghost ball.
+   A close-up bubble beside the cue ball shows its face with the cue tip
+   drifting over it (`tipPos`, faster and wider on rough felt). The gold spot
+   sits where the shot type needs the hit (`SPIN_SPOT`: centre for Stun and
+   Power, a little high for Soft, high for Follow, low for Draw). Tip on the
+   spot gives an exact line and the chosen spin. Off to the side squirts the
+   cue ball off line (up to about 2.5°, opposite side to the hit); too high
+   or low delivers the spin actually hit (high = follow, low = draw).
 5. **Power.** Swing, then Stop in the gold band at the pin; the pin is the
-   chosen type's power. Perfect line + perfect power plays exactly the
+   chosen type's power. Perfect tip + perfect power plays exactly the
    previewed shot.
 
 Rules: fouls are +1 (no contact, not hitting the called ball first, or a

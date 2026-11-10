@@ -492,7 +492,7 @@ const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
-const STRIKE_T = 0.1, PIN_AT = 0.62, CONE_VIS = 3;
+const STRIKE_T = 0.1, PIN_AT = 0.62;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
@@ -703,7 +703,6 @@ function shotDifficulty(line, ti) {
 }
 const tierOf = d => TIERS[Math.min(4, Math.floor(d / 0.2))];
 const curDiff = () => call ? shotDifficulty(call.line, call.ti) : 0.3;
-const perfA = () => lerp(0.068, 0.024, curDiff());
 const perfP = () => lerp(0.042, 0.016, curDiff());
 const fillT = () => lerp(1.5, 0.95, curDiff());
 function sayDifficulty() {
@@ -712,28 +711,43 @@ function sayDifficulty() {
 }
 
 // The line: a pendulum swing inside the cone; lock as it crosses the bullseye.
-function swingAmp() {
-  const lie = lieAt(hole, table.cue.x, table.cue.y);
-  return (3 + 0.12 * hole.i) * (lie === 'rough' ? 1.5 : 1) * Math.PI / 180;
+// Striking the cue ball: in the close-up bubble the cue tip drifts over the ball's face like a real hand.
+// The gold spot sits where this shot type needs the hit (centre for stun, high for follow, low for draw).
+// Tip on the spot: the line is exact and you get the spin you chose. Off to the side squirts the cue
+// ball off line; too high or low changes the spin. Harder shots: smaller spot, faster and wider drift.
+const SPIN_SPOT = [-0.2, 0, -0.5, 0.55, 0];
+const tipTarget = () => ({ x: 0, y: call?.ti != null ? SPIN_SPOT[call.ti] : 0 });
+const tipRadius = () => lerp(0.24, 0.09, curDiff());
+function tipPos() {
+  const d = curDiff(), lie = lieAt(hole, table.cue.x, table.cue.y);
+  const A = lerp(0.3, 0.58, d) * (lie === 'rough' ? 1.25 : 1), w = lerp(1.1, 2.1, d) * (lie === 'rough' ? 1.15 : 1), t = swayT * w, tg = tipTarget();
+  let x = tg.x + A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
+  let y = tg.y + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
+  const m = Math.hypot(x, y);
+  if (m > 0.85) { x *= 0.85 / m; y *= 0.85 / m; }
+  return { x, y };
 }
-function swingPeriod() {
-  const lie = lieAt(hole, table.cue.x, table.cue.y);
-  return Math.max(1.3, Math.max(2.2, 3.0 - hole.i * 0.1) * (lie === 'rough' ? 0.85 : lie === 'slick' ? 0.92 : 1) * lerp(1.05, 0.6, curDiff()));
-}
-function swingPos() { return 0.5 - 0.5 * Math.cos(TAU * swayT); }
-const aimOffset = () => (swingPos() - 0.5) * 2 * swingAmp();
+const tipOnSpot = () => { const p = tipPos(), g = tipTarget(); return Math.hypot(p.x - g.x, p.y - g.y) <= tipRadius(); };
 function lockLine() {
   if (phase !== 'aim' || !call) return;
   if (call.ti == null) { const c = table.cue; float(c.x, c.y - 46 < 30 ? c.y + 46 : c.y - 46, 'Pick a shot type first', '#7a6a3a', 18); sfx.penalty(); return; }
-  const PA = perfA(), pos = swingPos(), d = pos - 0.5, perfect = Math.abs(d) <= PA;
-  const off = perfect ? 0 : Math.sign(d) * (Math.abs(d) - PA) / (0.5 - PA) * swingAmp();
-  locked = { angle: pv().angle + off, off, perfect };
-  const deg = off * 180 / Math.PI, a = Math.abs(deg), side = deg > 0 ? 'right' : 'left';
-  const c = table.cue, fy = c.y - 46 < 30 ? c.y + 46 : c.y - 46;
-  const [txt, col] = perfect ? ['Perfect line', '#b88a2e'] : a < 0.5 ? [`A touch ${side}`, '#7a6a3a'] : [`Pulled ${side}!`, '#b8553f'];
-  float(c.x, fy, txt, col, 20);
+  const tip = tipPos(), g = tipTarget(), rr = tipRadius(), dist = Math.hypot(tip.x - g.x, tip.y - g.y), perfect = dist <= rr;
+  const want = SHOTS[call.ti].spin;
+  let off = 0, spin = want;
+  if (!perfect) {
+    const k = (dist - rr) / dist, dxEx = (tip.x - g.x) * k;
+    off = -dxEx * 5 * Math.PI / 180;            // right-hand side squirts the cue ball left, and vice versa
+    spin = clamp(-tip.y * 1.4, -0.95, 0.95);     // high = follow, low = draw
+  }
+  locked = { angle: pv().angle + off, off, perfect, spin, tip };
+  const c = table.cue, fy = c.y - 46 < 30 ? c.y + 46 : c.y - 46, deg = off * 180 / Math.PI, bits = [];
+  if (!perfect) {
+    if (Math.abs(deg) >= 0.3) bits.push(deg < 0 ? 'Squirted left' : 'Squirted right');
+    if (spin - want > 0.15) bits.push('more follow'); else if (want - spin > 0.15) bits.push('more draw');
+  }
+  const txt = perfect ? 'Perfect strike' : bits.length ? bits.join(', ').replace(/^./, ch => ch.toUpperCase()) : 'Near enough';
+  float(c.x, fy, txt, perfect ? '#b88a2e' : bits.length ? '#b8553f' : '#7a6a3a', 20);
   if (perfect) { sfx.chime(); sparkle(c.x, c.y, '#e2b13c', 10, 90); buzz(12); } else { sfx.lock(); buzz(8); }
-  flashMeter(perfect);
   phase = 'locked';
   updateUI();
 }
@@ -763,7 +777,7 @@ function stopPower() {
   const [txt, col] = perfect ? ['Perfect power', '#b88a2e'] : diff < 0 ? (diff < -0.08 ? ['Way short', '#b8553f'] : ['Soft', '#7a6a3a']) : (diff > 0.08 ? ['Heavy!', '#b8553f'] : ['Firm', '#7a6a3a']);
   float(c.x, c.y + (c.y + 70 > H ? -70 : 70), txt, col, 18);
   m.stopped = m.b;
-  strike = { angle: locked.angle, power, spin: SHOTS[call.ti].spin, t: 0 };
+  strike = { angle: locked.angle, power, spin: locked.spin, t: 0 };
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
@@ -838,33 +852,22 @@ function updateUI() {
   const tier = call && ['aim', 'locked', 'power'].includes(phase) ? tierOf(curDiff()) : null;
   $('iLie').innerHTML = `Shot ${Math.min(strokes + (phase === 'holed' || phase === 'over' ? 0 : 1), 99)} · ${lie}<b${tier ? ` style="color:${tier[1]}"` : ''}>${tier ? tier[0] : '–'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { lining: 'Lining up…', aim: call?.ti == null ? 'Pick a shot' : 'Lock the line', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
+  const b = $('act'), labels = { lining: 'Lining up…', aim: call?.ti == null ? 'Pick a shot' : 'Lock the tip', locked: 'Swing', power: 'Stop', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
   b.textContent = labels[phase];
   b.disabled = phase === 'strike' || phase === 'moving' || phase === 'lining' || (phase === 'aim' && call?.ti == null);
   b.classList.toggle('stop', phase === 'power');
   const narrow = innerWidth < 460;
-  const hints = { lining: '', aim: call?.ti == null ? 'Pick a shot type · tap a ball or pocket to change the call' : narrow ? 'Tap ball or pocket to change · lock on the bullseye'.replace('Tap ball or pocket to change · ', innerWidth < 400 ? '' : 'Tap ball or pocket to change · ') : 'Tap a ball or pocket to change the call · lock as the line crosses the bullseye', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
+  const hints = { lining: '', aim: call?.ti == null ? 'Pick a shot type · tap a ball or pocket to change the call' : narrow ? 'Lock when the cue tip is on the gold spot' : 'Lock when the cue tip is on the gold spot · tap a ball or pocket to change the call', locked: 'Swing, then stop on the pin', power: 'Stop in the gold band', strike: '', moving: '', holed: '', over: '' };
   $('hint').textContent = hints[phase];
   renderChips();
   updateMeter();
 }
 function updateMeter() {
   const pct = v => (clamp(v, 0, 1) * 100).toFixed(2) + '%';
-  const accuracy = phase === 'aim';
-  $('lEase').textContent = accuracy ? 'Left' : 'Ease';
-  $('lPin').textContent = accuracy ? 'Perfect' : 'Pin';
-  $('lOver').textContent = accuracy ? 'Right' : 'Over';
-  if (accuracy) {
-    $('mPin').style.left = pct(0.5 - perfA()); $('mPin').style.width = pct(2 * perfA()); $('mPin').style.opacity = 1;
-    $('lPin').style.left = '50%'; $('lPin').style.opacity = 1;
-    $('mOver').style.opacity = 0; $('mFill').style.width = '0%';
-    $('mNeedle').style.opacity = 1; $('mNeedle').style.left = pct(swingPos());
-    return;
-  }
   const p = pv()?.power ?? 0.3;
   const barMax = meter ? meter.barMax : clamp(p / PIN_AT, 0.12, 1);
   const pinPos = meter ? meter.pinPos : clamp(p / barMax, 0, 1);
-  const showPin = ['locked', 'power', 'strike', 'moving'].includes(phase);
+  const showPin = ['locked', 'power', 'strike', 'moving'].includes(phase) || (phase === 'aim' && call?.ti != null);
   $('mPin').style.left = pct(pinPos - perfP()); $('mPin').style.width = pct(2 * perfP()); $('mPin').style.opacity = showPin ? 1 : 0;
   $('lPin').style.left = pct(pinPos); $('lPin').style.opacity = showPin ? 1 : 0;
   $('mOver').style.opacity = showPin ? 1 : 0; $('mOver').style.left = pct(Math.min(1, pinPos + perfP() + 0.03));
@@ -912,9 +915,9 @@ function showHelp() {
       <p>🎱 Each hole is a small rack. Pot every ball in as few shots as you can.</p>
       <p>1 · <b>Call your shot:</b> the easiest pot is called to start. Tap a <b>ball</b> to call it and tap a <b>pocket</b> to send it there (the flag moves to it).</p>
       <p>2 · <b>Pick a shot type</b>, like choosing a club: <b>Soft</b>, <b>Stun</b> (cue ball stops), <b>Follow</b> (rolls on), <b>Draw</b> (comes back) or <b>Power</b>. Nothing is picked for you: try them and watch the dotted path show where the cue ball will finish, so you can play for your next ball. “Risky” means it may not drop.</p>
-      <p>📈 Every call gets a <b>difficulty</b> (Easy → Very hard), and the dots by each pocket show how hard that pot is. Harder shots swing faster with a thinner gold band and a quicker, tighter power gauge, so plan an easy route.</p>
-      <p>3 · <b>Lock the line:</b> a line swings inside the cone. Tap as it crosses the bullseye's gold centre.</p>
-      <p>4 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the pin. Perfect line + perfect power plays exactly the previewed shot.</p>
+      <p>📈 Every call gets a <b>difficulty</b> (Easy → Very hard), and the dots by each pocket show how hard that pot is. Harder shots have a smaller spot, a twitchier cue tip and a quicker, tighter power gauge, so plan an easy route.</p>
+      <p>3 · <b>Lock the tip:</b> the bubble by the cue ball shows the cue tip drifting over the ball. Lock it on the gold spot, which sits where your shot type needs the hit (high for follow, low for draw). Off to the side squirts the shot off line; too high or low changes the spin.</p>
+      <p>4 · <b>Power:</b> press <b>Swing</b>, then <b>Stop</b> in the gold band at the pin. Perfect tip + perfect power plays exactly the previewed shot.</p>
       <p>⛰️ Tilt, worn <b>rough</b> felt and <b>slick</b> felt change every roll. The preview already allows for them.</p>
       <p>⚠️ Fouls cost <b>+1</b>: scratching the cue ball, or not hitting your called ball first. Other balls that drop are a bonus.</p>
       <p>📅 Everyone plays the same nine racks each day. One ranked round per day.</p>
@@ -1304,7 +1307,6 @@ function drawFlag(t, dt) {
   ctx.fillStyle = '#efe4ca'; ctx.beginPath(); ctx.arc(topX, topY, 2.5, 0, TAU); ctx.fill();
 }
 
-function wedge(x, y, a0, a1, r) { ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, a0, a1); ctx.closePath(); }
 function arrowTo(a, b, col) {
   const ang = Math.atan2(b.y - a.y, b.x - a.x);
   ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -1346,33 +1348,21 @@ function drawCall(t) {
     ctx.beginPath(); ctx.arc(ex, ey, R, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
   }
   if (!(aiming || phase === 'locked' || phase === 'power')) return;
-  const base = p.angle, A = swingAmp() * CONE_VIS;
+  const base = p.angle;
   const bh = trace(table, c.x, c.y, Math.cos(base), Math.sin(base));
   const L = bh.ball ? bh.t : Math.min(bh.t, l.d1);
   const bx = c.x + Math.cos(base) * L, by = c.y + Math.sin(base) * L;
-  const PA = perfA(), inPerfect = aiming && Math.abs(swingPos() - 0.5) <= PA;
-  if (aiming) {
-    const far = L + R * 1.4, pA = 2 * PA * A;
-    wedge(c.x, c.y, base - A, base + A, far);
-    ctx.fillStyle = 'rgba(251,248,240,.24)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(251,248,240,.75)'; ctx.lineWidth = 2; ctx.stroke();
-    wedge(c.x, c.y, base - pA, base + pA, far);
-    ctx.fillStyle = inPerfect ? 'rgba(226,177,60,.75)' : 'rgba(226,177,60,.45)'; ctx.fill();
+  // the planned line and the ghost ball
+  ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(c.x + Math.cos(base) * R, c.y + Math.sin(base) * R); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bx, by, R, 0, TAU); ctx.stroke();
+  // once locked: where the strike really sends it
+  if (!aiming) {
+    const dx = Math.cos(locked.angle), dy = Math.sin(locked.angle), hit = trace(table, c.x, c.y, dx, dy), LL = Math.min(hit.t, L + 2 * R);
+    const col = locked.perfect ? '#e2b13c' : '#d08a2e';
+    ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(c.x + dx * LL, c.y + dy * LL); ctx.stroke();
   }
-  // bullseye where the cue ball must strike
-  const pulse = inPerfect ? 1.06 : 1;
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(251,248,240,.9)'; ctx.beginPath(); ctx.arc(bx, by, R * 1.05 * pulse, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = 'rgba(251,248,240,.7)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.62, 0, TAU); ctx.stroke();
-  ctx.fillStyle = inPerfect || locked?.perfect ? '#e2b13c' : 'rgba(226,177,60,.85)'; ctx.beginPath(); ctx.arc(bx, by, R * 0.28 * pulse, 0, TAU); ctx.fill();
-  if (inPerfect) { ctx.strokeStyle = 'rgba(226,177,60,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bx, by, R * 1.5 * pulse, 0, TAU); ctx.stroke(); }
-  // the swinging (or locked) line
-  const angle = aiming ? base + aimOffset() * CONE_VIS : locked.angle;
-  const dx = Math.cos(angle), dy = Math.sin(angle), hit = trace(table, c.x, c.y, dx, dy), LL = Math.min(hit.t, L + 2 * R);
-  const col = aiming ? (inPerfect ? '#e2b13c' : '#c4472f') : locked.perfect ? '#e2b13c' : '#d08a2e';
-  ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(c.x + dx * LL, c.y + dy * LL); ctx.stroke();
-  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x + dx * LL, c.y + dy * LL, 4, 0, TAU); ctx.fill();
   // label
   const [tierName, tierCol] = tierOf(curDiff());
   const label = `${tierName}${picked ? ' · ' + SHOTS[call.ti].name : ''}${l.pocket < 0 ? ' · no pot' : picked && !p.ok ? ' · risky' : ''}`;
@@ -1383,6 +1373,54 @@ function drawCall(t) {
   ctx.fillStyle = tierCol; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx + 11, ly + 16.5);
 }
 
+
+// The close-up bubble beside the cue ball: its face, the gold spot and the drifting cue tip.
+let bubbleT = 0;
+function drawBubble(dt) {
+  const show = call && ['aim', 'locked', 'power'].includes(phase);
+  bubbleT = show ? bubbleT + dt : 0;
+  if (!show) return;
+  const { s, ox, oy, cw, ch } = view, c = table.cue, ang = (locked ? locked.angle : pv()?.angle ?? call.line.angle);
+  const Rb = clamp(cw * 0.17, 54, 84), k = Math.min(1, bubbleT / 0.28);
+  const sc = Math.max(0.01, 1 - (1 - k) ** 3 + Math.sin(k * Math.PI) * 0.08);
+  const cx0 = ox + c.x * s, cy0 = oy + c.y * s;
+  let bx = cx0 - Math.cos(ang) * (Rb + 34), by = cy0 - Math.sin(ang) * (Rb + 34);
+  bx = clamp(bx, Rb + 8, cw - Rb - 8); by = clamp(by, Rb + 8, ch - Rb - 8);
+  ctx.save();
+  // leader to the cue ball
+  const lead = Math.hypot(cx0 - bx, cy0 - by) || 1;
+  ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(bx + (cx0 - bx) * Rb * sc / lead, by + (cy0 - by) * Rb * sc / lead); ctx.lineTo(cx0, cy0); ctx.stroke();
+  ctx.translate(bx, by); ctx.scale(sc, sc);
+  ctx.shadowColor = 'rgba(40,25,10,.35)'; ctx.shadowBlur = 16 * view.dpr; ctx.shadowOffsetY = 6 * view.dpr;
+  ctx.fillStyle = '#2f3a31'; ctx.beginPath(); ctx.arc(0, 0, Rb, 0, TAU); ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = '#fbf8f0'; ctx.lineWidth = 3; ctx.stroke();
+  // the cue ball's face
+  const rb = Rb * 0.8, face = ctx.createRadialGradient(-rb * 0.35, -rb * 0.4, rb * 0.1, 0, 0, rb);
+  face.addColorStop(0, '#fffdf7'); face.addColorStop(1, '#ddd3bd');
+  ctx.fillStyle = face; ctx.beginPath(); ctx.arc(0, 0, rb, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(60,45,25,.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-rb, 0); ctx.lineTo(rb, 0); ctx.moveTo(0, -rb); ctx.lineTo(0, rb); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, rb * 0.5, 0, TAU); ctx.stroke();
+  ctx.font = "500 8px 'DM Mono', monospace"; ctx.fillStyle = 'rgba(251,248,240,.8)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('FOLLOW', 0, -(Rb + rb) / 2); ctx.fillText('DRAW', 0, (Rb + rb) / 2);
+  if (call.ti == null) {
+    ctx.font = "700 12px 'DM Sans', sans-serif"; ctx.fillStyle = '#5a6556'; ctx.fillText('Pick a shot', 0, 0);
+    ctx.restore(); return;
+  }
+  const g = tipTarget(), rr = tipRadius(), tip = locked ? locked.tip : tipPos(), on = locked ? locked.perfect : tipOnSpot();
+  ctx.fillStyle = on ? 'rgba(226,177,60,.75)' : 'rgba(226,177,60,.4)'; ctx.strokeStyle = '#b88a2e'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(g.x * rb, g.y * rb, rr * rb, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#b88a2e'; ctx.beginPath(); ctx.arc(g.x * rb, g.y * rb, 2, 0, TAU); ctx.fill();
+  // the cue tip (seen end-on), with a soft shadow on the ball
+  const tx = tip.x * rb, ty = tip.y * rb, tr = rb * 0.13;
+  ctx.fillStyle = 'rgba(40,25,10,.22)'; ctx.beginPath(); ctx.arc(tx + 3, ty + 4, tr * 1.1, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fbf8f0'; ctx.beginPath(); ctx.arc(tx, ty, tr * 1.25, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#3b5ea6'; ctx.beginPath(); ctx.arc(tx, ty, tr, 0, TAU); ctx.fill();
+  if (on) { ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx, ty, tr * 1.6, 0, TAU); ctx.stroke(); }
+  ctx.restore();
+}
 
 function drawCue(angle, pull, sk) {
   const c = table.cue, gap = (6 + pull * 80) * (1 - sk) ** 2, tip = R + 2 + gap, len = 420;
@@ -1525,6 +1563,7 @@ function draw(t, dt) {
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawBubble(dt);
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
   vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, 'rgba(60,40,20,.28)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
@@ -1537,9 +1576,9 @@ function frame(now) {
   const t = now / 1000, dt = Math.min(0.05, t - (frame.last ?? t));
   frame.last = t;
   if (phase === 'aim') {
-    const PA = perfA(), was = Math.abs(swingPos() - 0.5) <= PA;
-    swayT += dt / swingPeriod();
-    if (!was && Math.abs(swingPos() - 0.5) <= PA && call?.ti != null) tone(1046, 0.03, 0.015, 'sine', 1, 0, 0);
+    const was = call?.ti != null && tipOnSpot();
+    swayT += dt;
+    if (!was && call?.ti != null && tipOnSpot()) tone(1046, 0.03, 0.015, 'sine', 1, 0, 0);
     updateMeter();
   }
   if (phase === 'power') {
