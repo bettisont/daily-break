@@ -66,3 +66,10 @@ ambience, and an electric-piano loop.
 - Replay of the best shot at the end of a run.
 - Optional position target: drop a zone for the cue ball for a bonus.
 - Leaderboard and friends with server-side shot replay.
+
+## Hosting
+
+Cloudflare Worker `daily-break` (static assets, `wrangler.jsonc`). Every push
+to `main` deploys via `.github/workflows/deploy.yml` (needs the repo secret
+`CLOUDFLARE_API_TOKEN`); it can also be run by hand from the Actions tab.
+By hand: `mkdir -p dist && cp index.html dist/ && npx wrangler deploy`.
