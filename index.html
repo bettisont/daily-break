@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#ece5d3">
 <title>Daily Break · a daily pool game</title>
 <meta name="description" content="A daily pool ladder: one ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
-<link rel="canonical" href="https://daily-break.timbuilds.workers.dev/">
+<link rel="canonical" href="https://dailybreak.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Daily Break">
 <meta property="og:title" content="Daily Break · a daily pool game">
 <meta property="og:description" content="One ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
-<meta property="og:url" content="https://daily-break.timbuilds.workers.dev/">
-<meta property="og:image" content="https://daily-break.timbuilds.workers.dev/og.png">
+<meta property="og:url" content="https://dailybreak.app/">
+<meta property="og:image" content="https://dailybreak.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Daily Break: a pool table in a cosy room, shown on a phone">
@@ -1016,7 +1016,7 @@ function shareText() {
   const title = isDailySeed(round.seed) && round.ranked ? `Daily Break #${dayNumber(round.seed)} 🎱` : `Daily Break · ${courseName(round.seed)} 🎱`;
   return `${title}\nLevel ${round.level + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}\n${round.results.map(r => RESULT_EMOJI[r]).join('')}\n${gameUrl()}`;
 }
-const SITE_URL = 'https://daily-break.timbuilds.workers.dev/';
+const SITE_URL = 'https://dailybreak.app/';
 function gameUrl() {
   const base = location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL;
   return isDailySeed(round.seed) && round.ranked ? base : `${base}?seed=${encodeURIComponent(round.seed)}`;

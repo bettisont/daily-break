@@ -1,7 +1,14 @@
-// Cloudflare static hosting for Daily Break: serves index.html + static/ from ./dist
-// (the deploy copies only index.html and static/ there, so HANDOFF.md and .git stay private).
+// Cloudflare hosting for Daily Break at https://dailybreak.app.
+// The deploy copies only index.html and static/ into ./dist, so HANDOFF.md and .git stay private.
+// src/worker.js runs first on every request and redirects other hosts (workers.dev, www) to dailybreak.app.
 {
   "name": "daily-break",
+  "main": "src/worker.js",
   "compatibility_date": "2026-09-01",
-  "assets": { "directory": "./dist" }
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "dailybreak.app", "custom_domain": true },
+    { "pattern": "www.dailybreak.app", "custom_domain": true }
+  ],
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": true }
 }
