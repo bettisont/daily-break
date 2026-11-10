@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#ece5d3">
 <title>Daily Break · a daily pool game</title>
 <meta name="description" content="A daily pool ladder: one ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
-<link rel="canonical" href="https://daily-break.timbuilds.workers.dev/">
+<link rel="canonical" href="https://dailybreak.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Daily Break">
 <meta property="og:title" content="Daily Break · a daily pool game">
 <meta property="og:description" content="One ball, then two, then three. Three lives, the same tables for everyone each day. How far can you get?">
-<meta property="og:url" content="https://daily-break.timbuilds.workers.dev/">
-<meta property="og:image" content="https://daily-break.timbuilds.workers.dev/og.png">
+<meta property="og:url" content="https://dailybreak.app/">
+<meta property="og:image" content="https://dailybreak.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Daily Break: a pool table in a cosy room, shown on a phone">
@@ -945,7 +945,7 @@ function finishHole() {
     renderCard9();
   }, 450);
   phase = 'holed';
-  // move on by itself after the stamp has landed (the button skips the wait)
+  // move on by itself once the stamp has landed
   setTimeout(() => { if (round.level === forLevel && phase === 'holed') act(); }, 450 + 1700);
 }
 // Out of lives: the run ends on the level you were playing.
@@ -979,7 +979,7 @@ function updateUI() {
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { holed: 'Next level →', over: 'See result' };
+  const b = $('act'), labels = { over: 'See result' };   // a cleared level moves on by itself
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold); $('next').disabled = !aiming;
@@ -1016,7 +1016,7 @@ function shareText() {
   const title = isDailySeed(round.seed) && round.ranked ? `Daily Break #${dayNumber(round.seed)} 🎱` : `Daily Break · ${courseName(round.seed)} 🎱`;
   return `${title}\nLevel ${round.level + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}\n${round.results.map(r => RESULT_EMOJI[r]).join('')}\n${gameUrl()}`;
 }
-const SITE_URL = 'https://daily-break.timbuilds.workers.dev/';
+const SITE_URL = 'https://dailybreak.app/';
 function gameUrl() {
   const base = location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL;
   return isDailySeed(round.seed) && round.ranked ? base : `${base}?seed=${encodeURIComponent(round.seed)}`;
@@ -1929,7 +1929,10 @@ function draw(t, dt) {
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
   vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + (1 - timeScale) * 0.45})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
-  ctx.save(); ctx.translate((t * 37) % 160, (t * 53) % 160); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
+  // film grain: hop the noise tile to a new random offset ~12 times a second, so it shimmers in place
+  // (sliding it steadily made it read as diagonal rain)
+  const gf = Math.floor(t * 12), gx = hash01(gf) * 160, gy = hash01(gf + 0.5) * 160;
+  ctx.save(); ctx.translate(gx, gy); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
 }
 
 /* ----- loop ----- */

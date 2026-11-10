@@ -27,7 +27,7 @@ Feedback: pot sounds climb a pentatonic scale as the streak builds (`sfx.potNote
 
 Juice (all procedural Web Audio, no files): sounds are panned left/right by where they happen (`atX`). Ball clacks have a woody body; cushions thud (with a rubbery bounce on hard hits) and puff chalk dust; hard ball hits freeze the frame for 30 ms (`hitStop`) with a small shake. A pot plays a leather "thunk" and the ball rolling down the return (`sfx.drop`), the pocket glows, the ball spirals in as it shrinks, a 45 ms hit-stop lands it, and the screen edges glow gold (`fx.glow`, stronger with the streak); streaks of 3+ add a bass swell (`sfx.boom`), and two or more balls in a shot call "Double!"/"Triple!" with a rising arpeggio. When spin takes hold off the object ball the table emits a `spin` event: a zip back for draw or a surge for follow, with gold arcs whirling round the cue ball (`spinFx`). The strike is a solid "thock" (a skid and a puff of chalk for a miscue); the pull-back cue creaks per 5% and thumps at full power; the spin spot clicks in pitch as it moves and snaps at centre. A low rolling rumble follows the total ball speed (`rollGain`). The points total counts up with ticks, and the streak multiplier pops when it rises. Vibration patterns differ for clean strikes, pots and miscues (Android only).
 
-Pace (to keep a round near three minutes): once every ball is creeping (under 70, and at least 1.2 s into the shot) the table runs at 2×, and a tap on the table runs the rest at 4× (`ffwd`), but only once the shot has rolled for 0.8 s, so a tap meant for the close-up doesn't skip the action; the level banner lasts 1.5 s; after a level's stamp the next level starts by itself after about 2 s (the button skips the wait); at the end of a run the result card opens by itself. A bot with perfect aim and timing but no position play reaches level 4–5 in 12–15 shots (about 2 minutes with thinking time), so most players should land around levels 3–6 in two to four minutes.
+Pace (to keep a round near three minutes): once every ball is creeping (under 70, and at least 1.2 s into the shot) the table runs at 2×, and a tap on the table runs the rest at 4× (`ffwd`), but only once the shot has rolled for 0.8 s, so a tap meant for the close-up doesn't skip the action; the level banner lasts 1.5 s; after a level's stamp the next level starts by itself after about 2 s (no button); at the end of a run the result card opens by itself. A bot with perfect aim and timing but no position play reaches level 4–5 in 12–15 shots (about 2 minutes with thinking time), so most players should land around levels 3–6 in two to four minutes.
 
 Share card: `Daily Break #N 🎱`, `Level 6 · 18 balls`, and one emoji per level (🟢 clean clear, 🟡 cleared after losing a life, ❌ where the run ended). The result card also shows points and the best streak. Ranked results are stored under `dailybreak:ladder:<date>` (older keys are ignored).
 
@@ -69,21 +69,21 @@ ambience, and an electric-piano loop.
 
 ## Hosting
 
-Cloudflare Worker `daily-break` (static assets, `wrangler.jsonc`). Every push
+Live at https://dailybreak.app (bought 10 Nov 2026 through Cloudflare Registrar). Cloudflare Worker `daily-break` (static assets, `wrangler.jsonc`) with custom domains `dailybreak.app` and `www.dailybreak.app`; `src/worker.js` redirects every other host (www, the old daily-break.timbuilds.workers.dev) to dailybreak.app. Every push
 to `main` deploys via `.github/workflows/deploy.yml` (needs the repo secret
 `CLOUDFLARE_API_TOKEN`); it can also be run by hand from the Actions tab.
 By hand: `mkdir -p dist && cp index.html static/* dist/ && npx wrangler deploy`.
 
 `static/` holds the link-preview card (`og.png`, 1200×630), app icons and
 `manifest.webmanifest` (Add to Home Screen opens it standalone). The meta tags
-and `SITE_URL` in `index.html` assume https://daily-break.timbuilds.workers.dev/;
-change them together if it moves to its own domain. The share button uses the
+and `SITE_URL` in `index.html` use https://dailybreak.app/;
+change them together with `HOST` in `src/worker.js` if the domain ever changes. The share button uses the
 phone's share sheet (`navigator.share`) and falls back to copying; the shared
 text ends with the game's URL (with `?seed=` for non-daily courses).
 
 Analytics: Cloudflare Web Analytics, off until `CF_ANALYTICS_TOKEN` in the
 `<head>` is filled in (dashboard › Analytics & Logs › Web Analytics › Add a
-site › daily-break.timbuilds.workers.dev). It's cookieless: daily visits and
+site › dailybreak.app). It's cookieless: daily visits and
 page views, not individual returning players.
 
 Audio on iPhone: Web Audio is unlocked on the first touchend/click (iOS doesn't
