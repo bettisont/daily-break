@@ -53,12 +53,15 @@
   #mKnob{position:absolute;top:3px;bottom:3px;width:8px;margin-left:-4px;border-radius:4px;background:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.25)}
   #ctrlRow{display:grid;grid-template-columns:76px 1fr 84px;gap:12px;align-items:center}
   #next{height:76px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);box-shadow:0 3px 0 var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;cursor:pointer;touch-action:none;font:600 10px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em}
-  #next small{font-size:9px;color:var(--muted)}
+  #next small{font-size:9px;color:var(--muted);display:flex;align-items:center;gap:4px}
+  #next .nb.sm{width:18px;height:18px;font-size:9px;box-shadow:inset -2px -2px 3px rgba(0,0,0,.25)}
+  #next .nb.sm::before{inset:4px}
   #next:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--line)}
   #next:disabled{opacity:.5}
   #next .nb{width:30px;height:30px;border-radius:50%;background:var(--bc);display:grid;place-items:center;font:700 13px 'DM Mono',monospace;color:#24221f;position:relative;box-shadow:inset -3px -4px 6px rgba(0,0,0,.25);isolation:isolate}
   #next .nb::before{content:'';position:absolute;inset:7px;border-radius:50%;background:#f4efe2;z-index:-1}
   #act{width:100%;height:76px;touch-action:none;border:0;border-radius:14px;background:var(--green);color:#f4f6ef;font:800 22px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 0 var(--green-dark);transition:transform .08s,box-shadow .08s,background .2s}
+  #act small{display:block;font:600 11px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin-top:3px}
   #act:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--green-dark)}
   #act:disabled{opacity:.5;cursor:default}
   #dial{width:84px;height:84px;border-radius:50%;position:relative;touch-action:none;cursor:grab;background:#d9d0bb;box-shadow:0 3px 0 #c4b99f,0 6px 14px rgba(60,45,25,.18)}
@@ -655,6 +658,7 @@ function strikeName(spin) {
 function setSpot(y, quiet) {
   if (phase !== 'aim') return;
   aim.spotY = clamp(Math.abs(y) < 0.08 ? 0 : y, -0.7, 0.7); aim.spin = spinFor(aim.spotY);
+  spinTouched = true;
   if (!quiet) { sfx.click(); buzz(5); }
   updateUI();
 }
@@ -767,11 +771,14 @@ function updateUI() {
   $('iLie').innerHTML = `Shot ${on}/${lim}${lie !== 'felt' ? ` · ${lie}` : ''}<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = { lining: '…', aim: 'Shoot', strike: '…', moving: '…', holed: hole.i < HOLES - 1 ? 'Next hole →' : 'Scorecard', over: 'Scorecard' };
-  b.textContent = labels[phase];
+  if (phase === 'aim' && table.balls[aim.bi] && !table.balls[aim.bi].potted) {
+    const inOrder = aim.bi === lowestBall();
+    b.innerHTML = `Shoot<small>${inOrder ? `+${potValue(true)} · in order` : `+${potValue(false)} · out of order`}</small>`;
+  } else b.textContent = labels[phase];
   b.disabled = phase === 'strike' || phase === 'moving' || phase === 'lining';
   $('dial').classList.toggle('off', phase !== 'aim'); $('next').disabled = phase !== 'aim';
   const narrow = innerWidth < 460;
-  $('hint').textContent = phase === 'aim' ? (narrow ? 'Dial: fine aim · bubble: spin' : 'Next ball cycles targets · turn the dial to fine-tune · drag on the table to swing the cue · tap the cue ball for spin') : '';
+  $('hint').textContent = phase === 'aim' ? (aim.bi !== lowestBall() ? `Any ball is fair game · the ${table.balls[lowestBall()].n} scores double` : narrow ? 'Dial: fine aim · bubble: spin' : 'Next ball cycles targets · turn the dial to fine-tune · drag on the table to swing the cue · tap the cue ball for spin') : '';
   updateMeter(); updateAimUI();
 }
 function updateMeter() {
@@ -785,7 +792,9 @@ function updateAimUI() {
   const o = phase === 'aim' ? aimOffset() : 0, a = Math.abs(o);
   $('dialVal').innerHTML = phase !== 'aim' ? '' : a < 0.05 ? 'centre' : `${a.toFixed(1)}°<small>${o > 0 ? 'right' : 'left'}</small>`;
   const b = table.balls[aim.bi];
-  $('next').innerHTML = `<small>Target</small><span class="nb" style="--bc:${b && !b.potted ? COLORS[b.n] : '#ccc'}">${b && !b.potted ? b.n : '–'}</span><small>next ▸</small>`;
+  const tb = phase === 'aim' ? table.balls[thenBall()] : null, lo = lowestBall();
+  const chip = (o, cls) => `<span class="${cls}" style="--bc:${o && !o.potted ? COLORS[o.n] : '#ccc'}">${o && !o.potted ? o.n : '–'}</span>`;
+  $('next').innerHTML = `<small>${aim.bi === lo ? 'Target ×2' : 'Target'}</small>${chip(b, 'nb')}<small class="then">then ${tb ? chip(tb, 'nb sm') : '–'}</small>`;
 }
 
 function shareText() {
@@ -823,9 +832,10 @@ function showHelp() {
     <div class="howto">
       <p>🎱 Each hole is a small rack with a few spare shots. Pot every ball before you run out.</p>
       <p>🎯 <b>Aim:</b> the cue starts lined up dead centre on your target ball. <b>Next ball</b> steps through the balls in number order. Turn the <b>dial</b> to fine-tune the angle (a quick tap on its left or right edge nudges it a hair), or drag on the table to swing the cue round.</p>
-      <p>👀 The guide fades: holes 1–3 show where the object ball goes, 4–6 only a short line, 7–9 just the ghost ball. Cut angles are yours to judge.</p>
-      <p>💪 <b>Power:</b> slide the bar. Hit a ball into the pocket too hard and it rattles out. Tap the cue ball in the corner for <b>follow</b> (high) or <b>draw</b> (low).</p>
-      <p>🔢 <b>Points:</b> every pot is 100. Pot the <b>lowest ball</b> on the table for double. Banks and combos add 50. Pot on consecutive shots for a <b>streak</b>: ×1.5, ×2, up to ×3.</p>
+      <p>👀 The aim guide fades: holes 1–3 show where the object ball goes, 4–6 only a short line, 7–9 just the ghost ball. Cut angles are yours to judge.</p>
+      <p>💪 <b>Power:</b> slide the bar. Hit a ball into the pocket too hard and it rattles out.</p>
+      <p>🌀 <b>Spin</b> is how you control where the cue ball ends up for your next shot. Tap the cue ball in the corner: <b>follow</b> (top) rolls on, <b>stun</b> (middle) stops dead, <b>draw</b> (bottom) comes back. The coloured dotted line shows where the cue ball will finish with your spin; holes 1–6 also show the other two spins faintly so you can compare.</p>
+      <p>🔢 <b>Points:</b> you can pot <b>any ball</b> in any order: it's never a foul. Each pot is 100, but the <b>lowest ball</b> on the table scores <b>double</b> (200). The tag over your target shows what it's worth, and <b>THEN</b> marks the ball that comes after it. Banks and combos add 50. Pot on consecutive shots for a <b>streak</b>: ×1.5, ×2, up to ×3.</p>
       <p>🔥 Clear the rack without a miss for a <b>Run out</b> (+300), all in number order for a <b>Perfect rack</b> (+300 more). Spare shots are worth 50 each.</p>
       <p>⚠️ Scratching or missing everything costs 50 and ends the streak.</p>
       <p>⛰️ Tilt, worn <b>rough</b> felt and <b>slick</b> felt bend every roll. The guide doesn't allow for them.</p>
@@ -955,6 +965,8 @@ function resize() {
   view = { s, dpr, cw: r.width, ch: r.height, ox: r.width / 2 - W / 2 * s, oy: r.height / 2 - H / 2 * s };
 }
 addEventListener('resize', resize);
+// the controls can change height after load (fonts, labels), so watch the table area itself too
+if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
 
 
 /* ----- sprites & patterns ----- */
@@ -1265,20 +1277,100 @@ function arrowTo(a, b, col) {
   ctx.lineTo(b.x - Math.cos(ang - 0.45) * 13, b.y - Math.sin(ang - 0.45) * 13);
   ctx.lineTo(b.x - Math.cos(ang + 0.45) * 13, b.y - Math.sin(ang + 0.45) * 13); ctx.fill();
 }
-// Aiming: the line to the first thing the cue ball meets and a ghost ball where it touches.
-// Earlier holes add the object ball's direction (long, then short) and the cue ball's deflection.
+// Spin colours: on the felt (paths) and on the cue-ball face (labels).
+const SPIN_OPTS = [['Follow', 0.75], ['Stun', 0], ['Draw', -0.75]];
+const spinKind = s => s > 0.2 ? 0 : s < -0.2 ? 2 : 1;
+const SPIN_FELT = ['#a9ccff', '#fbf8f0', '#ffbe7d'], SPIN_INK = ['#3b5ea6', '#4c574a', '#b8602a'];
+
+// Where the cue ball goes after it meets the first ball, for a given spin: simulate the shot and keep its path.
+function cuePath(angle, pw, spin) {
+  const s = cloneTable(table); s.shoot(angle, pw, spin);
+  const pts = []; let hit = false;
+  for (let n = 0; n < 9000 && s.moving(); n++) {
+    s.step();
+    if (s.cue.potted) break;
+    if (!hit && s.shot.firstHit) { hit = true; pts.push([s.cue.x, s.cue.y]); }
+    else if (hit && n % 3 === 0) pts.push([s.cue.x, s.cue.y]);
+  }
+  const scratch = s.cue.potted;
+  if (hit && !scratch) pts.push([s.cue.x, s.cue.y]);
+  if (hit && scratch) { const pk = POCKETS.reduce((a, q) => Math.hypot(q.x - s.cue.x, q.y - s.cue.y) < Math.hypot(a.x - s.cue.x, a.y - s.cue.y) ? q : a); pts.push([clamp(pk.x, 0, W), clamp(pk.y, 0, H)]); }
+  return { pts: hit ? pts : [], scratch };
+}
+let spinCache = { key: '', paths: [] };
+function spinPaths() {
+  const key = `${aim.angle.toFixed(5)}|${power.toFixed(3)}|${aim.spin.toFixed(3)}|${strokes}|${hole.i}`;
+  if (key !== spinCache.key) {
+    const main = { name: strikeName(aim.spin), spin: aim.spin, main: true, ...cuePath(aim.angle, power, aim.spin) };
+    const alts = SPIN_OPTS.filter(([, v]) => spinKind(v) !== spinKind(aim.spin)).map(([name, v]) => ({ name, spin: v, main: false, ...cuePath(aim.angle, power, v) }));
+    spinCache = { key, paths: [...alts, main] };
+  }
+  return spinCache.paths;
+}
+function drawSpinPaths(lvl) {
+  for (const p of spinPaths()) {
+    if (p.pts.length < 2 || (!p.main && lvl === 0)) continue;
+    const col = SPIN_FELT[spinKind(p.spin)];
+    ctx.save();
+    ctx.globalAlpha = p.main ? 0.95 : 0.5;
+    ctx.strokeStyle = col; ctx.lineWidth = p.main ? 3.5 : 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.setLineDash(p.main ? [1, 9] : [1, 7]);
+    ctx.beginPath(); p.pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+    ctx.setLineDash([]);
+    const [ex, ey] = p.pts[p.pts.length - 1];
+    if (p.scratch) {
+      ctx.strokeStyle = '#e0573d'; ctx.lineWidth = 4; const k = 9;
+      ctx.beginPath(); ctx.moveTo(ex - k, ey - k); ctx.lineTo(ex + k, ey + k); ctx.moveTo(ex + k, ey - k); ctx.lineTo(ex - k, ey + k); ctx.stroke();
+    } else {
+      // a ghost cue ball where it comes to rest
+      ctx.fillStyle = p.main ? 'rgba(251,248,240,.45)' : 'rgba(251,248,240,.18)';
+      ctx.beginPath(); ctx.arc(ex, ey, R, 0, TAU); ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = p.main ? 3 : 1.5; ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+// Labels are sized in screen pixels so they stay readable however small the table is drawn.
+const spx = n => n / (view.s * cam.k);
+let placed = [];
+// Place a label near (x, y): try above, below, then to the sides, and take the first spot that
+// covers no ball and no label already placed this frame (or the least-bad one).
+function tag(x, y, text, bg, fg, size = 11, below = false) {
+  size = spx(size);
+  ctx.font = `700 ${size}px 'DM Mono', monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(text).width + size * 1.1, h = size * 1.8, gy = R + 4 + h / 2, gx = R + 6 + tw / 2;
+  const cands = below ? [[0, gy], [0, -gy], [gx, 0], [-gx, 0]] : [[0, -gy], [0, gy], [gx, 0], [-gx, 0], [gx * 0.8, -gy], [-gx * 0.8, -gy], [gx * 0.8, gy], [-gx * 0.8, gy]];
+  const balls = [table.cue, ...table.balls].filter(o => !o.potted);
+  let best = null;
+  for (const [ox, oy] of cands) {
+    const cx = clamp(x + ox, tw / 2 - RAIL, W + RAIL - tw / 2), cy = clamp(y + oy, h / 2 - RAIL, H + RAIL - h / 2);
+    const l = cx - tw / 2, r = cx + tw / 2, t = cy - h / 2, btm = cy + h / 2;
+    let bad = 0;
+    for (const o of balls) { const nx = clamp(o.x, l, r), ny = clamp(o.y, t, btm); if (Math.hypot(o.x - nx, o.y - ny) < R) bad += 2; }
+    for (const p of placed) if (l < p.r && r > p.l && t < p.b && btm > p.t) bad += 3;
+    if (!best || bad < best.bad) best = { bad, cx, cy, l, r, t, b: btm };
+    if (!bad) break;
+  }
+  placed.push(best);
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(best.l, best.t, tw, h, h / 2); ctx.fill();
+  ctx.fillStyle = fg; ctx.fillText(text, best.cx, best.cy + 0.5);
+}
+// The ball you'd play after the target, to keep potting in order: the lowest one left once the target drops.
+function thenBall() {
+  let bi = -1;
+  table.balls.forEach((b, k) => { if (!b.potted && k !== aim.bi && (bi < 0 || b.n < table.balls[bi].n)) bi = k; });
+  return bi;
+}
+const potValue = inOrder => Math.round((PTS.pot + (inOrder ? PTS.order : 0)) * streakMult(hs.streak + 1));
+
+// Aiming: the line to the first thing the cue ball meets and a ghost ball where it touches, the object
+// ball's direction (long, then short, then none as the round goes on) and the cue ball's path for each spin.
 function drawAim(t) {
   if (phase !== 'aim') return;
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), lvl = aidLevel(hole);
-  // the next ball in order wears a gold tag: it scores double
-  const lo = table.balls[lowestBall()];
-  if (lo) {
-    ctx.font = "700 17px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const ty = lo.y - R - 22 < 12 ? lo.y + R + 22 : lo.y - R - 22;
-    ctx.fillStyle = 'rgba(184,138,46,.95)'; ctx.beginPath(); ctx.roundRect(lo.x - 32, ty - 14, 64, 28, 14); ctx.fill();
-    ctx.fillStyle = '#fbf8f0'; ctx.fillText('NEXT', lo.x, ty + 0.5);
-  }
-  const fb = table.balls[aim.bi];
+  const lo = lowestBall(), th = thenBall(), fb = table.balls[aim.bi];
+  drawSpinPaths(lvl);
   if (fb && !fb.potted) {
     ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = t * 12; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(fb.x, fb.y, R + 7, 0, TAU); ctx.stroke(); ctx.restore();
@@ -1287,55 +1379,86 @@ function drawAim(t) {
   ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(gx, gy); ctx.stroke(); ctx.restore();
   ctx.strokeStyle = 'rgba(251,248,240,.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gx, gy, R, 0, TAU); ctx.stroke();
-  if (!hit.ball || lvl === 0) return;
-  const b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R);
-  const len = lvl === 2 ? 200 : 70;
-  const g = ctx.createLinearGradient(b.x, b.y, b.x + nx * len, b.y + ny * len);
-  g.addColorStop(0, 'rgba(251,248,240,.9)'); g.addColorStop(1, 'rgba(251,248,240,0)');
-  ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(b.x + nx * (R + 3), b.y + ny * (R + 3)); ctx.lineTo(b.x + nx * len, b.y + ny * len); ctx.stroke();
-  if (lvl === 2) {
-    // the cue ball's natural deflection: along the tangent line (before any spin)
-    const dot = dx * nx + dy * ny; let tx = dx - dot * nx, ty = dy - dot * ny; const tl = Math.hypot(tx, ty);
-    if (tl > 0.05) {
-      tx /= tl; ty /= tl;
-      for (let k = 1; k <= 6; k++) { ctx.fillStyle = `rgba(251,248,240,${0.7 * (1 - k / 7)})`; ctx.beginPath(); ctx.arc(gx + tx * k * 11, gy + ty * k * 11, 2, 0, TAU); ctx.fill(); }
-    }
+  if (hit.ball && lvl > 0) {
+    const b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R), len = lvl === 2 ? 200 : 70;
+    const g = ctx.createLinearGradient(b.x, b.y, b.x + nx * len, b.y + ny * len);
+    g.addColorStop(0, 'rgba(251,248,240,.9)'); g.addColorStop(1, 'rgba(251,248,240,0)');
+    ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(b.x + nx * (R + 3), b.y + ny * (R + 3)); ctx.lineTo(b.x + nx * len, b.y + ny * len); ctx.stroke();
+  }
+  // the ball that comes after the target wears a dotted ring
+  if (th >= 0) {
+    const b = table.balls[th];
+    ctx.save(); ctx.setLineDash([3, 5]); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(b.x, b.y, R + 6, 0, TAU); ctx.stroke(); ctx.restore();
   }
 }
+// Drawn above the balls: what the target is worth, which ball scores double, what comes next,
+// and where the cue ball finishes with each spin.
+function drawAimLabels() {
+  placed = [];
+  if (phase !== 'aim') return;
+  const lvl = aidLevel(hole), lo = lowestBall(), th = thenBall(), fb = table.balls[aim.bi];
+  if (fb && !fb.potted) {
+    const inOrder = aim.bi === lo;
+    tag(fb.x, fb.y, inOrder ? `IN ORDER +${potValue(true)}` : `OUT OF ORDER +${potValue(false)}`, inOrder ? 'rgba(184,138,46,.97)' : 'rgba(251,248,240,.97)', inOrder ? '#fbf8f0' : '#8a5a3a', 11);
+  }
+  for (const p of spinPaths()) {
+    if (p.pts.length < 2 || (!p.main && lvl === 0)) continue;
+    const [ex, ey] = p.pts[p.pts.length - 1], col = SPIN_FELT[spinKind(p.spin)];
+    ctx.globalAlpha = p.main ? 1 : 0.7;
+    tag(ex, ey, (p.scratch ? `${p.name}: scratch` : p.name).toUpperCase(), p.scratch ? 'rgba(184,85,63,.95)' : 'rgba(45,58,48,.88)', p.scratch ? '#fbf8f0' : col, p.main ? 10 : 8, true);
+    ctx.globalAlpha = 1;
+  }
+  if (th >= 0 && th !== lo) { const b = table.balls[th]; tag(b.x, b.y, 'THEN', 'rgba(45,58,48,.8)', '#fbf8f0', 8); }
+  if (lo >= 0 && lo !== aim.bi) { const b = table.balls[lo]; tag(b.x, b.y, `${b.n}: 2×`, 'rgba(184,138,46,.95)', '#fbf8f0', 9); }
+}
 
-// The cue-ball bubble in the bottom-left corner: tap high for follow, low for draw.
-let bubbleT = 0, bubble = null;
+// The spin picker: a big cue-ball face in the bottom-left corner. Tap high for follow, middle for stun, low for draw.
+let bubbleT = 0, bubble = null, spinTouched = false;
 function drawBubble(dt) {
   const show = phase === 'aim';
   bubbleT = show ? bubbleT + dt : 0;
   if (!show) { bubble = null; return; }
   const { cw, ch } = view;
-  const Rb = clamp(cw * 0.12, 42, 64), k = Math.min(1, bubbleT / 0.28);
+  const Rb = clamp(cw * 0.15, 50, 76), k = Math.min(1, bubbleT / 0.28);
   const sc = Math.max(0.01, 1 - (1 - k) ** 3 + Math.sin(k * Math.PI) * 0.08);
-  const bx = Rb + 8, by = ch - Rb - 8;
-  bubble = { x: bx, y: by, R: Rb, rb: Rb * 0.78 };
+  const bx = Rb + 8, by = ch - Rb - 8, kind = spinKind(aim.spin);
+  bubble = { x: bx, y: by, R: Rb, rb: Rb * 0.82 };
   ctx.save();
   ctx.translate(bx, by); ctx.scale(sc, sc);
+  // until the player first picks a spin, a ring pulses to draw the eye
+  if (!spinTouched) { const p = (bubbleT * 0.9) % 1; ctx.strokeStyle = `rgba(226,177,60,${0.8 * (1 - p)})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, Rb + 4 + p * 16, 0, TAU); ctx.stroke(); }
   ctx.shadowColor = 'rgba(40,25,10,.35)'; ctx.shadowBlur = 16 * view.dpr; ctx.shadowOffsetY = 6 * view.dpr;
   ctx.fillStyle = '#2f3a31'; ctx.beginPath(); ctx.arc(0, 0, Rb, 0, TAU); ctx.fill();
   ctx.shadowColor = 'transparent';
-  ctx.strokeStyle = '#fbf8f0'; ctx.lineWidth = 3; ctx.stroke();
-  const rb = Rb * 0.78, face = ctx.createRadialGradient(-rb * 0.35, -rb * 0.4, rb * 0.1, 0, 0, rb);
+  ctx.strokeStyle = SPIN_FELT[kind]; ctx.lineWidth = 3; ctx.stroke();
+  const rb = Rb * 0.82, face = ctx.createRadialGradient(-rb * 0.35, -rb * 0.4, rb * 0.1, 0, 0, rb);
   face.addColorStop(0, '#fffdf7'); face.addColorStop(1, '#ddd3bd');
   ctx.fillStyle = face; ctx.beginPath(); ctx.arc(0, 0, rb, 0, TAU); ctx.fill();
-  ctx.strokeStyle = 'rgba(60,45,25,.18)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(-rb, 0); ctx.lineTo(rb, 0); ctx.moveTo(0, -rb); ctx.lineTo(0, rb); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0, 0, rb * 0.5, 0, TAU); ctx.stroke();
-  // the hit's name on the rim, on the side away from the tip
-  ctx.font = "700 9px 'DM Sans', sans-serif"; ctx.fillStyle = '#fbf8f0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(strikeName(aim.spin).toUpperCase(), 0, aim.spotY < 0 ? (Rb + rb) / 2 : -(Rb + rb) / 2);
+  // the three zones, each tinted and named in its colour
+  ctx.save(); ctx.beginPath(); ctx.arc(0, 0, rb, 0, TAU); ctx.clip();
+  const zone = (y0, y1, i) => { ctx.fillStyle = i === kind ? 'rgba(226,177,60,.22)' : 'rgba(0,0,0,0)'; ctx.fillRect(-rb, y0, 2 * rb, y1 - y0); };
+  zone(-rb, -rb * 0.2, 0); zone(-rb * 0.2, rb * 0.2, 1); zone(rb * 0.2, rb, 2);
+  ctx.strokeStyle = 'rgba(60,45,25,.2)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-rb, -rb * 0.2); ctx.lineTo(rb, -rb * 0.2); ctx.moveTo(-rb, rb * 0.2); ctx.lineTo(rb, rb * 0.2); ctx.stroke();
+  ctx.restore();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  [['FOLLOW', -rb * 0.6], ['STUN', 0], ['DRAW', rb * 0.6]].forEach(([s, y], i) => {
+    ctx.font = `${i === kind ? 800 : 600} ${i === kind ? 11 : 9}px 'DM Sans', sans-serif`;
+    ctx.fillStyle = SPIN_INK[i]; ctx.globalAlpha = i === kind ? 1 : 0.6; ctx.fillText(s, rb * 0.2, y);
+  });
+  ctx.globalAlpha = 1;
   // the cue tip (seen end-on), with a soft shadow on the ball
-  const ty = aim.spotY * rb, tr = rb * 0.15;
-  ctx.fillStyle = 'rgba(40,25,10,.22)'; ctx.beginPath(); ctx.arc(3, ty + 4, tr * 1.1, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#fbf8f0'; ctx.beginPath(); ctx.arc(0, ty, tr * 1.25, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#3b5ea6'; ctx.beginPath(); ctx.arc(0, ty, tr, 0, TAU); ctx.fill();
-  ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, ty, tr * 1.6, 0, TAU); ctx.stroke();
+  const ty = aim.spotY * rb, tr = rb * 0.14;
+  ctx.fillStyle = 'rgba(40,25,10,.22)'; ctx.beginPath(); ctx.arc(-rb * 0.45 + 3, ty + 4, tr * 1.1, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fbf8f0'; ctx.beginPath(); ctx.arc(-rb * 0.45, ty, tr * 1.25, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#3b5ea6'; ctx.beginPath(); ctx.arc(-rb * 0.45, ty, tr, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(-rb * 0.45, ty, tr * 1.6, 0, TAU); ctx.stroke();
+  // header: "Spin" and the current choice
+  ctx.font = "700 10px 'DM Mono', monospace"; const txt = `SPIN · ${strikeName(aim.spin).toUpperCase()}`, tw = ctx.measureText(txt).width + 14;
+  ctx.fillStyle = 'rgba(45,58,48,.92)'; ctx.beginPath(); ctx.roundRect(-tw / 2, -Rb - 22, tw, 18, 9); ctx.fill();
+  ctx.fillStyle = SPIN_FELT[kind]; ctx.fillText(txt, 0, -Rb - 12.5);
   ctx.restore();
 }
 
@@ -1424,6 +1547,7 @@ function draw(t, dt) {
   for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
   if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
   if (phase === 'aim') drawCue(aim.angle, power, 0);
+  drawAimLabels();
   if (phase === 'strike') drawCue(strike.angle, strike.power, Math.min(1, strike.t / STRIKE_T));
 
   for (const g of fx.rings) {
