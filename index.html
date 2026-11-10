@@ -945,7 +945,7 @@ function finishHole() {
     renderCard9();
   }, 450);
   phase = 'holed';
-  // move on by itself after the stamp has landed (the button skips the wait)
+  // move on by itself once the stamp has landed
   setTimeout(() => { if (round.level === forLevel && phase === 'holed') act(); }, 450 + 1700);
 }
 // Out of lives: the run ends on the level you were playing.
@@ -979,7 +979,7 @@ function updateUI() {
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
-  const b = $('act'), labels = { holed: 'Next level →', over: 'See result' };
+  const b = $('act'), labels = { over: 'See result' };   // a cleared level moves on by itself
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold); $('next').disabled = !aiming;
