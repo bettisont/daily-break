@@ -455,7 +455,7 @@ const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
-const STRIKE_T = 0.34, TICK = 0.25 * Math.PI / 180;
+const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // Scoring: every pot scores, potting the lowest ball on the table (rotation order) scores double,
 // and consecutive potting shots build a streak multiplier.
@@ -471,7 +471,7 @@ let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc 
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [];
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
-let ffwd = false, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
+let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0 };
 
 
@@ -946,7 +946,7 @@ function toWorld(e) {
 let drag = null;
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
-  if (phase === 'moving' && !(cine && cine.hold > 0)) { ffwd = true; return; }   // tap to hurry the balls along
+  if (phase === 'moving') { if (movingT > 0.8 && !(cine && cine.hold > 0)) ffwd = true; return; }   // tap to hurry the balls along
   if (phase !== 'aim') return;
   const p = toWorld(e), c = table.cue;
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, a: Math.atan2(p.y - c.y, p.x - c.x) };
@@ -1601,8 +1601,8 @@ function drawContact(dt) {
   if (!zoom) return;
   zoom.t += dt;
   const z = zoom, { cw, ch } = view, T = z.t;
-  if (T > 0.85) { zoom = null; return; }
-  const k = 1 - (1 - Math.min(1, T / 0.16)) ** 3, out = clamp((T - 0.6) / 0.25, 0, 1);
+  if (T > SHOOT_T) { zoom = null; return; }
+  const k = 1 - (1 - Math.min(1, T / 0.16)) ** 3, out = clamp((T - 0.46) / (SHOOT_T - 0.46), 0, 1);
   const big = Math.min(cw, ch) * 0.3, x = lerp(z.from.x, cw / 2, k), y = lerp(z.from.y, ch * 0.42, k), Rb = lerp(z.from.R, big, k) * (1 - out * 0.3);
   // the tip comes in from the viewer: large and faint, then small and solid on contact
   const hitK = clamp((T - 0.16) / (STRIKE_T - 0.16), 0, 1);
@@ -1706,7 +1706,7 @@ function draw(t, dt) {
   if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
   if (phase === 'aim') drawCue(aim.angle, power, 0);
   drawAimLabels();
-  if (phase === 'strike') drawCue(strike.angle, strike.power, clamp((strike.t - 0.2) / (STRIKE_T - 0.2), 0, 1));
+  if (phase === 'strike') drawCue(strike.angle, strike.power, clamp((strike.t - (SHOOT_T - 0.1)) / 0.1, 0, 1));
 
   for (const g of fx.rings) {
     g.life -= dt;
@@ -1781,17 +1781,21 @@ function frame(now) {
     if (!was && tipOnSpot(d)) { tone(1046, 0.03, 0.02, 'sine', 1, 0, 0); buzz(3); }
   }
   if (phase === 'strike') {
+    const was = strike.t;
     strike.t += dt;
-    if (strike.t >= STRIKE_T) {
+    // the close-up's tip lands: the click and buzz go with it
+    if (was < STRIKE_T && strike.t >= STRIKE_T) { const q = zoom?.ct.quality; sfx.strike(strike.power); buzz(q === 'clean' ? 14 : 8); if (q === 'clean') sfx.chime(); else if (q === 'miscue') sfx.penalty(); }
+    // then, once the close-up has gone, the cue on the table strikes and the balls roll
+    if (strike.t >= SHOOT_T) {
       table.shoot(strike.angle, strike.power, strike.spin);
       const q = zoom?.ct.quality, c0 = table.cue, fy = c0.y - 50 < 30 ? c0.y + 50 : c0.y - 50;
-      if (q === 'clean') { sfx.chime(); sparkle(c0.x, c0.y, '#e2b13c', 14, 110); float(c0.x, fy, 'Clean strike', '#b88a2e', 20); }
-      else if (q === 'miscue') { sfx.penalty(); fx.shake = 5; float(c0.x, fy, 'Miscue!', '#b8553f', 22); }
+      if (q === 'clean') { sparkle(c0.x, c0.y, '#e2b13c', 14, 110); float(c0.x, fy, 'Clean strike', '#b88a2e', 20); }
+      else if (q === 'miscue') { fx.shake = 5; float(c0.x, fy, 'Miscue!', '#b8553f', 22); }
       else if (q) float(c0.x, fy, zoom.ct.off ? `Off-centre: pushed ${zoom.ct.off < 0 ? 'left' : 'right'}` : 'Off-centre', q === 'near' ? '#7a6a3a' : '#b8553f', 18);
-      sfx.strike(strike.power); buzz(q === 'clean' ? 14 : 8);
+      sfx.clack(strike.power * 1600);
       const c = table.cue;
       for (let k = 0; k < 8; k++) fx.particles.push({ x: c.x - Math.cos(strike.angle) * R, y: c.y - Math.sin(strike.angle) * R, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, life: 0.5, color: '#7fa0d8', r: 1.5 });
-      acc = 0; phase = 'moving'; updateUI();
+      acc = 0; movingT = 0; phase = 'moving'; updateUI();
     }
   }
   // Slow motion and a push-in as the rack's last ball heads for the pocket.
@@ -1801,10 +1805,12 @@ function frame(now) {
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
     else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
   }
-  // Fast-forward the dead time: a tap while the balls roll plays it at 6×, and once everything is
-  // just creeping (nothing faster than 160) it runs at 2.5× by itself. Never during the slow-motion finish.
-  const creeping = phase === 'moving' && table.live().every(b => Math.hypot(b.vx, b.vy) < 160);
-  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 6 : creeping ? 2.5 : 1;
+  // Fast-forward the dead time: a tap on the table (once the shot has rolled for 0.8 s) plays the rest at
+  // 4×, and once everything is just creeping (under 70, after 1.2 s) it runs at 2× by itself.
+  // Never during the slow-motion finish.
+  if (phase === 'moving') movingT += dt;
+  const creeping = phase === 'moving' && movingT > 1.2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 70);
+  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 4 : creeping ? 2 : 1;
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
