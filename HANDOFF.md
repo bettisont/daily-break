@@ -1,7 +1,7 @@
 # Daily Break - handoff
 
 A daily pool game for the browser: a ladder of levels, the same for everyone
-each day. Level 1 has one ball, level 2 two, and so on; you have three lives,
+each day. Level 1 has one ball, level 2 two, and so on; you have four lives,
 and your score is how far you get. One ranked run a day of about two to four
 minutes (daily puzzles like the NYT Mini take a few minutes; that's the
 target), with a shareable emoji result. Single file: `index.html` (no build, open it in a
@@ -11,7 +11,7 @@ browser).
 
 Level *i* (1-based) is a fresh seeded layout of *i* balls (`makeHole(seed, i - 1)`, up to `MAX_BALLS` = 15; numbers drawn from 1–15, 9–15 drawn as stripes), the same for everyone on the day, with the cue ball placed by the layout. About a third of the balls sit in clusters and some on the cushions; pockets are tight (corner capture 1.75 R, side 1.55 R). Hazards start at level 3 and ramp up (`hz` = level − 2, capped at 8): table tilt, rough felt, slick felt, brass bumpers and an occasional closed pocket. **The first shot of every level is always a real pot:** `makeHole` re-rolls (deterministically) until `openingPot` finds an unblocked, not-too-thin cut that a centre-ball hit at a sensible pace actually sinks in simulation (tilt and felt included) without scratching. **And the whole level must be clearable:** `clearable` plays it with a bot of perfect execution (each shot: the best 4 pots × stun/follow/draw × three paces, keeping the one with the best next pot via `leaveQ`) and must clear all N balls in N shots without a foul; otherwise the layout is re-rolled (up to 60 tries, falling back to the first with a good opener). Before this check, 20–65% of levels 4–10 were impossible to clear even with perfect play (frozen pairs on a rail, balls tucked behind others). Generation averages 3–36 ms per level (worst seen ~150 ms at level 12); results are cached (`holeCache`) and the next level is built in the background 1.5 s into the current one.
 
-**Lives** (`LIVES` = 3): a shot that pots nothing, or a foul (no contact, scratch), costs a life; balls that drop on a foul stay down. Clear every ball to move up; clearing a level without losing a life wins one back (up to 3). At zero lives the run ends on the level you were playing (`endRun`). Within a level the cue ball stays where it stops, so position play matters. There is no shot limit and no ball order.
+**Lives** (`LIVES` = 4, raised from 3 on 10 Nov 2026): a shot that pots nothing, or a foul (no contact, scratch), costs a life; balls that drop on a foul stay down. Clear every ball to move up; clearing a level without losing a life wins one back (up to 4). At zero lives the run ends on the level you were playing (`endRun`). Within a level the cue ball stays where it stops, so position play matters. There is no shot limit and no ball order.
 
 A shot (built for one thumb on a phone). The controls run in play order, top to bottom: target → aim → power → strike.
 
@@ -44,8 +44,8 @@ all / effects only / off, and help; the course name shows in the level 1
 banner instead), info bar (level, points and balls left, streak multiplier,
 tilt), then the controls in play order: target button and aim strip, spin ball,
 and the pull-back cue down the right.
-Sound: clacks, cushions, pockets, rising pot notes for streaks, aim ticks, rain and vinyl
-ambience, and an electric-piano loop.
+Sound: clacks, cushions, pockets, rising pot notes for streaks, aim ticks and an electric-piano loop.
+The rain-and-vinyl hiss under everything was removed on 10 Nov 2026 (it read as background noise).
 
 ## Code layout
 
@@ -60,7 +60,7 @@ ambience, and an electric-piano loop.
 
 ## Next ideas
 
-- Playtest the difficulty: `LIVES` (3), the life refill rule, when hazards
+- Playtest the difficulty: `LIVES` (4), the life refill rule, when hazards
   start (level 3) and the release wobble (`contactDiff`) are the main knobs.
 - Daily streak and stats on the result card; a countdown to tomorrow's run.
 - Replay of the best shot at the end of a run.
