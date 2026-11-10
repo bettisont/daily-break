@@ -74,17 +74,8 @@
   .round.off{opacity:.45}
   #controls{background:var(--panel);border-top:1px solid var(--line);padding:10px 16px max(10px,env(safe-area-inset-bottom))}
   #controls{position:relative;display:grid;grid-template-columns:1fr 78px;column-gap:12px;row-gap:12px}
-  #rowA{grid-column:1;grid-row:1;display:grid;grid-template-columns:96px 1fr;gap:10px}
-  #rowB{grid-column:1;grid-row:2;display:flex;align-items:center;gap:12px;min-height:88px}
-  #next{height:46px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);box-shadow:0 3px 0 var(--line);display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px;padding:0 8px;cursor:pointer;touch-action:none;font:600 9px 'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;text-align:left}
-  #next small{display:flex;flex-direction:column;gap:3px;color:var(--muted);line-height:1}
-  #next small span.r{display:flex;align-items:center;gap:3px}
-  #next:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--line)}
-  #next:disabled{opacity:.5}
-  .nb{width:32px;height:32px;border-radius:50%;background:var(--bc);display:grid;place-items:center;font:700 13px 'DM Mono',monospace;color:#24221f;position:relative;box-shadow:inset -3px -4px 6px rgba(0,0,0,.25);isolation:isolate}
-  .nb::before{content:'';position:absolute;inset:8px;border-radius:50%;background:#f4efe2;z-index:-1}
-  .nb.sm{width:18px;height:18px;font-size:9px;box-shadow:inset -2px -2px 3px rgba(0,0,0,.25)}
-  .nb.sm::before{inset:4px}
+  #rowA{grid-column:1;grid-row:1;display:grid;grid-template-columns:1fr;gap:10px}
+  #rowB{grid-column:1;grid-row:2;display:flex;align-items:center;gap:12px;min-height:106px}
   #strip{position:relative;height:46px;border-radius:14px;overflow:hidden;touch-action:none;cursor:ew-resize;background:#e9e1cc;border:1px solid var(--line);box-shadow:inset 0 2px 6px rgba(60,45,25,.18)}
   #stripFace{position:absolute;inset:0;background:repeating-linear-gradient(90deg,#b9ad92 0 2px,transparent 2px 12px);opacity:.75;-webkit-mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
   #strip::before,#strip::after{position:absolute;top:50%;transform:translateY(-50%);font:700 18px 'DM Sans',sans-serif;color:var(--muted);pointer-events:none}
@@ -94,20 +85,21 @@
   #strip.off,#rowB.off,#pull.off{opacity:.5}
   /* spin: a small cue ball; tap to cycle Stun, Follow, Draw. The dot is where the tip will hit. */
   #spinBall{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;touch-action:none;cursor:ns-resize;color:var(--ink)}
-  #spinFace{position:relative;width:88px;height:88px;border-radius:50%;background:#2f3a31;box-shadow:0 3px 0 #1d251f,0 5px 12px rgba(60,45,25,.25)}
-  #spinFace .f{position:absolute;inset:7px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffdf7,#d8cdb4);box-shadow:inset 0 0 0 5px rgba(184,85,63,.25)}
+  #spinFace{position:relative;width:106px;height:106px;border-radius:50%;background:#2f3a31;box-shadow:0 3px 0 #1d251f,0 5px 12px rgba(60,45,25,.25)}
+  #spinFace .f{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffdf7,#d8cdb4);box-shadow:inset 0 0 0 5px rgba(184,85,63,.25)}
   #spinFace .f::before,#spinFace .f::after{content:'';position:absolute;background:rgba(60,45,25,.15)}
   #spinFace .f::before{left:0;right:0;top:50%;height:1px} #spinFace .f::after{top:0;bottom:0;left:50%;width:1px}
-  #spinFace .f i{position:absolute;left:0;right:0;font:700 8.5px 'DM Mono',monospace;letter-spacing:.06em;text-align:center;color:rgba(60,45,25,.45);font-style:normal}
-  #spinDot{position:absolute;left:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:rgba(226,177,60,.8);border:2px solid #b88a2e;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  #spinFace .f i{position:absolute;left:0;right:0;font:700 9.5px 'DM Mono',monospace;letter-spacing:.06em;text-align:center;color:rgba(60,45,25,.45);font-style:normal}
+  #spinDot{position:absolute;left:50%;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:rgba(226,177,60,.8);border:2px solid #b88a2e;box-shadow:0 1px 3px rgba(0,0,0,.25)}
   #spinBall.drag #spinFace{transform:scale(1.08);box-shadow:0 3px 0 #1d251f,0 0 0 4px rgba(226,177,60,.5)}
   #spinTxt b{display:block;font:800 16px 'DM Sans',sans-serif}
   #spinTxt small{display:block;font:500 9px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
   #spinTxt{flex:1;min-width:0}
   #spinFace{flex:none}
-  #hint{flex:0 0 auto;max-width:96px;font-size:9.5px;color:var(--muted);line-height:1.35;text-align:right}
-  @media (max-width:380px){ #strip::before,#strip::after{display:none} #spinFace{width:76px;height:76px} #rowB{min-height:76px;gap:8px} #spinTxt b{font-size:15px} #spinTxt small{font-size:8px} #hint{max-width:76px} }
-  #hint b{font:800 16px 'DM Sans',sans-serif;color:var(--ink);letter-spacing:0}
+  .spinCol{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+  #hint{font-size:9.5px;color:var(--muted);line-height:1.35;text-align:left}
+  @media (max-width:380px){ #strip::before,#strip::after{display:none} #spinFace{width:92px;height:92px} #rowB{min-height:92px;gap:8px} #spinTxt b{font-size:15px} #spinTxt small{font-size:8px} }
+  #hint b{font:800 16px 'DM Sans',sans-serif;color:var(--ink);letter-spacing:0;margin-left:4px}
   /* the pull-back cue: drag down to load power, release on the gold spot to shoot */
   #pull{grid-column:2;grid-row:1/3;position:relative;border-radius:16px;overflow:hidden;touch-action:none;cursor:ns-resize;background:#2f3a31;box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 3px 0 #1d251f}
   #pullFill{position:absolute;left:0;right:0;top:0;height:0;background:linear-gradient(180deg,#9fc495,#e3a07a 70%,#c4472f)}
@@ -162,12 +154,10 @@
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">
     <div id="rowA">
-      <button id="next" title="Next ball (Tab)"></button>
       <div id="strip" title="Swipe to aim (← →)"><div id="stripFace"></div><div id="stripVal"></div></div>
     </div>
     <div id="rowB">
-      <div id="spinBall" title="Spin: drag the gold spot (up/down arrows)"><div id="spinFace"><div class="f"><i style="top:7%">FOLLOW</i><i style="bottom:7%">DRAW</i><span id="spinDot"></span></div></div><div id="spinTxt"></div></div>
-      <div id="hint" class="mono"></div>
+      <div id="spinBall" title="Spin: drag the gold spot (up/down arrows)"><div id="spinFace"><div class="f"><i style="top:7%">FOLLOW</i><i style="bottom:7%">DRAW</i><span id="spinDot"></span></div></div><div class="spinCol"><div id="spinTxt"></div><div id="hint" class="mono"></div></div></div>
     </div>
     <div id="pull" class="pulse" title="Pull down, let go to shoot (or hold Space)"><div id="pullFill"></div><div id="pullCue"></div><div id="pullLab"></div></div>
     <button id="act">…</button>
@@ -761,6 +751,8 @@ function startHole(i) {
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: 1.5, max: 1.5 };
+  // level 2 tip, until the player has tapped a ball once
+  if (i === 1 && !ls('dailybreak:tappedBall')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') float(W / 2, H * 0.62, 'Tap a ball to target it', '#2f6b4f', 20, 2.6); }, 1700); }
   renderCard9(); updateUI();
 }
 
@@ -780,7 +772,7 @@ function focusBall(bi, quiet) {
   if (!quiet) { tone(1175, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
   updateUI();
 }
-// The clicker: step through the balls on the table in number order.
+// Tab (or n) on a keyboard steps through the balls in number order; on a phone you tap the ball.
 function nextBall() {
   if (phase !== 'aim') return;
   const order = table.balls.map((_, k) => k).filter(k => !table.balls[k].potted).sort((a, b) => table.balls[a].n - table.balls[b].n);
@@ -989,9 +981,9 @@ function updateUI() {
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
-  $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold); $('next').disabled = !aiming;
+  $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold);
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
-    `Pot it<br><b>+${potGain()}</b><br>${hearts(round.lives)}`;
+    `Pot it<b>+${potGain()}</b>`;
   updateMeter(); updateAimUI(); updateSpinBall();
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
@@ -1014,9 +1006,6 @@ function updateAimUI() {
   $('stripFace').style.backgroundPosition = `${stripOff}px 0`;
   const o = phase === 'aim' ? aimOffset() : 0, a = Math.abs(o);
   $('stripVal').innerHTML = phase !== 'aim' ? 'Aim' : `${a < 0.05 ? 'Centre' : `${a.toFixed(1)}° ${o > 0 ? 'right' : 'left'}`}<small>swipe to aim</small>`;
-  const b = table.balls[aim.bi];
-  const chip = (o, cls) => `<span class="${cls}" style="--bc:${o && !o.potted ? COLORS[o.n] : '#ccc'}">${o && !o.potted ? o.n : '–'}</span>`;
-  $('next').innerHTML = `${chip(b, 'nb')}<small><span>Target</span><span>tap for</span><span>next ▸</span></small>`;
 }
 
 function shareText() {
@@ -1081,7 +1070,7 @@ function showHelp() {
       <p>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
       <p>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
-      <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. The <b>target</b> button steps through the others (or tap a ball on the table).</p>
+      <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. To go for a different ball, <b>tap it on the table</b>.</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dotted line shows where the object ball will go.</p>
       <p>3 · <b>Spin:</b> <b>drag the gold spot</b> on the little cue ball: up for <b>follow</b> (rolls on), middle for <b>stun</b> (stops), down for <b>draw</b> (comes back). It's the same spot you aim for when you shoot.</p>
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
@@ -1177,9 +1166,9 @@ stage.addEventListener('pointerup', e => {
   const moved = drag.moved; drag = null;
   if (moved || phase !== 'aim') return;
   const p = toWorld(e);
-  let bi = -1, bd = R * 2.2;
+  let bi = -1, bd = R * 3;   // generous, so a thumb can pick a ball
   table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; bi = k; } } });
-  if (bi >= 0) focusBall(bi);
+  if (bi >= 0) { focusBall(bi); ls('dailybreak:tappedBall', '1'); }
 });
 stage.addEventListener('pointercancel', () => { drag = null; });
 
@@ -1288,7 +1277,6 @@ function letGo(fire) {
 const actBtn = $('act');
 actBtn.addEventListener('pointerdown', e => { e.preventDefault(); if (actBtn.classList.contains('show')) act(); });
 addEventListener('keyup', e => { if (e.code === 'Space' && hold?.kb) { e.preventDefault(); letGo(true); } });
-$('next').addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); nextBall(); });
 addEventListener('keydown', e => {
   if ($('overlay').classList.contains('show')) return;
   const deg = (e.shiftKey ? 1 : 0.1) * Math.PI / 180;
