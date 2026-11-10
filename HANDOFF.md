@@ -97,5 +97,5 @@ mutes it. Vibration is Android-only; iOS ignores `navigator.vibrate`.
 - First visit shows a three-line intro (`showIntro`); the full guide stays behind **?** (`showHelp`).
 - The result card shows the player's own stats from localStorage (`ladderStats`: days played, day
   streak, best and average level; nothing leaves the device), a live countdown to the next ladder
-  at local midnight (`tickNext`) and a "Send feedback" mailto link (`FEEDBACK_EMAIL`,
-  hello@dailybreak.app, which needs Cloudflare Email Routing to forward it to a real inbox).
+  at local midnight (`tickNext`) and a "Send feedback" mailto link, hidden while `FEEDBACK_EMAIL` is empty: set it to
+  hello@dailybreak.app once Cloudflare Email Routing forwards that address to a real inbox.
