@@ -859,7 +859,7 @@ function showHelp() {
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue; it moves slowly and relative to where you start, so your thumb never has to cover the line.</p>
       <p>3 · <b>Power:</b> slide the bar. Hit a ball into the pocket too hard and it rattles out.</p>
       <p>4 · <b>Strike:</b> press and hold the <b>cue ball</b> (bottom right) where you want to hit it: <b>follow</b> (top) rolls on, <b>stun</b> (middle) stops dead, <b>draw</b> (bottom) comes back. Slide up and down while you watch where the cue ball will finish on the table, then <b>let go to shoot</b>. Slide off the ball and let go to cancel.</p>
-      <p>👀 The aim guide fades: holes 1–3 show where the object ball goes, 4–6 only a short line, 7–9 just the ghost ball. The dotted line shows where the cue ball finishes with your spin; holes 1–6 also show the other two spins faintly.</p>
+      <p>👀 The aim guide fades: holes 1–3 show where the object ball goes, 4–6 only a short line, 7–9 just the ghost ball. The dotted line shows where the cue ball finishes with the spin you've picked.</p>
       <p>🔢 <b>Points:</b> you can pot <b>any ball</b> in any order: it's never a foul. Each pot is 100, but the <b>lowest ball</b> on the table scores <b>double</b> (200). The tag over your target shows what it's worth, and <b>THEN</b> marks the ball that comes after it. Banks and combos add 50. Pot on consecutive shots for a <b>streak</b>: ×1.5, ×2, up to ×3.</p>
       <p>🔥 Clear the rack without a miss for a <b>Run out</b> (+300), all in number order for a <b>Perfect rack</b> (+300 more). Spare shots are worth 50 each.</p>
       <p>⚠️ Scratching or missing everything costs 50 and ends the streak.</p>
@@ -1335,7 +1335,6 @@ function arrowTo(a, b, col) {
   ctx.lineTo(b.x - Math.cos(ang + 0.45) * 13, b.y - Math.sin(ang + 0.45) * 13); ctx.fill();
 }
 // Spin colours: on the felt (paths) and on the cue-ball face (labels).
-const SPIN_OPTS = [['Follow', 0.75], ['Stun', 0], ['Draw', -0.75]];
 const spinKind = s => s > 0.2 ? 0 : s < -0.2 ? 2 : 1;
 const SPIN_FELT = ['#a9ccff', '#fbf8f0', '#ffbe7d'], SPIN_INK = ['#3b5ea6', '#4c574a', '#b8602a'];
 
@@ -1359,8 +1358,7 @@ function spinPaths() {
   const key = `${aim.angle.toFixed(5)}|${power.toFixed(3)}|${aim.spin.toFixed(3)}|${strokes}|${hole.i}`;
   if (key !== spinCache.key) {
     const main = { name: strikeName(aim.spin), spin: aim.spin, main: true, ...cuePath(aim.angle, power, aim.spin) };
-    const alts = SPIN_OPTS.filter(([, v]) => spinKind(v) !== spinKind(aim.spin)).map(([name, v]) => ({ name, spin: v, main: false, ...cuePath(aim.angle, power, v) }));
-    spinCache = { key, paths: [...alts, main] };
+    spinCache = { key, paths: [main] };
   }
   return spinCache.paths;
 }
