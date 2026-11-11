@@ -1051,16 +1051,21 @@ function updateAimUI() {
   $('stripVal').innerHTML = phase !== 'aim' ? 'Aim' : `${a < 0.05 ? 'Centre' : `${a.toFixed(1)}° ${o > 0 ? 'right' : 'left'}`}<small>swipe to aim</small>`;
 }
 
+// What gets shared is always today's ranked result, never a practice run, and the link is always
+// the plain site, so friends land in today's real game. Null if today's ranked run isn't done yet.
+function todaysResult() {
+  if (round.ranked && isDailySeed(round.seed) && round.done) return round;
+  try { const r = JSON.parse(ls('dailybreak:ladder:' + todayKey())); if (r) return { seed: todayKey(), ...r }; } catch {}
+  return null;
+}
 function shareText() {
-  const title = isDailySeed(round.seed) && round.ranked ? `Daily Break ${dayLabel(round.seed)} 🎱` : `Daily Break · ${courseName(round.seed)} 🎱`;
-  return `${title}\nLevel ${round.level + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}\n${round.results.map(r => RESULT_EMOJI[r]).join('')}\n${gameUrl()}`;
+  const r = todaysResult();
+  if (!r) return '';
+  return `Daily Break ${dayLabel(r.seed)} 🎱\nLevel ${r.level + 1} · ${r.potted} ball${r.potted === 1 ? '' : 's'}\n${(r.results || []).map(x => RESULT_EMOJI[x]).join('')}\n${gameUrl()}`;
 }
-const SITE_URL = 'https://dailybreak.app/';
-function gameUrl() {
-  const base = location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL;
-  return isDailySeed(round.seed) && round.ranked ? base : `${base}?seed=${encodeURIComponent(round.seed)}`;
-}
+function gameUrl() { return location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL; }
 const canNativeShare = () => !!navigator.share && matchMedia('(pointer: coarse)').matches;
+const shareLabel = () => `${canNativeShare() ? 'Share' : 'Copy'} ${round.ranked ? 'result' : "today's result"}`;
 async function shareResult(b) {
   const text = shareText();
   if (canNativeShare()) {
@@ -1068,12 +1073,13 @@ async function shareResult(b) {
   }
   try { await navigator.clipboard.writeText(text); b.textContent = 'Copied!'; }
   catch { b.textContent = 'Select the text to copy'; }
-  setTimeout(() => b.textContent = canNativeShare() ? 'Share result' : 'Copy result', 1400);
+  setTimeout(() => b.textContent = shareLabel(), 1400);
 }
 function showFinal(already) {
+  const practice = !round.ranked, today = shareText();
   $('card').innerHTML = `
-    <div class="k mono">${courseName(round.seed)}</div>
-    <h2>${already ? "Today's run is in" : 'Run over'}</h2>
+    <div class="k mono">${practice ? 'Practice · not ranked' : courseName(round.seed)}</div>
+    <h2>${already ? "Today's run is in" : practice ? 'Practice over' : 'Run over'}</h2>
     <div class="k mono">reached</div>
     <div class="big">Level ${round.level + 1}</div>
     ${(m => m ? `<div class="near">${m}</div>` : '')(nearMiss())}
@@ -1081,12 +1087,12 @@ function showFinal(already) {
     <div style="font-size:26px;letter-spacing:4px;margin:14px 0 4px">${round.results.map(r => RESULT_EMOJI[r]).join('')}</div>
     <div class="k mono">🟢 clean clear · 🟡 cleared after a miss · ❌ out of lives</div>
     <div id="rank" hidden></div>
-    <div id="share">${shareText()}</div>
+    ${today ? `${practice ? '<div class="k mono" style="margin-top:14px">Your result for today</div>' : ''}<div id="share">${today}</div>` : ''}
     <div class="row">
-      <button class="btn primary" data-copy>${canNativeShare() ? 'Share result' : 'Copy result'}</button>
+      ${today ? `<button class="btn primary" data-copy>${shareLabel()}</button>` : '<button class="btn primary" data-daily>Play today\'s game</button>'}
       <button class="btn" data-practice>Practice run</button>
       <button class="btn" data-random>Random table</button>
-      ${!round.ranked ? '<button class="btn" data-daily>Today\'s run</button>' : ''}
+      ${practice && today ? '<button class="btn" data-daily>Today\'s run</button>' : ''}
     </div>
     ${statsHtml()}
     <div class="k mono" id="nextIn" style="margin-top:10px"></div>
@@ -1173,7 +1179,7 @@ function tickNext() {
 const FEEDBACK_EMAIL = '';   // hidden until hello@dailybreak.app forwards somewhere (set it to show the link)
 const feedbackLink = () => FEEDBACK_EMAIL ? `<div class="fbrow"><a href="${feedbackHref()}">Send feedback</a></div>` : '';
 function feedbackHref() {
-  const body = round?.done ? `\n\n---\n${shareText()}` : '';
+  const body = shareText() ? `\n\n---\n${shareText()}` : '';
   return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('Daily Break feedback')}&body=${encodeURIComponent(body)}`;
 }
 
