@@ -133,3 +133,8 @@ current ranked round, or today's saved `dailybreak:ladder:<date>`), titled with 
 ("Daily Break 11 Nov 🎱"), and the link is always the plain site (no `?seed=`), so friends land in
 today's real game. A practice card says "Practice · not ranked" and offers "Share today's result";
 if today's ranked run isn't done, it offers "Play today's game" instead of a share button.
+
+Practice limit (11 Nov 2026): 3 practice runs a day in total (`PRACTICE_PER_DAY`, counted on the device
+under `dailybreak:practice:<date>`). "Practice run" replays today's levels unranked; "Random table"
+is a fresh random seed. The result card shows how many are left; at 0 the buttons go and an old
+`?seed=` link opens today's game instead.

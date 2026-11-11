@@ -1090,10 +1090,10 @@ function showFinal(already) {
     ${today ? `${practice ? '<div class="k mono" style="margin-top:14px">Your result for today</div>' : ''}<div id="share">${today}</div>` : ''}
     <div class="row">
       ${today ? `<button class="btn primary" data-copy>${shareLabel()}</button>` : '<button class="btn primary" data-daily>Play today\'s game</button>'}
-      <button class="btn" data-practice>Practice run</button>
-      <button class="btn" data-random>Random table</button>
+      ${practiceLeft() > 0 ? '<button class="btn" data-practice>Practice run</button><button class="btn" data-random>Random table</button>' : ''}
       ${practice && today ? '<button class="btn" data-daily>Today\'s run</button>' : ''}
     </div>
+    <div class="k mono" style="margin-top:8px">${practiceLeft() > 0 ? `${practiceLeft()} practice run${practiceLeft() === 1 ? '' : 's'} left today` : 'No practice runs left today'}</div>
     ${statsHtml()}
     <div class="k mono" id="nextIn" style="margin-top:10px"></div>
     ${feedbackLink()}`;
@@ -1129,7 +1129,7 @@ function showHelp() {
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
-      <p>📅 Everyone plays the same levels each day. One ranked run per day; practise as much as you like.</p>
+      <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>
     ${feedbackLink()}`;
@@ -1141,12 +1141,20 @@ $('card').addEventListener('click', e => {
   ensureAudio(); sfx.click();
   if ('close' in b.dataset) { ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
   else if ('copy' in b.dataset) shareResult(b);
-  else if ('practice' in b.dataset) { $('overlay').classList.remove('show'); newRound(round.seed, false); }
-  else if ('random' in b.dataset) { $('overlay').classList.remove('show'); newRound(Math.random().toString(36).slice(2, 8), false); }
+  else if ('practice' in b.dataset) startPractice(todayKey());   // today's levels again, unranked
+  else if ('random' in b.dataset) startPractice(Math.random().toString(36).slice(2, 8));   // a fresh random set of levels
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
 });
 function keyOf(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function todayKey() { return keyOf(new Date()); }
+// Practice (today's levels again, or a random table) is limited to 3 runs a day, counted on this device.
+const PRACTICE_PER_DAY = 3;
+const practiceLeft = () => Math.max(0, PRACTICE_PER_DAY - (+ls('dailybreak:practice:' + todayKey()) || 0));
+function usePractice() { ls('dailybreak:practice:' + todayKey(), String(PRACTICE_PER_DAY - practiceLeft() + 1)); }
+function startPractice(seed) {
+  if (practiceLeft() <= 0) return;
+  usePractice(); $('overlay').classList.remove('show'); newRound(seed, false);
+}
 // Your ranked days, all kept on this device: how many, the day streak, best and average level.
 function ladderStats() {
   const days = {};
@@ -2104,8 +2112,9 @@ function frame(now) {
 }
 
 resize();
+// old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
-newRound(seedParam || todayKey(), !seedParam);
+if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else newRound(todayKey(), true);
 if (!ls('dailybreak:seenHelp') && !$('overlay').classList.contains('show')) showIntro();
 requestAnimationFrame(frame);
 </script>
