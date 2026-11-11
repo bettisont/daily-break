@@ -29,7 +29,7 @@ Juice (all procedural Web Audio, no files): sounds are panned left/right by wher
 
 Pace (to keep a round near three minutes): once every ball is creeping (under 70, and at least 1.2 s into the shot) the table runs at 2×, and a tap on the table runs the rest at 4× (`ffwd`), but only once the shot has rolled for 0.8 s, so a tap meant for the close-up doesn't skip the action; the level banner lasts 1.5 s; after a level's stamp the next level starts by itself after about 2 s (no button); at the end of a run the result card opens by itself. A bot with perfect aim and timing but no position play reaches level 4–5 in 12–15 shots (about 2 minutes with thinking time), so most players should land around levels 3–6 in two to four minutes.
 
-Share card: `Daily Break #N 🎱`, `Level 6 · 18 balls`, and one emoji per level (🟢 clean clear, 🟡 cleared after losing a life, ❌ where the run ended). The result card also shows points and the best streak. Ranked results are stored under `dailybreak:ladder:<date>` (older keys are ignored).
+Share card: `Daily Break 11 Nov 🎱` (the date), `Level 6 · 18 balls`, and one emoji per level (🟢 clean clear, 🟡 cleared after losing a life, ❌ where the run ended). The result card also shows points and the best streak. Ranked results are stored under `dailybreak:ladder:<date>` (older keys are ignored).
 
 Physics notes: fixed 1/240 s step, exact-contact ball collisions, tilt, felt friction, pocket rattle above `POT_MAX_SPEED`, spin applied at the cue ball's first contact, per-ball cushion count (`cush`) for banks. Deterministic, so a server could re-run shots to validate.
 
@@ -92,7 +92,7 @@ mutes it. Vibration is Android-only; iOS ignores `navigator.vibrate`.
 
 ## Launch polish (10 Nov 2026)
 
-- Day numbers count from launch: `EPOCH` = 11 Nov 2026 is Daily Break #1.
+- Days are named by date, not numbered: "Daily Break 11 Nov" in the share text and header (`dayLabel`, en-GB short date). (Briefly numbered from launch as #1, #2…; dropped 11 Nov 2026.)
 - Level 1 is a free warm-up: a miss or foul there costs no life (`resolveShot`).
 - First visit shows a three-line intro (`showIntro`); the full guide stays behind **?** (`showHelp`).
 - The result card shows the player's own stats from localStorage (`ladderStats`: days played, day
