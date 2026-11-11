@@ -121,3 +121,8 @@ post to the endpoint, so treat the numbers as a guide, not a leaderboard.
   "You're the first to finish today's ladder". Only on dailybreak.app, ranked daily runs.
 - Near miss (`nearMiss`, from this device's history; the run end stores `left`, balls left on the
   table): new personal best › one ball off the next level › equal to your best › one level off it.
+
+Link preview card (11 Nov 2026): `static/og.png` is a flat illustration (wordmark, "Your daily pool
+ladder.", a table corner with a ball lined up on the pocket), drawn in `tools/og-card.html` and
+rendered at 1200×630 with headless Chromium. `og:image` carries `?v=2` so WhatsApp and others
+fetch the new picture; bump it when the card changes.
