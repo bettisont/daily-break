@@ -1,0 +1,45 @@
+<!doctype html><html><head><link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,600;9..40,800&display=swap" rel="stylesheet">
+<style>html,body{margin:0}body{width:1200px;height:630px;overflow:hidden;background:#fbf8f0;font-family:'DM Sans'}
+.t{position:absolute;left:84px;top:118px;color:#22382b}
+h1{margin:0;font-size:168px;font-weight:800;line-height:.86;letter-spacing:-.035em}
+p{margin:34px 0 0 6px;font-size:38px;font-weight:600;color:#4f7a52;letter-spacing:-.01em}
+svg{position:absolute;inset:0}</style></head><body>
+<svg width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="ball" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#e2735c"/><stop offset=".55" stop-color="#c4472f"/><stop offset="1" stop-color="#8f2f1f"/></radialGradient>
+    <radialGradient id="cue" cx=".35" cy=".3" r=".75"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ddd4c0"/></radialGradient>
+    <radialGradient id="hole" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#120c08"/><stop offset="1" stop-color="#2b1d13"/></radialGradient>
+  </defs>
+  <g transform="translate(700 150) rotate(-9)">
+    <!-- table: walnut rail, felt running off the card -->
+    <rect x="0" y="0" width="760" height="620" rx="46" fill="#5a3b26" opacity=".18" transform="translate(10 18)"/>
+    <rect x="0" y="0" width="760" height="620" rx="46" fill="#7a5236"/>
+    <rect x="8" y="8" width="744" height="604" rx="40" fill="none" stroke="#9a6d4a" stroke-width="3"/>
+    <rect x="42" y="42" width="700" height="560" rx="10" fill="#5e9070"/>
+    <path d="M42 160 C 260 120, 420 230, 742 150 L742 602 L42 602 Z" fill="#6a9d7b"/>
+    <!-- diamonds -->
+    <g fill="#efe4ca"><path d="M220 21l6 6-6 6-6-6z"/><path d="M400 21l6 6-6 6-6-6z"/><path d="M580 21l6 6-6 6-6-6z"/><path d="M21 220l6 6-6 6-6-6z"/><path d="M21 400l6 6-6 6-6-6z"/></g>
+    <!-- corner pocket -->
+    <circle cx="48" cy="48" r="40" fill="#3a2618"/>
+    <circle cx="48" cy="48" r="31" fill="url(#hole)"/>
+    <!-- object ball near the pocket, cue ball lining up -->
+    <ellipse cx="146" cy="160" rx="26" ry="10" fill="#1f3a2a" opacity=".25" transform="rotate(30 146 160)"/>
+    <circle cx="138" cy="146" r="25" fill="url(#ball)"/>
+    <circle cx="131" cy="139" r="10.5" fill="#f6efe0"/>
+    <text x="131" y="143.5" text-anchor="middle" font-family="DM Sans" font-weight="800" font-size="12" fill="#2a2420">3</text>
+    <line x1="170" y1="178" x2="300" y2="306" stroke="#fbf8f0" stroke-width="3" stroke-dasharray="2 12" stroke-linecap="round" opacity=".85"/>
+    <!-- cue stick lined up behind the cue ball -->
+    <g transform="translate(330 338) rotate(45)">
+      <rect x="44" y="-9" width="520" height="18" rx="9" fill="#1f3a2a" opacity=".18" transform="translate(6 16)"/>
+      <path d="M40 -5 L600 -10 L600 10 L40 5 Z" fill="#e8cfa0"/>
+      <path d="M330 -7.6 L600 -10 L600 10 L330 7.6 Z" fill="#3b2418"/>
+      <path d="M330 -7.6 L372 -8 L372 8 L330 7.6 Z" fill="#c4472f"/>
+      <rect x="40" y="-5" width="12" height="10" fill="#fbf8f0"/>
+      <rect x="34" y="-5" width="6" height="10" rx="1.5" fill="#3b5ea6"/>
+    </g>
+    <ellipse cx="338" cy="352" rx="26" ry="10" fill="#1f3a2a" opacity=".25" transform="rotate(30 338 352)"/>
+    <circle cx="330" cy="338" r="25" fill="url(#cue)"/>
+  </g>
+</svg>
+<div class="t"><h1>Daily<br>Break</h1><p>Your daily pool ladder.</p></div>
+</body></html>
