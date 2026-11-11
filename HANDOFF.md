@@ -127,3 +127,9 @@ rendered at 1200×630 with headless Chromium. `og:image` carries a `?v=` number 
 fetch the new picture; bump it when the card changes.
 
 Wording (11 Nov 2026): players never see the word "ladder" (it reads as a ranking table in the UK); it's "a new pool game every day", "Your daily frame." (tagline), "Next game in…". Code names (`dailybreak:ladder:` keys, `ladderStats`) are unchanged so saved results keep working.
+
+Sharing (11 Nov 2026): the share text is always today's ranked result (`todaysResult`: the
+current ranked round, or today's saved `dailybreak:ladder:<date>`), titled with the date
+("Daily Break 11 Nov 🎱"), and the link is always the plain site (no `?seed=`), so friends land in
+today's real game. A practice card says "Practice · not ranked" and offers "Share today's result";
+if today's ranked run isn't done, it offers "Play today's game" instead of a share button.
