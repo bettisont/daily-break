@@ -144,3 +144,10 @@ each of open → shot (first shot) → clear1 (cleared level 1) → level3 (reac
 once per device per day (`dailybreak:ev:<day>:<step>`), ranked daily runs on dailybreak.app only.
 The Worker writes them to Analytics Engine dataset `daily_break_events` (blob1 day, blob2 step); the
 Results report shows them as a funnel table with percentages of "Opened".
+
+Saved runs (11 Nov 2026): a ranked run in progress is saved to `dailybreak:run:<date>` after every shot
+and at the start of every level (`saveRun`: level, lives, balls potted, results, points, streak, misses,
+cue and ball positions; after a clear it saves the start of the next level). `resumeRun` restores it
+on load ("Carrying on · N balls left"), so reloading can't restart a bad run and an interrupted player
+keeps their progress. The save is removed when the run ends and never written for practice or once
+today's result exists.
