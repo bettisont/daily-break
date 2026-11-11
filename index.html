@@ -534,7 +534,7 @@ const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 // The table plays at 0.75x so there's time to watch the balls; outcomes are unchanged.
-const PLAY = 0.75, PULL_ZOOM = 1.12;
+const PLAY = 0.75;
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // Scoring (the tiebreak under "level reached"): every pot is 100, banks and combos add 50, extra balls
@@ -550,7 +550,7 @@ let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc 
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [], levelMisses = 0;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
-let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2, px: 0, py: 0 }, timeScale = 1;
+let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0 };
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
@@ -1842,10 +1842,12 @@ function drawAimLabels() { placed = []; }
 
 let spinTouched = false, zoom = null;
 
-// The close-up of the cue ball. While you hold the cue back it sits in the bottom-left corner of the
-// table with the gold spot (where you chose to hit) and the wobbling tip. When you let go it zooms to
-// the middle and plays the strike: the tip comes in and hits where it was, and the contact is graded.
-function contactPanel() { const { cw, ch } = view, Rb = clamp(cw * 0.17, 54, 84); return { x: Rb + 10, y: ch - Rb - 26, R: Rb }; }
+// The close-up of the cue ball. While you hold the cue back it sits in the middle of the screen with the
+// gold spot (where you chose to hit) and the wobbling tip. When you let go it grows into the strike: the
+// tip comes in and hits where it was, and the contact is graded.
+// The close-up of the cue ball (the timing challenge) sits in the middle of the screen while you pull back;
+// on release it grows from there into the strike.
+function contactPanel() { const { cw, ch } = view, Rb = clamp(Math.min(cw, ch) * 0.2, 64, 110); return { x: cw / 2, y: ch * 0.42, R: Rb }; }
 function drawFace(x, y, Rb, d, tip, flash, quality) {
   const rb = Rb * 0.82, r = spotR(d);
   ctx.save(); ctx.translate(x, y);
@@ -1880,15 +1882,20 @@ function drawFace(x, y, Rb, d, tip, flash, quality) {
 }
 function drawContact(dt) {
   if (hold && power >= MIN_PULL && phase === 'aim') {
-    const p = contactPanel(), d = contactDiff();
+    drawContact.t = (drawContact.t || 0) + dt;
+    const p = contactPanel(), d = contactDiff(), pop = 1 - (1 - Math.min(1, drawContact.t / 0.16)) ** 3;
+    p.R *= lerp(0.6, 1, pop);
+    ctx.save(); ctx.globalAlpha = pop;
     drawFace(p.x, p.y, p.R, d, tipPos(d), 0, null);
     const word = d < 0.3 ? 'Short shot' : d < 0.6 ? 'Medium shot' : 'Long shot · shaky';
     ctx.font = "700 10px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const txt = word.toUpperCase(), tw = ctx.measureText(txt).width + 14;
     ctx.fillStyle = 'rgba(45,58,48,.9)'; ctx.beginPath(); ctx.roundRect(p.x - tw / 2, p.y + p.R + 4, tw, 18, 9); ctx.fill();
     ctx.fillStyle = d < 0.3 ? '#a9d8a0' : d < 0.6 ? '#e2c46c' : '#ffb08a'; ctx.fillText(txt, p.x, p.y + p.R + 13.5);
+    ctx.restore();
     return;
   }
+  drawContact.t = 0;
   if (!zoom) return;
   zoom.t += dt;
   const z = zoom, { cw, ch } = view, T = z.t;
@@ -1962,7 +1969,7 @@ function draw(t, dt) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   // the camera can push in on a point (cam.x, cam.y) for the slow-motion finish
-  const S = s * cam.k, OX = ox + cam.x * s * (1 - cam.k) + cam.px, OY = oy + cam.y * s * (1 - cam.k) + cam.py;
+  const S = s * cam.k, OX = ox + cam.x * s * (1 - cam.k), OY = oy + cam.y * s * (1 - cam.k);
   ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
   const x0 = -OX / S - 20, y0 = -OY / S - 20, x1 = (cw - OX) / S + 20, y1 = (ch - OY) / S + 20;
 
@@ -2123,15 +2130,7 @@ function frame(now) {
     }
   }
   // Slow motion and a push-in as the rack's last ball heads for the pocket.
-  let slow = false, tk = 1, tx = W / 2, ty = H / 2, tpx = 0, tpy = 0;
-  // Pulling back: the camera glides the cue ball to the centre of the screen and leans in a little, and holds
-  // it there through the strike; it eases back to the whole table as the balls start rolling.
-  const pulling = table && !table.cue.potted && ((hold && phase === 'aim') || (phase === 'strike' && strike.t < SHOOT_T + 0.1));
-  if (pulling) {
-    const c = table.cue, { s, ox, oy, cw, ch } = view;
-    tk = PULL_ZOOM; tx = c.x; ty = c.y;
-    tpx = cw / 2 - ox - c.x * s; tpy = ch / 2 - oy - c.y * s;
-  }
+  let slow = false, tk = 1, tx = W / 2, ty = H / 2;
   if (cine) {
     const b = table.balls.find(o => o.n === cine.n), p = POCKETS[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
@@ -2144,9 +2143,8 @@ function frame(now) {
   const creeping = phase === 'moving' && movingT > 2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 35);
   const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
-  const ck = Math.min(1, dt * (pulling ? 8 : 5));
+  const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
-  cam.px = lerp(cam.px, tpx, ck); cam.py = lerp(cam.py, tpy, ck);
   if (phase === 'moving') {
     if (hitStop > 0) hitStop -= dt;   // a blink of freeze on big moments
     else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; } }

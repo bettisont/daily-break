@@ -19,7 +19,7 @@ A shot (built for one thumb on a phone). The controls run in play order, top to 
 2. **Aim.** The full-width **aim strip** is swiped left/right like a scroll wheel: 0.04° per pixel when slow, gearing up to 6× when fast; a tap near either end nudges 0.1°. Its centre reads the offset from dead centre. Dragging anywhere on the table also turns the cue, relative to where you start and geared by how far your finger moves around the cue ball (0.08° per screen pixel), so your thumb never covers the line. Arrow keys: 0.1° (Shift: 1°).
 3. **Guide**: the aim line, ghost ball and a long (330 px) object-ball line on every level. The object-ball line is pure geometry (no tilt or felt). The challenge comes from the timed release, more balls and position play.
 5. **Spin.** The spin control is the same cue-ball face as the close-up, 106 px (92 px on narrow phones), under the full-width aim strip: drag the gold spot up (follow) or down (draw), or tap where you want it; the further from the middle, the stronger (spot ±0.5 of the radius, continuous; snaps to centre). It's the same gold spot you aim for when you release. **Path hint** (`spinPaths`, `drawSpinPaths`): only while pulling back or dragging the spin spot, a fading white line shows the cue ball's first half second after it meets the first ball (`PATH_STEPS` = 120 physics steps), so a harder pull draws a longer line; a red X if it would scratch inside that window. No resting spot is shown: where it stops is for the player to judge.
-6. **Pull back and release.** The tall cue on the right is the power and the trigger: drag down to load power (150 px = full; the table cue pulls back to match), let go to shoot, or push back to the top and let go to cancel (hold Space on desktop). While you hold, a close-up of the cue ball (bottom left of the table) shows the gold spot (your spin) and the cue tip wobbling over it (`tipPos`). When you let go is the timing challenge (`contact`): on the spot plays the shot exactly; off to the side pushes the line up to 3° the other way; high/low error changes the spin; out at the edge is a miscue (−4°, 35% power). `contactDiff` sets the spot size and the wobble, mostly from distance (cue ball to first ball, plus that ball's run on), plus spin, power and rough felt. On release the close-up zooms to the middle and plays the strike with a grade (Clean / Nearly / Off-centre / Miscue): the tip lands at `STRIKE_T` (0.34 s, with the click), the close-up fades out, and only then (`SHOOT_T`, 0.66 s) does the cue on the table strike and the balls roll, so the contact with the object ball is always in view (`zoom`, `drawContact`).
+6. **Pull back and release.** The tall cue on the right is the power and the trigger: drag down to load power (150 px = full; the table cue pulls back to match), let go to shoot, or push back to the top and let go to cancel (hold Space on desktop). While you hold, a close-up of the cue ball (in the middle of the screen) shows the gold spot (your spin) and the cue tip wobbling over it (`tipPos`). When you let go is the timing challenge (`contact`): on the spot plays the shot exactly; off to the side pushes the line up to 3° the other way; high/low error changes the spin; out at the edge is a miscue (−4°, 35% power). `contactDiff` sets the spot size and the wobble, mostly from distance (cue ball to first ball, plus that ball's run on), plus spin, power and rough felt. On release the close-up zooms to the middle and plays the strike with a grade (Clean / Nearly / Off-centre / Miscue): the tip lands at `STRIKE_T` (0.34 s, with the click), the close-up fades out, and only then (`SHOOT_T`, 0.66 s) does the cue on the table strike and the balls roll, so the contact with the object ball is always in view (`zoom`, `drawContact`).
 
 Scoring (the tiebreak under "level reached"; `PTS`, `resolveShot`, `finishHole`): every pot 100; bank +50; combo +50; each extra ball in one shot +50; consecutive potting shots build a streak multiplier ×1, ×1.5, ×2, ×2.5, ×3 (`streakMult`) that carries across levels and resets on a miss or foul. Clearing a level adds 100 per ball in it. The hint next to the spin ball shows what the next pot is worth and your lives; the header shows the level and hearts.
 
@@ -152,15 +152,15 @@ on load ("Carrying on · N balls left"), so reloading can't restart a bad run an
 keeps their progress. The save is removed when the run ends and never written for practice or once
 today's result exists.
 
-## Pace and the pull-back camera (11 Nov 2026)
+## Pace and the pull-back close-up (11 Nov 2026)
 
 - The table plays at 0.75× (`PLAY`) so there's time to watch the balls; outcomes are unchanged. The
   automatic speed-up waits until everything is under 35 after 2 s and runs at 1.6×, and a tap fast-forwards
   at 3× (was 1×, then 2× after 1.2 s under 70, and 4× on a tap).
-- While you hold the pull-back cue (and through the strike, until the balls roll) the camera glides the cue
-  ball to the centre of the table view and zooms to 1.12× (`PULL_ZOOM`, pan in `cam.px`/`cam.py`); it eases
-  back to the whole table as the shot rolls. A far target ball can go off screen while you pull; the aim was
-  set before pulling.
+- While you pull back, the cue-ball close-up (the timing challenge: gold spot and wobbling tip) sits in the
+  middle of the screen (`contactPanel`: centre, 42% down, radius 20% of the smaller side, 64–110 px) and
+  pops in over 0.16 s; on release it grows from there into the strike. It used to sit bottom left. (A
+  camera that panned the cue ball to the centre was tried instead and dropped.)
 - A daily weather system (damp, sunny, draughty, stormy, cold) was built and tried on this branch on 11 Nov
   2026 and taken out again: it changed how balls rolled but not what you were trying to do on each level.
   It's in the branch history (commits "Daily weather…" and "Stronger weather…") if it's ever wanted.
