@@ -126,6 +126,10 @@
   .stats div + div{border-left:1px solid var(--line)}
   .stats b{font-size:22px;font-weight:800;line-height:1}
   .stats span{font:500 9.5px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .near{display:inline-block;margin:8px 0 2px;padding:5px 12px;border-radius:999px;background:#f3e3b8;color:#7a5a12;font:700 14px 'DM Sans',sans-serif}
+  #rank{margin:12px auto 0;max-width:320px;padding:8px 12px;border-radius:12px;background:var(--hi);color:var(--ink)}
+  #rank b{display:block;font:800 16px 'DM Sans',sans-serif}
+  #rank small{display:block;font:500 10px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:2px}
   .fbrow{margin-top:10px;font-size:13px}
   .fbrow a{color:var(--muted)}
   .mini{display:grid;grid-template-columns:auto repeat(3,1fr) auto;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:14px 0;font-family:'DM Mono',monospace;font-size:12px}
@@ -940,14 +944,14 @@ function finishHole() {
 }
 // Out of lives: the run ends on the level you were playing.
 function endRun() {
-  round.results.push('fail'); round.done = true; round.points = hs.points;
+  round.results.push('fail'); round.done = true; round.points = hs.points; round.left = table.remaining();
   phase = 'over';
   const forLevel = round.level;
   setTimeout(() => {
     stamp = { text: 'Out of lives', sub: `Reached level ${forLevel + 1} · ${round.potted} ball${round.potted === 1 ? '' : 's'}`, color: '#b8553f', t: 0 };
     sfx.stamp(); fx.shake = 6; buzz([40, 60, 40]);
   }, 300);
-  if (round.ranked) ls('dailybreak:ladder:' + round.seed, JSON.stringify({ level: round.level, potted: round.potted, points: round.points, results: round.results, bestStreak: round.bestStreak }));
+  if (round.ranked) ls('dailybreak:ladder:' + round.seed, JSON.stringify({ level: round.level, potted: round.potted, points: round.points, results: round.results, bestStreak: round.bestStreak, left: round.left }));
   if (round.ranked) sendResult();
   setTimeout(() => { if (phase === 'over' && round.level === forLevel) showFinal(false); }, 2300);
 }
@@ -956,8 +960,46 @@ function endRun() {
 function sendResult() {
   if (location.hostname !== 'dailybreak.app' || !isDailySeed(round.seed)) return;
   const body = JSON.stringify({ day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
-  try { if (navigator.sendBeacon?.('/api/result', new Blob([body], { type: 'application/json' }))) return; } catch {}
-  fetch('/api/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
+  const r = round;
+  fetch('/api/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true })
+    .then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
+}
+// "Better than X% of today's players", from the server's count of players at each level today.
+const tallyOn = () => location.hostname === 'dailybreak.app' && round.ranked && isDailySeed(round.seed);
+function fillRank() {
+  const el = $('rank'), t = round.tally;
+  if (!el || !t || !t.players) return;
+  const L = round.level + 1, others = t.players - 1;
+  const lower = Object.entries(t.levels).reduce((a, [lv, n]) => a + (+lv < L ? n : 0), 0);
+  const same = (t.levels[L] || 0) - 1, pct = others > 0 ? Math.round(100 * lower / others) : 100;
+  const line = others <= 0 ? "You're the first to finish today's ladder" :
+    lower === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best run today so far 🏆') :
+    `Better than ${pct}% of today's players`;
+  el.innerHTML = `<b>${line}</b><small>${t.players.toLocaleString()} played so far</small>`;
+  el.hidden = false;
+}
+function loadRank() {
+  if (!tallyOn()) return;
+  if (round.tally) return fillRank();
+  const r = round;
+  fetch('/api/day?day=' + r.seed).then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
+}
+// The near miss: a new best, one ball short, or close to your best (from this device's history).
+function nearMiss() {
+  if (!round.ranked || !isDailySeed(round.seed)) return '';
+  let prev = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i), d = k?.startsWith('dailybreak:ladder:') ? k.slice(18) : null;
+      if (d && d !== round.seed && isDailySeed(d)) try { prev = Math.max(prev, JSON.parse(localStorage.getItem(k)).level + 1); } catch {}
+    }
+  } catch {}
+  const L = round.level + 1;
+  if (prev && L > prev) return `🏆 New personal best! (was level ${prev})`;
+  if (round.left === 1) return `So close: one ball off level ${L + 1}!`;
+  if (prev && L === prev) return `Equal to your best, level ${prev}`;
+  if (prev && L === prev - 1) return `One level off your best (level ${prev})`;
+  return '';
 }
 function bumpChip(id) { setTimeout(() => { const el = document.querySelector(`#card9 .c.${id}`); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0); }
 function confettiBurst(n) {
@@ -1033,9 +1075,11 @@ function showFinal(already) {
     <h2>${already ? "Today's run is in" : 'Run over'}</h2>
     <div class="k mono">reached</div>
     <div class="big">Level ${round.level + 1}</div>
+    ${(m => m ? `<div class="near">${m}</div>` : '')(nearMiss())}
     <div class="k mono">${round.potted} balls potted · ${(round.points ?? hs.points).toLocaleString()} pts${round.bestStreak > 1 ? ` · best streak ${round.bestStreak}` : ''}</div>
     <div style="font-size:26px;letter-spacing:4px;margin:14px 0 4px">${round.results.map(r => RESULT_EMOJI[r]).join('')}</div>
     <div class="k mono">🟢 clean clear · 🟡 cleared after a miss · ❌ out of lives</div>
+    <div id="rank" hidden></div>
     <div id="share">${shareText()}</div>
     <div class="row">
       <button class="btn primary" data-copy>${canNativeShare() ? 'Share result' : 'Copy result'}</button>
@@ -1047,6 +1091,7 @@ function showFinal(already) {
     <div class="k mono" id="nextIn" style="margin-top:10px"></div>
     ${feedbackLink()}`;
   tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
+  loadRank();
   $('overlay').classList.add('show');
   phase = 'over'; updateUI();
 }
