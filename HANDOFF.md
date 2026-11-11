@@ -1,5 +1,7 @@
 # Daily Break - handoff
 
+**From 12 Nov 2026 the daily game is par (golf) scoring on shaped tables: see "Par scoring" and "Table shapes" near the end. The ladder with lives described first still runs for earlier days.**
+
 A daily pool game for the browser: a ladder of levels, the same for everyone
 each day. Level 1 has one ball, level 2 two, and so on; you have four lives,
 and your score is how far you get. One ranked run a day of about two to four
@@ -203,19 +205,29 @@ table with a walnut block in the middle).
 Ideas next: portals or bridges linking two parts of a table (the aim line would need to follow the ball
 through), and tuning which shapes appear at which levels.
 
-## Par scoring (prototype, 11 Nov 2026; off in the live game)
+## Par scoring (the daily game from 12 Nov 2026)
 
-`PAR_MODE` is false, so the live game is unchanged; the test build turns it on. A round is six holes of 1–6
-balls with no lives. Every shot is a stroke; a foul (scratch, no contact) adds a penalty stroke and balls that
-drop on it stay down. Par is the number of balls, +1 from hole 3 (`parOf`: 1, 2, 4, 5, 6, 7 = 25). A hole ends
-when it's cleared, or you pick up at par + 3 (`capOf`), which scores par + 3. Shapes apply from hole 3.
+From `PAR_FROM` (2026-11-12) the daily game is six holes scored like golf, with no lives (`PAR_ON`,
+`parSeed`: days before that, and practice on them, keep the lives ladder above, so saved runs and results
+from those days still work; random practice courses are par). Hole i has i + 1 balls. Every shot is a
+stroke; a foul (scratch, no contact) adds a penalty stroke and balls that drop on it stay down. Par is the
+number of balls, +1 from hole 3 (`parOf`: 1, 2, 4, 5, 6, 7 = 25). A hole ends when it's cleared, or you pick
+up at par + 3 (`capOf`), which scores par + 3. Table shapes apply from hole 3.
 
 - Gimmes (`findGimmes`, `tapIn`): a ball within two ball widths of an open pocket with a clear, nearly
   straight line from the cue ball (cut cos > 0.9) glows green with a "Tap in ⛳" label. Tapping it pots it for
   one stroke; the cue ball doesn't move. Tapping any other ball still targets it.
 - Flow: `resolveParShot`, `finishParHole` (stamp: Eagle / Birdie / Par / Bogey / Double bogey / Picked up),
-  `endParRound`, `showParFinal` (scorecard table, 🟦🟩🟨🟥 per hole, share text "Daily Break 12 Nov ⛳ +2").
-  Points and the streak still count, as a tiebreak.
-- Header: hole n/6, par, score to par; info bar: strokes on this hole and score.
-- Not done yet: saving a round in progress (`saveRun` is skipped), ranked storage and the server tally by score
-  (the worker counts levels), the Results report and funnel steps, the intro card.
+  `endParRound`, `showParFinal` (scorecard, 🟦🟩🟨🟥 per hole, share text "Daily Break 12 Nov ⛳ +2", rank
+  line, practice button, countdown). Points and the streak still count, as a tiebreak.
+- Header: hole n/6, par, score to par; info bar: strokes on this hole and score. Intro and help explain par.
+- Saving: a ranked round in progress is saved to `dailybreak:run:<date>` (with `par: true`, the cards so far,
+  strokes on the current hole and ball positions) after every shot and between holes; reloading carries on.
+  The finished round is stored as `dailybreak:par:<date>` (cards, potted, points, best streak), so it can't be
+  replayed and reopening shows "Today's round is in".
+- Server: `sendResult` posts `{day, mode: 'par', score, strokes, points}`; the worker validates it (score
+  −30..60, strokes 0..200), writes it to Analytics Engine with blob2 = 'par' (double1 score, double2 strokes,
+  double3 points) and counts players per score in `DayCounts` (`p:<day>`); `GET /api/day?day=&mode=par`
+  returns `{players, scores}` and the card says "Better than X% of today's players" (lower is better). The
+  Results report has a par table (`par_report`) and keeps the level table for lives days.
+- Not done: the device stats (days played, streak, best) and the near-miss line aren't on the par card yet.

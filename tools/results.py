@@ -20,7 +20,7 @@ def account():
     return call(API + '/accounts')['result'][0]['id']
 
 
-STEPS = [('open', 'Opened'), ('shot', 'Took a shot'), ('clear1', 'Cleared level 1'), ('level3', 'Reached level 3'), ('finish', 'Finished')]
+STEPS = [('open', 'Opened'), ('shot', 'Took a shot'), ('clear1', 'Cleared level/hole 1'), ('level3', 'Reached level/hole 3'), ('finish', 'Finished')]
 
 
 def fetch_funnel(acc, days):
@@ -80,8 +80,37 @@ def visits_report(v):
 def fetch(days, acc=None):
     acc = acc or account()
     sql = (f"SELECT blob1 AS day, double1 AS level, SUM(_sample_interval) AS n FROM daily_break_results "
-           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY GROUP BY day, level FORMAT JSON")
+           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 != 'par' GROUP BY day, level FORMAT JSON")
     return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+def fetch_par(days, acc):
+    sql = (f"SELECT blob1 AS day, double1 AS score, SUM(_sample_interval) AS n FROM daily_break_results "
+           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 = 'par' GROUP BY day, score FORMAT JSON")
+    return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+def par_label(n):
+    return 'E' if n == 0 else f'+{n}' if n > 0 else f'−{-n}'
+
+
+def par_report(rows, days=14):
+    by_day = defaultdict(Counter)
+    for r in rows:
+        by_day[r['day']][int(float(r['score']))] += int(float(r['n']))
+    out = ['## Par rounds (from 12 Nov 2026; score to par, lower is better)', '']
+    if not by_day:
+        return '\n'.join(out + ['No par rounds recorded yet.', ''])
+    out += ['| Day | Players | Average | Median | Best |', '|---|---|---|---|---|']
+    for day in sorted(by_day, reverse=True)[:days]:
+        c = by_day[day]; n = sum(c.values()); scores = sorted(c.elements())
+        label = dt.date.fromisoformat(day).strftime('%a %-d %b')
+        out.append(f'| {label} | {n} | {par_label(round(sum(scores) / n))} | {par_label(scores[(n - 1) // 2])} | {par_label(min(c))} |')
+    latest = max(by_day); c = by_day[latest]; n = sum(c.values())
+    out += ['', f'## Scores on {latest}', '', '| Score | Rounds | |', '|---|---|---|']
+    for sc in range(min(c), max(c) + 1):
+        out.append(f"| {par_label(sc)} | {c[sc]} | {'█' * round(20 * c[sc] / n)} |")
+    return '\n'.join(out + [''])
 
 
 def report(rows, days=14):
@@ -107,6 +136,10 @@ if __name__ == '__main__':
     days = int(sys.argv[1]) if len(sys.argv) > 1 else 14
     acc = account()
     print(report(fetch(days, acc), days))
+    try:
+        print(par_report(fetch_par(days, acc), days))
+    except Exception as e:   # never fail the results report over the par table
+        print(f'## Par rounds\n\nCould not read them: {e}\n')
     try:
         print(funnel_report(fetch_funnel(acc, days), days))
     except Exception as e:   # the events dataset only exists once the first event arrives

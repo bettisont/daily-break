@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ece5d3">
 <title>Daily Break - Daily Pool Game</title>
-<meta name="description" content="A new pool game every day. Pot one ball, then two, then three, with four lives: how far can you get? See how your run ranks against other players.">
+<meta name="description" content="A new pool game every day: six holes on tables of all shapes, scored like golf. Pot one ball, then two, then three, in as few shots as you can, and see how you rank against other players.">
 <link rel="canonical" href="https://dailybreak.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Daily Break">
 <meta property="og:title" content="Daily Break - Daily Pool Game">
-<meta property="og:description" content="A new pool game every day. Pot one ball, then two, then three: how far can you get? See how your run ranks against other players.">
+<meta property="og:description" content="A new pool game every day: six holes on tables of all shapes, scored like golf. How few shots can you do it in?">
 <meta property="og:url" content="https://dailybreak.app/">
 <meta property="og:image" content="https://dailybreak.app/og.png?v=4">
 <meta property="og:image:width" content="1200">
@@ -667,11 +667,14 @@ const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // in one shot add 50, and consecutive potting shots build a streak multiplier. Clearing a level adds
 // 100 per ball in it. A miss or a foul costs a life; clearing a level without one wins a life back.
 const PTS = { pot: 100, bank: 50, combo: 50, multi: 50, level: 100 };
-// ---- par (golf) scoring: a prototype, off in the live game (the test build turns it on) ----
+// ---- par (golf) scoring: the daily game from PAR_FROM (earlier days, and practice on them, keep lives) ----
 // A round is six holes of 1-6 balls, no lives. Every shot is a stroke, a foul adds a penalty stroke, and par
 // is the number of balls (+1 from hole 3). A hole ends when it's cleared, or you pick up at par + 3. A ball
 // sitting near an open pocket on a clear, straight line is a gimme: tap it to tap in, for one stroke.
-const PAR_MODE = false, HOLES = 6;
+const PAR_ON = true, PAR_FROM = '2026-11-12', HOLES = 6;
+const parSeed = seed => PAR_ON && (!isDailySeed(seed) || seed >= PAR_FROM);
+const isPar = () => !!round?.par;
+const parKey = seed => 'dailybreak:par:' + seed;
 const parOf = i => i < 2 ? i + 1 : i + 2;
 const capOf = i => parOf(i) + 3;
 const toPar = n => n === 0 ? 'E' : n > 0 ? `+${n}` : `−${-n}`;
@@ -877,13 +880,13 @@ function onEvent(type, e) {
 /* ----- round / hole flow ----- */
 
 function newRound(seed, ranked) {
-  round = { seed, ranked, level: 0, lives: LIVES, potted: 0, results: [], bestStreak: 0, done: false, cards: [] };
+  round = { seed, ranked, level: 0, lives: LIVES, potted: 0, results: [], bestStreak: 0, done: false, cards: [], par: parSeed(seed) };
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
-  const saved = ranked ? ls('dailybreak:ladder:' + seed) : null;
-  if (!saved && !PAR_MODE && resumeRun()) return;
+  const saved = ranked ? ls(round.par ? parKey(seed) : 'dailybreak:ladder:' + seed) : null;
+  if (!saved && resumeRun()) return;
   startHole(0);
-  if (saved) { try { Object.assign(round, JSON.parse(saved), { done: true }); hs.points = round.points; renderCard9(); showFinal(true); } catch {} }
+  if (saved) { try { Object.assign(round, JSON.parse(saved), { done: true }); hs.points = round.points; renderCard9(); updateUI(); showFinal(true); } catch {} }
 }
 
 // A new level: a fresh seeded layout with one more ball than the last.
@@ -899,7 +902,7 @@ function startHole(i) {
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
-  if (PAR_MODE) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}` });
+  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}` });
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -909,7 +912,7 @@ function startHole(i) {
 }
 
 // Each shot starts lined up dead centre on the ball with the easiest pot.
-function lineUp() { phase = 'aim'; gimmes = PAR_MODE ? findGimmes() : []; focusBall(bestBall(), true); updateUI(); }
+function lineUp() { phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true); updateUI(); }
 // Gimmes: a ball within two ball widths of an open pocket, with a clear, nearly straight line from the cue ball.
 function findGimmes() {
   const out = [];
@@ -1059,7 +1062,7 @@ function release() {
 }
 
 function resolveShot() {
-  if (PAR_MODE) return resolveParShot();
+  if (isPar()) return resolveParShot();
   const s = table.shot, c = table.cue;
   track('shot');
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
@@ -1122,7 +1125,7 @@ function resolveParShot() {
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (!table.remaining()) finishParHole(false);
   else if (strokes >= capOf(round.level)) finishParHole(true);
-  else lineUp();
+  else { lineUp(); saveRun(); }
   renderCard9(); updateUI();
 }
 function finishParHole(picked) {
@@ -1131,6 +1134,7 @@ function finishParHole(picked) {
   round.cards.push({ strokes: n, par, picked });
   hs.points += picked ? 0 : PTS.level * hole.balls.length;
   phase = 'holed'; gimmes = [];
+  if (forLevel + 1 < HOLES) saveRun(forLevel + 1);
   setTimeout(() => {
     if (round.level !== forLevel || phase !== 'holed') return;
     stamp = { text: picked ? 'Picked up' : holeWord(d), sub: `Hole ${forLevel + 1} · ${n} stroke${n === 1 ? '' : 's'} · par ${par}`, color: holeColor(d), t: 0 };
@@ -1145,7 +1149,9 @@ function finishParHole(picked) {
 }
 function endParRound() {
   track('finish');
+  try { localStorage.removeItem(runKey()); } catch {}
   round.done = true; round.points = hs.points; phase = 'over';
+  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak })); sendResult(); }
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
   stamp = { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
   sfx.stamp(); fx.shake = 6;
@@ -1155,12 +1161,12 @@ function parShareText(r = round) {
   const tot = r.cards.reduce((a, c) => a + c.strokes - c.par, 0);
   return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⛳ ${toPar(tot)}\n${r.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}\n${gameUrl()}`;
 }
-function showParFinal() {
+function showParFinal(already) {
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0), parAll = round.cards.reduce((a, c) => a + c.par, 0);
   const cell = c => `<td style="color:${holeColor(c.strokes - c.par)};font-weight:700">${c.strokes}${c.picked ? '*' : ''}</td>`;
   $('card').innerHTML = `
     <div class="k mono">${round.ranked ? courseName(round.seed) : 'Practice · not ranked'}</div>
-    <h2>Round over</h2>
+    <h2>${already ? "Today's round is in" : 'Round over'}</h2>
     <div class="k mono">score</div>
     <div class="big">${toPar(tot)}</div>
     <div class="k mono">${strokesAll} strokes · par ${parAll}${round.bestStreak > 1 ? ` · best streak ${round.bestStreak}` : ''}</div>
@@ -1169,11 +1175,18 @@ function showParFinal() {
       <tr><th>You</th>${round.cards.map(cell).join('')}</tr></table>
     <div style="font-size:26px;letter-spacing:4px;margin:10px 0 4px">${round.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}</div>
     <div class="k mono">🟦 under par · 🟩 par · 🟨 one over · 🟥 two or more${round.cards.some(c => c.picked) ? ' · * picked up' : ''}</div>
+    <div id="rank" hidden></div>
     <div id="share">${parShareText()}</div>
     <div class="row">
       <button class="btn primary" data-copy-par>${canNativeShare() ? 'Share' : 'Copy'} result</button>
-      ${practiceLeft() > 0 ? '<button class="btn" data-practice>Play again</button><button class="btn" data-random>Random course</button>' : ''}
-    </div>`;
+      ${practiceLeft() > 0 ? '<button class="btn" data-random>Practice course</button>' : ''}
+      ${!round.ranked ? `<button class="btn" data-daily>Today's round</button>` : ''}
+    </div>
+    <div class="k mono" style="margin-top:8px">${practiceLeft() > 0 ? `${practiceLeft()} practice round${practiceLeft() === 1 ? '' : 's'} left today` : 'No practice rounds left today'}</div>
+    <div class="k mono" id="nextIn" style="margin-top:10px"></div>
+    ${feedbackLink()}`;
+  tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
+  if (round.ranked) loadRank();
   $('overlay').classList.add('show');
   phase = 'over'; updateUI();
 }
@@ -1182,9 +1195,16 @@ function showParFinal() {
 // so closing or reloading the page carries on from the same spot instead of restarting the day's run.
 const runKey = () => 'dailybreak:run:' + round.seed;
 function saveRun(nextLevel) {
-  if (PAR_MODE) return;   // prototype: par rounds aren't saved yet
-  if (!round.ranked || !isDailySeed(round.seed) || round.done || ls('dailybreak:ladder:' + round.seed)) return;
+  if (!round.ranked || !isDailySeed(round.seed) || round.done || ls(isPar() ? parKey(round.seed) : 'dailybreak:ladder:' + round.seed)) return;
   const fresh = nextLevel != null;
+  if (isPar()) {
+    ls(runKey(), JSON.stringify({
+      par: true, level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
+      points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes,
+      cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
+    }));
+    return;
+  }
   ls(runKey(), JSON.stringify({
     level: fresh ? nextLevel : round.level, lives: round.lives, potted: round.potted, results: round.results,
     bestStreak: round.bestStreak, points: hs.points, streak: hs.streak, misses: fresh ? 0 : levelMisses,
@@ -1194,18 +1214,20 @@ function saveRun(nextLevel) {
 function resumeRun() {
   if (!round.ranked || !isDailySeed(round.seed)) return false;
   let r; try { r = JSON.parse(ls(runKey())); } catch {}
-  if (!r || !Number.isInteger(r.level)) return false;
-  Object.assign(round, { lives: r.lives, potted: r.potted, results: r.results || [], bestStreak: r.bestStreak || 0 });
+  if (!r || !Number.isInteger(r.level) || !!r.par !== isPar()) return false;
+  if (isPar()) Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0 });
+  else Object.assign(round, { lives: r.lives, potted: r.potted, results: r.results || [], bestStreak: r.bestStreak || 0 });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
   startHole(r.level);
   if (r.balls && r.balls.length === table.balls.length) {
     r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));
     if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
     levelMisses = r.misses || 0;
+    if (isPar()) strokes = r.strokes || 0;
     lineUp();
     saveRun();   // startHole saved a fresh layout; put the real one back so a second reload can't reset the balls
   }
-  banner = { title: `Level ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${hearts(round.lives)}`, life: 1.8, max: 1.8 };
+  banner = { title: `${isPar() ? 'Hole' : 'Level'} ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${isPar() ? toPar(parTotal()) : hearts(round.lives)}`, life: 1.8, max: 1.8 };
   renderCard9(); updateUI();
   return true;
 }
@@ -1261,7 +1283,9 @@ function track(step) {
 }
 function sendResult() {
   if (location.hostname !== 'dailybreak.app' || !isDailySeed(round.seed)) return;
-  const body = JSON.stringify({ day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
+  const body = JSON.stringify(isPar()
+    ? { day: round.seed, mode: 'par', score: parTotal(), strokes: round.cards.reduce((a, c) => a + c.strokes, 0), points: Math.round(round.points || 0) }
+    : { day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
   const r = round;
   fetch('/api/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true })
     .then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
@@ -1271,6 +1295,14 @@ const tallyOn = () => location.hostname === 'dailybreak.app' && round.ranked && 
 function fillRank() {
   const el = $('rank'), t = round.tally;
   if (!el || !t || !t.players) return;
+  if (isPar() && t.scores) {
+    // lower is better: count the players who scored worse
+    const me = parTotal(), others = t.players - 1;
+    const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc > me ? n : 0), 0), same = (t.scores[me] || 0) - 1;
+    const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best round today so far 🏆') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
+    el.innerHTML = `<b>${line}</b>`; el.hidden = false;
+    return;
+  }
   const L = round.level + 1, others = t.players - 1;
   const lower = Object.entries(t.levels).reduce((a, [lv, n]) => a + (+lv < L ? n : 0), 0);
   const same = (t.levels[L] || 0) - 1, pct = others > 0 ? Math.round(100 * lower / others) : 100;
@@ -1284,7 +1316,7 @@ function loadRank() {
   if (!tallyOn()) return;
   if (round.tally) return fillRank();
   const r = round;
-  fetch('/api/day?day=' + r.seed).then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
+  fetch('/api/day?day=' + r.seed + (isPar() ? '&mode=par' : '')).then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
 }
 // The near miss: a new best, one ball short, or close to your best (from this device's history).
 function nearMiss() {
@@ -1314,7 +1346,7 @@ function confettiBurst(n) {
 const RESULT_EMOJI = { clean: '🟢', life: '🟡', fail: '❌' };
 // The header: the level you're on and your lives.
 function renderCard9() {
-  if (PAR_MODE) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`; return; }
+  if (isPar()) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`; return; }
   $('card9').innerHTML = `<div class="c cur lvl"><b>Level ${round.level + 1}</b></div><div class="c lives">${hearts(round.lives)}</div>`;
 }
 function updateUI() {
@@ -1322,7 +1354,7 @@ function updateUI() {
   const left = table.remaining();
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
-  if (PAR_MODE) {
+  if (isPar()) {
     const n = Math.min(strokes, capOf(round.level));
     $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
     $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
@@ -1333,7 +1365,7 @@ function updateUI() {
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold);
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
-    PAR_MODE ? (gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`) : `Pot it<b>+${potGain()}</b>`;
+    isPar() ? (gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`) : `Pot it<b>+${potGain()}</b>`;
   updateMeter(); updateAimUI(); updateSpinBall();
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
@@ -1391,7 +1423,7 @@ async function shareResult(b) {
   setTimeout(() => b.textContent = shareLabel(), 1400);
 }
 function showFinal(already) {
-  if (PAR_MODE) return showParFinal();
+  if (isPar()) return showParFinal(already);
   const practice = !round.ranked, today = shareText();
   $('card').innerHTML = `
     <div class="k mono">${practice ? 'Practice · not ranked' : courseName(round.seed)}</div>
@@ -1421,10 +1453,13 @@ function showFinal(already) {
 function showIntro() {
   $('card').innerHTML = `
     <div class="k mono">Daily Break · daily pool</div>
-    <h2>How far can you get?</h2>
+    ${parSeed(todayKey()) ? `<h2>Six holes. Fewest shots wins.</h2>
+    <div class="howto">
+      <p>⛳ Pool scored like golf. Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.</p>
+      <p>🎱 Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>` : `<h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
-      <p>❤️ You have 4 lives. A miss costs one (level 1 is a free warm-up).</p>
+      <p>❤️ You have 4 lives. A miss costs one (level 1 is a free warm-up).</p>`}
       <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
@@ -1433,11 +1468,11 @@ function showIntro() {
 function showHelp() {
   $('card').innerHTML = `
     <div class="k mono">How to play</div>
-    <h2>How far can you get?</h2>
+    <h2>${isPar() ? 'Six holes. Fewest shots wins.' : 'How far can you get?'}</h2>
     <div class="howto">
-      <p>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
-      ${PAR_MODE ? `<p>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3. Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>` : ''}
-      <p${PAR_MODE ? ' hidden' : ''}>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
+      <p${isPar() ? ' hidden' : ''}>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
+      ${isPar() ? `<p>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3. Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>` : ''}
+      <p${isPar() ? ' hidden' : ''}>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. To go for a different ball, <b>tap it on the table</b>.</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dotted line shows where the object ball will go.</p>
@@ -1547,7 +1582,7 @@ stage.addEventListener('pointerup', e => {
   const p = toWorld(e);
   let bi = -1, bd = R * 3;   // generous, so a thumb can pick a ball
   table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; bi = k; } } });
-  const g = PAR_MODE && gimmes.find(o => o.bi === bi);
+  const g = isPar() && gimmes.find(o => o.bi === bi);
   if (g) { tapIn(g); return; }
   if (bi >= 0) { focusBall(bi); ls('dailybreak:tappedBall', '1'); }
 });
