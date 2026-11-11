@@ -219,6 +219,28 @@ function courseName(seed) {
 }
 
 // Where a ball must travel to drop in pocket i (just inside the mouth).
+// Weather: one per day, the same for everyone, for the whole run. It began on 12 Nov 2026; earlier days
+// have none, so their saved runs and results still line up with the layouts they were played on.
+const WEATHER = {
+  damp: { emoji: '🌧️', name: 'Damp', sub: 'heavy cloth · hit it harder' },
+  sunny: { emoji: '☀️', name: 'Sunny', sub: 'the sunbeam is slick' },
+  draughty: { emoji: '🌬️', name: 'Draughty', sub: 'a breeze across the table' },
+  stormy: { emoji: '⛈️', name: 'Stormy', sub: 'thunder shakes the balls' },
+  cold: { emoji: '❄️', name: 'Cold', sub: 'lively cushions' },
+};
+const WEATHER_FROM = '2026-11-12';
+// Daily seeds run through all five in a shuffled order every five days, never the same two days running;
+// other seeds (random practice tables) just pick one.
+function weatherFor(seed) {
+  const k = Object.keys(WEATHER);
+  if (!isDailySeed(seed)) return k[Math.floor(rngFor(seed + ':weather')() * k.length)];
+  if (seed < WEATHER_FROM) return null;
+  const day = Math.round(Date.UTC(+seed.slice(0, 4), +seed.slice(5, 7) - 1, +seed.slice(8, 10)) / 864e5), blk = Math.floor(day / 5);
+  const order = b => shuffle(rngFor('weather:block:' + b), [...k]), cur = order(blk);
+  if (cur[0] === order(blk - 1)[4]) [cur[0], cur[1]] = [cur[1], cur[0]];
+  return cur[day - blk * 5];
+}
+
 function pocketAim(i) {
   const p = POCKETS[i];
   return { x: p.x <= 0 ? R + 1 : p.x >= W ? W - R - 1 : p.x, y: p.y <= 0 ? R + 1 : p.y >= H ? H - R - 1 : p.y };
@@ -259,6 +281,7 @@ function clearable(h) {
   let t = new Table(h);
   for (let shot = 0; shot < h.balls.length; shot++) {
     if (!t.remaining()) return true;
+    t.thunder(shot);   // stormy days: the bot faces the same thunder as the player
     const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.45).sort((a, b) => b.q - a.q).slice(0, 4);
     let best = null;
     search: for (const l of ls) for (const pw of [0.4, 0.3, 0.55]) for (const sp of [0, 0.6, -0.6]) {
@@ -330,7 +353,19 @@ function buildHole(seed, i, attempt) {
     const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (6 + hz * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
-  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt };
+  // the day's weather (its own random stream, so it never moves the balls themselves)
+  const weather = weatherFor(seed), wr = rngFor(`${seed}:weather:${i}` + (attempt ? `:${attempt}` : ''));
+  let wind = null;
+  // sunny: a slick sunbeam from the window lands somewhere new on each level
+  if (weather === 'sunny') patches.push({ type: 'sun', x: 130 + wr() * (W - 260), y: 150 + wr() * (H - 300), rx: 120 + wr() * 50, ry: 38 + wr() * 18, rot: 0.25 + wr() * 0.3, seed: 0 });
+  // draughty: a breeze from the window pushes moving balls to the right inside one band of the table
+  if (weather === 'draughty') { const bh = 170 + wr() * 90, y0 = 80 + wr() * (H - 160 - bh); wind = { y0, y1: y0 + bh, ax: 16 + wr() * (8 + hz * 2) }; }
+  return {
+    i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, weather, wind,
+    decel: weather === 'damp' ? 1.25 : 1,                    // damp: heavy cloth, balls die sooner
+    cushE: weather === 'cold' ? 0.88 : CUSHION_E,            // cold: lively cushions
+    thunder: weather === 'stormy',                           // stormy: thunder before some shots
+  };
 }
 
 class Table {
@@ -353,15 +388,18 @@ class Table {
   }
 
   step() {
-    const live = this.live(), tl = this.hole.tilt, s = this.shot;
+    const live = this.live(), tl = this.hole.tilt, wd = this.hole.wind, dc = this.hole.decel || 1, s = this.shot;
     for (const b of live) {
-      if (b.vx || b.vy) { b.vx += tl.x * DT; b.vy += tl.y * DT; }
+      if (b.vx || b.vy) {
+        b.vx += tl.x * DT; b.vy += tl.y * DT;
+        if (wd && b.y > wd.y0 && b.y < wd.y1) b.vx += wd.ax * DT;
+      }
       b.x += b.vx * DT; b.y += b.vy * DT;
       const sp = Math.hypot(b.vx, b.vy);
       if (sp > 0) {
         const lie = this.hole.patches.length ? lieAt(this.hole, b.x, b.y) : 'felt';
-        const fd = lie === 'rough' ? 3.2 : lie === 'slick' ? 0.3 : 1, fk = lie === 'rough' ? 1.6 : lie === 'slick' ? 0.4 : 1;
-        const ns = Math.max(0, sp - (ROLL_DECEL * fd + LIN_DAMP * fk * sp) * DT);
+        const fd = lie === 'rough' ? 3.2 : lie === 'slick' ? 0.3 : lie === 'sun' ? 0.5 : 1, fk = lie === 'rough' ? 1.6 : lie === 'slick' ? 0.4 : lie === 'sun' ? 0.6 : 1;
+        const ns = Math.max(0, sp - (ROLL_DECEL * fd * dc + LIN_DAMP * fk * sp) * DT);
         const f = ns < STOP ? 0 : ns / sp;
         b.vx *= f; b.vy *= f;
       }
@@ -425,10 +463,11 @@ class Table {
       if (potted) continue;
       const sp = Math.hypot(b.vx, b.vy);
       let hitWall = false;
-      if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * CUSHION_E; hitWall = true; }
-      if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx) * CUSHION_E; hitWall = true; }
-      if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * CUSHION_E; hitWall = true; }
-      if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) * CUSHION_E; hitWall = true; }
+      const ce = this.hole.cushE ?? CUSHION_E;
+      if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * ce; hitWall = true; }
+      if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx) * ce; hitWall = true; }
+      if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * ce; hitWall = true; }
+      if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) * ce; hitWall = true; }
       if (hitWall) b.cush = (b.cush || 0) + 1;
       if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
     }
@@ -440,6 +479,24 @@ class Table {
     const s = this.shot;
     if (!s) return;
     if (b.isCue) s.scratch = true; else s.pots.push({ ball: b, pocket: i });
+  }
+
+  // Stormy days: before some shots (k = shots already taken on this level) a thunderclap jolts the table
+  // and every ball shifts a few pixels. Seeded by level and shot, so the bot and every player get the same.
+  thunder(k) {
+    if (!this.hole.thunder || k < 1) return false;
+    const r = rngFor(`${this.hole.seed}:${this.hole.i}:thunder:${k}`);
+    if (r() > 0.4) return false;
+    const ang = r() * TAU;   // the jolt has a direction; each ball moves a little differently
+    for (const b of this.live()) {
+      const a = ang + (r() - 0.5) * 1.2, d = 4 + r() * 8, x = b.x + Math.cos(a) * d, y = b.y + Math.sin(a) * d;
+      const free = x > R && x < W - R && y > R && y < H - R &&
+        this.live().every(o => o === b || Math.hypot(o.x - x, o.y - y) > 2 * R + 0.5) &&
+        this.hole.bumpers.every(o => Math.hypot(o.x - x, o.y - y) > o.r + R) &&
+        POCKETS.every(p => Math.hypot(p.x - x, p.y - y) > p.cap + 2);
+      if (free) { b.x = x; b.y = y; }
+    }
+    return true;
   }
 
   // put a ball back near (x, y) without overlapping anything
@@ -542,6 +599,8 @@ const PTS = { pot: 100, bank: 50, combo: 50, multi: 50, level: 100 };
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 const aidLevel = () => 2;
 const hearts = n => '❤️'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, LIVES - n));
+const wxInfo = (seed = round?.seed) => WEATHER[seed != null && weatherFor(seed)] || null;
+const wxLine = () => { const w = wxInfo(); return w ? `${w.emoji} ${w.name} · ${w.sub}` : ''; };
 const potGain = () => Math.round(PTS.pot * streakMult(hs.streak + 1));
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
@@ -549,7 +608,7 @@ let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strik
 let hs = null, shotLog = [], levelMisses = 0;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
-const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0 };
+const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0, flash: 0 };
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
 
@@ -672,6 +731,8 @@ const sfx = {
     if (gold) { tone(f * 1.5, 0.5, 0.045, 'sine', 1, 0.14, 0.6); tone(f * 3, 0.4, 0.02, 'sine', 1, 0.16, 0.6); }
   },
   holed(good) { const n = good ? [523.25, 659.25, 783.99, 1046.5, 1318.5] : [523.25, 659.25, 783.99]; n.forEach((f, k) => { tone(f, 0.7, 0.08, 'triangle', 1, k * 0.09, 0.6); tone(f * 2, 0.4, 0.025, 'sine', 1, k * 0.09 + 0.02, 0.6); }); },
+  // a thunderclap: a sharp crack, then a long low rumble rolling away
+  thunder() { noise(0.3, 0.45, 1400, 'lowpass', 0, 0.7); for (let k = 0; k < 4; k++) noise(0.9, 0.42 - k * 0.08, 150 - k * 20, 'lowpass', 0.12 + k * 0.45, 0.9); tone(42, 1.6, 0.3, 'sine', 0.7, 0.1, 0.3); },
   stamp() { noise(0.12, 0.5, 300); tone(80, 0.18, 0.3, 'sine', 0.6, 0, 0.1); },
   penalty() { tone(330, 0.2, 0.08, 'triangle', 0.7, 0, 0.3); tone(262, 0.3, 0.08, 'triangle', 0.7, 0.15, 0.3); },
   click() { tone(660, 0.05, 0.05, 'sine', 1, 0, 0.2); },
@@ -758,6 +819,7 @@ function startHole(i) {
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: 1.5, max: 1.5 };
+  if (i === 0 && wxInfo()) Object.assign(banner, { sub2: wxLine(), life: 2.6, max: 2.6 });
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   if (i === 1 && !ls('dailybreak:tappedBall')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') float(W / 2, H * 0.62, 'Tap a ball to target it', '#2f6b4f', 20, 2.6); }, 1700); }
@@ -923,8 +985,16 @@ function resolveShot() {
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (round.lives <= 0) endRun();
   else if (!table.remaining()) { finishHole(); saveRun(round.level + 1); }
-  else { lineUp(); saveRun(); }
+  else {
+    const boom = table.thunder(strokes);   // stormy: the balls shift before you line up the next shot
+    lineUp(); saveRun();
+    if (boom) thunderFx();
+  }
   renderCard9(); updateUI();
+}
+function thunderFx() {
+  fx.flash = 1; fx.shake = Math.max(fx.shake, 9); sfx.thunder(); buzz([40, 40, 80]);
+  float(W / 2, H * 0.2, 'Thunder! The balls shifted', '#4d5d7d', 20, 1.8);
 }
 
 // A ranked run in progress is saved after every shot (level, lives, score and where every ball is),
@@ -953,7 +1023,7 @@ function resumeRun() {
     lineUp();
     saveRun();   // startHole saved a fresh layout; put the real one back so a second reload can't reset the balls
   }
-  banner = { title: `Level ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${hearts(round.lives)}`, life: 1.8, max: 1.8 };
+  banner = { title: `Level ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${hearts(round.lives)}`, sub2: wxInfo() ? wxLine() : '', life: 2.2, max: 2.2 };
   renderCard9(); updateUI();
   return true;
 }
@@ -1062,14 +1132,16 @@ function confettiBurst(n) {
 const RESULT_EMOJI = { clean: '🟢', life: '🟡', fail: '❌' };
 // The header: the level you're on and your lives.
 function renderCard9() {
-  $('card9').innerHTML = `<div class="c cur lvl"><b>Level ${round.level + 1}</b></div><div class="c lives">${hearts(round.lives)}</div>`;
+  const w = wxInfo();
+  $('card9').innerHTML = `<div class="c cur lvl"><b>Level ${round.level + 1}</b></div><div class="c lives">${hearts(round.lives)}</div>${w ? `<div class="c wx" title="${w.name}: ${w.sub}">${w.emoji}</div>` : ''}`;
 }
 function updateUI() {
   if (!table) return;
   const left = table.remaining();
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
-  $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
+  const w = wxInfo();   // a flat table shows the day's weather in the tilt cell instead
+  $('iTilt').innerHTML = hole.tilt.mag || !w ? `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>` : `Weather ${w.emoji}<b>${w.name}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
@@ -1110,7 +1182,8 @@ function todaysResult() {
 function shareText() {
   const r = todaysResult();
   if (!r) return '';
-  return `Daily Break ${dayLabel(r.seed)} 🎱\nLevel ${r.level + 1} · ${r.potted} ball${r.potted === 1 ? '' : 's'}\n${(r.results || []).map(x => RESULT_EMOJI[x]).join('')}\n${gameUrl()}`;
+  const w = wxInfo(r.seed);
+  return `Daily Break ${dayLabel(r.seed)} 🎱${w ? ` · ${w.emoji} ${w.name}` : ''}\nLevel ${r.level + 1} · ${r.potted} ball${r.potted === 1 ? '' : 's'}\n${(r.results || []).map(x => RESULT_EMOJI[x]).join('')}\n${gameUrl()}`;
 }
 function gameUrl() { return location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL; }
 const canNativeShare = () => !!navigator.share && matchMedia('(pointer: coarse)').matches;
@@ -1127,7 +1200,7 @@ async function shareResult(b) {
 function showFinal(already) {
   const practice = !round.ranked, today = shareText();
   $('card').innerHTML = `
-    <div class="k mono">${practice ? 'Practice · not ranked' : courseName(round.seed)}</div>
+    <div class="k mono">${practice ? 'Practice · not ranked' : courseName(round.seed)}${wxInfo() ? ` · ${wxInfo().emoji} ${wxInfo().name}` : ''}</div>
     <h2>${already ? "Today's run is in" : practice ? 'Practice over' : 'Run over'}</h2>
     <div class="k mono">reached</div>
     <div class="big">Level ${round.level + 1}</div>
@@ -1177,6 +1250,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
+      <p>🌦️ Every day has its own <b>weather</b>, the same for everyone: 🌧️ <b>damp</b> (heavy cloth, hit harder), ☀️ <b>sunny</b> (a slick sunbeam on the felt), 🌬️ <b>draughty</b> (a breeze pushes rolling balls right across one band), ⛈️ <b>stormy</b> (thunder shifts the balls before some shots) or ❄️ <b>cold</b> (lively cushions).</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
     </div>
@@ -1546,6 +1620,16 @@ const DECOR = {
 const motes = Array.from({ length: 28 }, (_, i) => ({ x: hash01(i) * (W + 200) - 100, y: hash01(i + 40) * (H + 200) - 100, p: hash01(i + 80) * TAU, s: 0.4 + hash01(i + 120) }));
 const clouds = Array.from({ length: 3 }, (_, i) => ({ x: hash01(i + 7) * 1400 - 700, y: hash01(i + 9) * 1400 - 200, r: 500 + hash01(i + 11) * 400, v: 7 + hash01(i + 13) * 6 }));
 let recordAngle = 0, recordSpeed = 0;
+// How the room looks in each weather: window light, what falls past the window, plant sway, a tint over everything.
+const WX_LOOK = {
+  none: { light: 'rgba(255,246,220,.22)', drops: 26, fall: 1, lean: 0.25, sway: 0.05 },
+  damp: { light: 'rgba(236,240,236,.16)', drops: 40, fall: 1.4, lean: 0.3, sway: 0.05, tint: 'rgba(50,65,85,.08)' },
+  sunny: { light: 'rgba(255,238,190,.38)', drops: 0, sway: 0.05, tint: 'rgba(255,200,120,.05)', motes: 1.6 },
+  draughty: { light: 'rgba(255,246,220,.22)', drops: 0, sway: 0.16, swayF: 1.8, drift: 50 },
+  stormy: { light: 'rgba(220,226,240,.12)', drops: 64, fall: 2.6, lean: 0.55, sway: 0.11, swayF: 1.4, tint: 'rgba(30,40,65,.14)' },
+  cold: { light: 'rgba(225,238,255,.26)', drops: 34, fall: 0.3, snow: true, sway: 0.04, tint: 'rgba(170,200,240,.09)' },
+};
+const wxLook = () => WX_LOOK[hole?.weather] || WX_LOOK.none;
 
 function drawFloor(x0, y0, x1, y1) {
   const PW = 58;
@@ -1563,13 +1647,19 @@ function drawWindowLight(t) {
   const w = DECOR.window, pts = [[w.x, w.y], [w.x + 230, w.y + 60], [w.x + 230, w.y + 360], [w.x, w.y + 300]];
   ctx.save();
   ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
-  ctx.fillStyle = 'rgba(255,246,220,.22)'; ctx.fill(); ctx.clip();
+  const L = wxLook();
+  ctx.fillStyle = L.light; ctx.fill(); ctx.clip();
   ctx.strokeStyle = 'rgba(120,90,60,.16)'; ctx.lineWidth = 10;
   ctx.beginPath(); ctx.moveTo(w.x + 115, w.y); ctx.lineTo(w.x + 115, w.y + 400); ctx.moveTo(w.x - 20, w.y + 180); ctx.lineTo(w.x + 260, w.y + 240); ctx.stroke();
-  ctx.fillStyle = 'rgba(120,100,80,.12)';
-  for (let k = 0; k < 26; k++) {
-    const x = w.x + hash01(k) * 240, sp = 30 + hash01(k + 3) * 40, y = w.y - 20 + ((t * sp + hash01(k + 6) * 400) % 420);
-    ctx.beginPath(); ctx.ellipse(x, y, 1.6, 5 + hash01(k + 9) * 4, 0.25, 0, TAU); ctx.fill();
+  // the shadows of rain (or snow) running down the glass
+  ctx.fillStyle = L.snow ? 'rgba(110,120,140,.13)' : 'rgba(120,100,80,.12)';
+  for (let k = 0; k < L.drops; k++) {
+    const sp = (30 + hash01(k + 3) * 40) * L.fall, y = w.y - 20 + ((t * sp + hash01(k + 6) * 400) % 420);
+    const x = w.x + hash01(k) * 240 + (L.snow ? Math.sin(t * 0.8 + k) * 8 : 0);
+    ctx.beginPath();
+    if (L.snow) ctx.arc(x, y, 1.8 + hash01(k + 9) * 2, 0, TAU);
+    else ctx.ellipse(x, y, 1.6, (5 + hash01(k + 9) * 4) * (L.fall > 2 ? 1.6 : 1), L.lean, 0, TAU);
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -1595,7 +1685,7 @@ function drawPlant([x, y, r, seed], t) {
   const greens = ['#5f8a5a', '#4a7449', '#7aa36e', '#567f50'];
   const n = 12;
   for (let k = 0; k < n; k++) {
-    const a = k / n * TAU + hash01(seed * 10 + k) * 0.5 + Math.sin(t * 0.7 + k + seed) * 0.05, len = r * (0.7 + 0.35 * hash01(seed * 20 + k));
+    const L = wxLook(), a = k / n * TAU + hash01(seed * 10 + k) * 0.5 + Math.sin(t * 0.7 * (L.swayF || 1) + k + seed) * L.sway, len = r * (0.7 + 0.35 * hash01(seed * 20 + k));
     ctx.save(); ctx.translate(x, y); ctx.rotate(a);
     ctx.fillStyle = greens[(k + seed) % greens.length];
     ctx.beginPath(); ctx.ellipse(len * 0.55, 0, len * 0.55, r * 0.17, 0, 0, TAU); ctx.fill();
@@ -1676,11 +1766,30 @@ function drawTable(t, dt) {
   felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
   ctx.fillStyle = felt; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
+  if (hole.weather === 'damp') { ctx.fillStyle = 'rgba(25,55,45,.14)'; ctx.fillRect(0, 0, W, H); }   // heavy, damp cloth
   ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+  if (hole.weather === 'cold') {   // frost along the lively cushions
+    ctx.strokeStyle = 'rgba(225,238,255,.55)'; ctx.lineWidth = 4; ctx.strokeRect(2, 2, W - 4, H - 4);
+    ctx.fillStyle = 'rgba(240,248,255,.5)';
+    for (let k = 0; k < 90; k++) { const u = hash01(k + 300), side = k % 4, e = 2 + hash01(k + 400) * 6; ctx.fillRect(side === 0 ? u * W : side === 1 ? W - e : side === 2 ? u * W : e - 2, side === 0 ? e - 2 : side === 1 ? u * H : side === 2 ? H - e : u * H, 2, 2); }
+  }
   for (const p of hole.patches) {
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
     ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
-    if (p.type === 'rough') {
+    if (p.type === 'sun') {
+      // a warm pool of light from the window, crossed by the shadows of its frame; its dashed edge is the slick part
+      ctx.save(); ctx.scale(1, p.ry / p.rx);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, p.rx);
+      const pulse = 0.04 * Math.sin(t * 0.7);
+      g.addColorStop(0, `rgba(255,240,180,${0.42 + pulse})`); g.addColorStop(0.8, `rgba(255,232,165,${0.28 + pulse})`); g.addColorStop(1, 'rgba(255,225,150,.16)');
+      ctx.fillStyle = g; ctx.fill(); ctx.restore();
+      ctx.save(); ctx.clip();
+      ctx.strokeStyle = 'rgba(110,85,45,.14)'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(0, -p.ry); ctx.lineTo(0, p.ry); ctx.moveTo(-p.rx, 0); ctx.lineTo(p.rx, 0); ctx.stroke();
+      ctx.restore();
+      ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
+      ctx.setLineDash([7, 7]); ctx.strokeStyle = 'rgba(255,228,150,.6)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+    } else if (p.type === 'rough') {
       ctx.fillStyle = '#c9b88c'; ctx.fill(); ctx.strokeStyle = '#b3a173'; ctx.lineWidth = 3; ctx.stroke(); ctx.clip();
       ctx.fillStyle = 'rgba(140,115,70,.35)';
       for (let k = 0; k < 70; k++) { const a = hash01(p.seed + k) * TAU, rr = Math.sqrt(hash01(p.seed + k + 99)); ctx.fillRect(Math.cos(a) * rr * p.rx, Math.sin(a) * rr * p.ry, 2, 2); }
@@ -1693,6 +1802,21 @@ function drawTable(t, dt) {
       for (let k = -8; k < 8; k++) { ctx.beginPath(); ctx.moveTo(-p.rx + k * 60 + sh, -p.ry); ctx.lineTo(-p.rx + k * 60 + sh + p.ry, p.ry); ctx.stroke(); }
     }
     ctx.restore();
+  }
+  if (hole.wind) {
+    // the breeze: a faint band with wisps blowing right (the way it pushes rolling balls)
+    const { y0, y1, ax } = hole.wind, bh = y1 - y0;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, y0, W, bh); ctx.clip();
+    ctx.fillStyle = 'rgba(225,240,250,.12)'; ctx.fillRect(0, y0, W, bh);
+    ctx.strokeStyle = 'rgba(255,255,255,.38)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    for (let k = 0; k < 11; k++) {
+      const v = ax * (2.2 + hash01(k + 60) * 1.6), len = 40 + hash01(k + 70) * 40;
+      const x = ((t * v + hash01(k + 80) * 900) % (W + 160)) - 80, y = y0 + 14 + hash01(k + 90) * (bh - 28) + Math.sin(t * 2 + k) * 4;
+      ctx.beginPath(); ctx.moveTo(x - len, y); ctx.quadraticCurveTo(x - len / 2, y - 7 * Math.sin(t * 3 + k), x, y); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.setLineDash([6, 8]); ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(W, y0); ctx.moveTo(0, y1); ctx.lineTo(W, y1); ctx.stroke(); ctx.setLineDash([]);
   }
   if (hole.tilt.mag) {
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
@@ -1946,10 +2070,11 @@ function drawBanner(dt) {
   const a = Math.min(1, banner.life * 2, (banner.max - banner.life) * 4);
   ctx.save(); ctx.globalAlpha = Math.max(0, a);
   ctx.fillStyle = 'rgba(251,248,240,.93)'; ctx.strokeStyle = 'rgba(120,100,70,.35)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(W * 0.08, H * 0.42 - 54, W * 0.84, 108, 16); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(W * 0.08, H * 0.42 - 54, W * 0.84, banner.sub2 ? 142 : 108, 16); ctx.fill(); ctx.stroke();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#2d3a30';
   ctx.font = "800 40px 'DM Sans', sans-serif"; ctx.fillText(banner.title, W / 2, H * 0.42 - 12);
   ctx.font = "500 14px 'DM Mono', monospace"; ctx.fillStyle = '#6d7568'; ctx.fillText(banner.sub.toUpperCase(), W / 2, H * 0.42 + 26);
+  if (banner.sub2) { ctx.font = "700 15px 'DM Sans', sans-serif"; ctx.fillStyle = '#4d6a8a'; ctx.fillText(banner.sub2, W / 2, H * 0.42 + 60); }
   ctx.restore();
   if (banner.life <= 0) banner = null;
 }
@@ -2061,9 +2186,11 @@ function draw(t, dt) {
     ctx.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
   }
   ctx.globalCompositeOperation = 'lighter';
+  const LK = wxLook();
   for (const m of motes) {
-    const mx = m.x + Math.sin(t * 0.13 * m.s + m.p) * 40, my = m.y + Math.cos(t * 0.1 * m.s + m.p) * 30 - (t * 4 * m.s) % 60;
-    ctx.globalAlpha = 0.25 + 0.35 * Math.sin(t * m.s + m.p) ** 2;
+    const dr = LK.drift ? ((m.x + 100 + t * LK.drift * m.s) % (W + 200)) - 100 : m.x;
+    const mx = dr + Math.sin(t * 0.13 * m.s + m.p) * 40, my = m.y + Math.cos(t * 0.1 * m.s + m.p) * 30 - (t * 4 * m.s) % 60;
+    ctx.globalAlpha = Math.min(1, (0.25 + 0.35 * Math.sin(t * m.s + m.p) ** 2) * (LK.motes || 1));
     ctx.drawImage(MOTE, mx - 4, my - 4, 8, 8);
   }
   ctx.globalAlpha = 1;
@@ -2082,6 +2209,13 @@ function draw(t, dt) {
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
   vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + (1 - timeScale) * 0.45})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
+  if (LK.tint) { ctx.fillStyle = LK.tint; ctx.fillRect(0, 0, cw, ch); }
+  // lightning: a bright flash that flickers once as it fades
+  if (fx.flash > 0) {
+    fx.flash = Math.max(0, fx.flash - dt * 1.8);
+    const f = fx.flash, a = f > 0.7 ? f : f > 0.55 ? 0.15 : f * 0.9;
+    ctx.fillStyle = `rgba(236,242,255,${0.55 * a})`; ctx.fillRect(0, 0, cw, ch);
+  }
   // film grain: hop the noise tile to a new random offset ~12 times a second, so it shimmers in place
   // (sliding it steadily made it read as diagonal rain)
   const gf = Math.floor(t * 12), gx = hash01(gf) * 160, gy = hash01(gf + 0.5) * 160;

@@ -151,3 +151,29 @@ cue and ball positions; after a clear it saves the start of the next level). `re
 on load ("Carrying on · N balls left"), so reloading can't restart a bad run and an interrupted player
 keeps their progress. The save is removed when the run ends and never written for practice or once
 today's result exists.
+
+## Weather (from 12 Nov 2026)
+
+Each day has one weather for the whole run, the same for everyone (`WEATHER`, `weatherFor`). Daily seeds run
+through all five in a shuffled order every five days, never the same two days running; days before
+`WEATHER_FROM` (2026-11-12) have none, so older saved runs and results still match their layouts. Random
+practice tables just pick one. `buildHole` stores it on the level (its own random stream, `seed:weather:i`,
+so it never moves the balls), and the physics reads it in `Table.step`:
+
+- 🌧️ **Damp**: heavy cloth, rolling friction ×1.25 (`hole.decel`); darker felt, more rain on the window.
+- ☀️ **Sunny**: a slick sunbeam patch (`type: 'sun'`, friction ×0.5) lands somewhere new on each level;
+  drawn as warm light crossed by the window frame, with a dashed edge.
+- 🌬️ **Draughty**: a breeze pushes rolling balls to the right inside one band of the table (`hole.wind`,
+  {y0, y1, ax}, stronger at higher levels); drawn as a pale band with wisps, dashed edges; plants sway.
+- ⛈️ **Stormy**: before some shots (40%, from the second shot of a level) a thunderclap shifts every ball
+  4–12 px (`Table.thunder(k)`, seeded by level and shot, never into a pocket or another ball); lightning
+  flash, rumble, shake. `clearable` applies the same thunder, so levels stay clearable.
+- ❄️ **Cold**: lively cushions (`hole.cushE` 0.88 vs 0.78); frost on the cushions, snow past the window.
+
+Shown as an icon in the header, in the tilt cell when the table is flat ("Weather"), on the level 1
+banner, the result card and the share text ("Daily Break 12 Nov 🎱 · ⛈️ Stormy"), and in the help.
+All five keep every generated level clearable (60/60 levels each in testing), and generation stays at
+5–10 ms per level on average (worst seen ~90 ms).
+
+Known issue: `SITE_URL` is used by `gameUrl()` but never defined, so sharing fails when `index.html` is
+opened from disk (fine on dailybreak.app, which uses its own address).
