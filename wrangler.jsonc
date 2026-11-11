@@ -11,7 +11,10 @@
     { "pattern": "www.dailybreak.app", "custom_domain": true }
   ],
   // anonymous ranked results (day, level, balls, points) for .github/workflows/results.yml
-  "analytics_engine_datasets": [{ "binding": "RESULTS", "dataset": "daily_break_results" }],
+  "analytics_engine_datasets": [
+    { "binding": "RESULTS", "dataset": "daily_break_results" },
+    { "binding": "EVENTS", "dataset": "daily_break_events" }   // drop-off funnel steps
+  ],
   // per-day count of players at each level, for "better than X% of today's players"
   "durable_objects": { "bindings": [{ "name": "DAYS", "class_name": "DayCounts" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DayCounts"] }],

@@ -20,6 +20,30 @@ def account():
     return call(API + '/accounts')['result'][0]['id']
 
 
+STEPS = [('open', 'Opened'), ('shot', 'Took a shot'), ('clear1', 'Cleared level 1'), ('level3', 'Reached level 3'), ('finish', 'Finished')]
+
+
+def fetch_funnel(acc, days):
+    sql = (f"SELECT blob1 AS day, blob2 AS step, SUM(_sample_interval) AS n FROM daily_break_events "
+           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY GROUP BY day, step FORMAT JSON")
+    return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+def funnel_report(rows, days=14):
+    by_day = defaultdict(dict)
+    for r in rows:
+        by_day[r['day']][r['step']] = int(float(r['n']))
+    out = ['## Where people drop off (ranked game, one count per phone)', '']
+    if not by_day:
+        return '\n'.join(out + ['No funnel data yet (it starts from 11 Nov 2026).', ''])
+    out += ['| Day | ' + ' | '.join(n for _, n in STEPS) + ' |', '|---' * (len(STEPS) + 1) + '|']
+    for day in sorted(by_day, reverse=True)[:days]:
+        c = by_day[day]; top = c.get('open') or max(c.values())
+        cells = [f"{c.get(k, 0)} ({round(100 * c.get(k, 0) / top)}%)" if top else '0' for k, _ in STEPS]
+        out.append(f"| {dt.date.fromisoformat(day).strftime('%a %-d %b')} | " + ' | '.join(cells) + ' |')
+    return '\n'.join(out + [''])
+
+
 VISITS_Q = """query($acc: string!, $since: Date!) { viewer { accounts(filter: {accountTag: $acc}) {
   days: rumPageloadEventsAdaptiveGroups(limit: 100, filter: {date_geq: $since, requestHost: "dailybreak.app"}, orderBy: [date_DESC]) { count sum { visits } dimensions { date } }
   refs: rumPageloadEventsAdaptiveGroups(limit: 8, filter: {date_geq: $since, requestHost: "dailybreak.app"}, orderBy: [sum_visits_DESC]) { sum { visits } dimensions { refererHost } }
@@ -83,6 +107,10 @@ if __name__ == '__main__':
     days = int(sys.argv[1]) if len(sys.argv) > 1 else 14
     acc = account()
     print(report(fetch(days, acc), days))
+    try:
+        print(funnel_report(fetch_funnel(acc, days), days))
+    except Exception as e:   # the events dataset only exists once the first event arrives
+        print(f'## Where people drop off\n\nNo funnel data yet ({e}).\n')
     try:
         print(visits_report(fetch_visits(acc, days)))
     except Exception as e:   # visits are a bonus: never fail the results report over them

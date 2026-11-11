@@ -138,3 +138,9 @@ Practice limit (11 Nov 2026): 3 practice runs a day in total (`PRACTICE_PER_DAY`
 under `dailybreak:practice:<date>`). "Practice run" replays today's levels unranked; "Random table"
 is a fresh random seed. The result card shows how many are left; at 0 the buttons go and an old
 `?seed=` link opens today's game instead.
+
+Drop-off funnel (11 Nov 2026): `track(step)` sends one anonymous `{day, step}` to `POST /api/event` for
+each of open → shot (first shot) → clear1 (cleared level 1) → level3 (reached level 3) → finish, at most
+once per device per day (`dailybreak:ev:<day>:<step>`), ranked daily runs on dailybreak.app only.
+The Worker writes them to Analytics Engine dataset `daily_break_events` (blob1 day, blob2 step); the
+Results report shows them as a funnel table with percentages of "Opened".
