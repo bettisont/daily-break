@@ -152,48 +152,15 @@ on load ("Carrying on · N balls left"), so reloading can't restart a bad run an
 keeps their progress. The save is removed when the run ends and never written for practice or once
 today's result exists.
 
-## Weather (from 12 Nov 2026)
+## Pace and the pull-back camera (11 Nov 2026)
 
-Each day has one weather for the whole run, the same for everyone (`WEATHER`, `weatherFor`). Daily seeds run
-through all five in a shuffled order every five days, never the same two days running; days before
-`WEATHER_FROM` (2026-11-12) have none, so older saved runs and results still match their layouts (checked:
-10–11 Nov layouts are identical to before). Random practice tables just pick one. `buildHole` stores it on the
-level (its own random stream, `seed:weather:i`, so it never moves the balls), and the physics reads it in
-`Table.step`. Each is tuned to move a typical shot by about a ball width or more (measured on a lone cue
-ball at powers 0.25 / 0.4 / 0.6, distance from where it stops on a plain table):
-
-- 🌧️ **Damp**: heavy cloth, rolling friction ×1.5 (`hole.decel`) and dead cushions (0.62): 140–485 px shorter.
-  Rain shadows across the room, grey-blue grade, the lamp on brighter, a bucket catching a roof drip.
-- ☀️ **Sunny**: a big, nearly frictionless sunbeam (`type: 'sun'`, friction ×0.15) lands somewhere new on each
-  level: 70–110 px. It's drawn over the aim line (`drawSunbeams`), so its glare hides the guide where it
-  crosses the beam. Warm grade, light shafts across the floor, the cat sprawled in a sun pool, no clouds.
-- 🌬️ **Draughty**: a breeze pushes rolling balls to the right inside a 280–380 px band (`hole.wind`, 110–150
-  px/s², more at higher levels): 30–85 px, most on slow balls. Pale band with wisps, autumn leaves blowing
-  across under the balls, fast cloud shadows, plants thrashing.
-- ⛈️ **Stormy**: before 45% of shots (from a level's second shot) thunder shifts every ball 15–30 px
-  (`Table.thunder(k)`, seeded by level and shot, never into a pocket or another ball), with flash, rumble
-  and shake. Dark grade with the lamp glowing, heavy rain shadows, distant lightning flickers now and then
-  (visual only), and the cat hides under the armchair with only its tail out (bushy after thunder).
-- ❄️ **Cold**: lively cushions (0.95) and fast cloth (×0.8): 90–320 px longer, more scratches; cold hands make
-  the cue tip shakier (+0.12 in `contactDiff`). Blue grade, frost in the screen corners and on the cushions,
-  snow shadows, a blanket on the armchair, steaming tea, the cat curled up tight.
-
-On weather days the level-checking bot aims off up to ±6° until the pot drops (`potAim`), the way a player
-has to; without that, strong weather made most layouts fail the check. All five keep every generated level
-clearable (60/60 each in testing). Generation is slower on weather days: 17–56 ms per level on average,
-worst seen ~350 ms (draughty); it runs in the background 1.5 s into the previous level.
-
-Pull-back camera: while you hold the pull-back cue (and through the strike, until the balls roll) the camera
-glides the cue ball to the middle of the screen and zooms to 1.12× (`PULL_ZOOM`, `cam.px`/`cam.py` pan),
-stopping short if that would push the targeted ball within 44 px of the screen edge; it eases back to the
-full table as the shot rolls.
-
-Pace: the table plays at 0.75× (`PLAY`), the automatic speed-up waits until everything is under 35 after 2 s
-and runs at 1.6×, and a tap fast-forwards at 3× (was 1×, 2× after 1.2 s under 70, and 4×). Outcomes are
-unchanged; a medium shot takes about a second longer to watch.
-
-Shown as an icon in the header, in the tilt cell when the table is flat ("Weather"), on the level 1
-banner, the result card and the share text ("Daily Break 12 Nov 🎱 · ⛈️ Stormy"), and in the help.
-
-Known issue: `SITE_URL` is used by `gameUrl()` but never defined, so sharing fails when `index.html` is
-opened from disk (fine on dailybreak.app, which uses its own address).
+- The table plays at 0.75× (`PLAY`) so there's time to watch the balls; outcomes are unchanged. The
+  automatic speed-up waits until everything is under 35 after 2 s and runs at 1.6×, and a tap fast-forwards
+  at 3× (was 1×, then 2× after 1.2 s under 70, and 4× on a tap).
+- While you hold the pull-back cue (and through the strike, until the balls roll) the camera glides the cue
+  ball to the centre of the table view and zooms to 1.12× (`PULL_ZOOM`, pan in `cam.px`/`cam.py`); it eases
+  back to the whole table as the shot rolls. A far target ball can go off screen while you pull; the aim was
+  set before pulling.
+- A daily weather system (damp, sunny, draughty, stormy, cold) was built and tried on this branch on 11 Nov
+  2026 and taken out again: it changed how balls rolled but not what you were trying to do on each level.
+  It's in the branch history (commits "Daily weather…" and "Stronger weather…") if it's ever wanted.
