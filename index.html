@@ -1247,6 +1247,7 @@ function shareText() {
   if (!r) return '';
   return `Daily Break ${dayLabel(r.seed)} 🎱\nLevel ${r.level + 1} · ${r.potted} ball${r.potted === 1 ? '' : 's'}\n${(r.results || []).map(x => RESULT_EMOJI[x]).join('')}\n${gameUrl()}`;
 }
+const SITE_URL = 'https://dailybreak.app/';   // keep in step with the meta tags and HOST in src/worker.js
 function gameUrl() { return location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL; }
 const canNativeShare = () => !!navigator.share && matchMedia('(pointer: coarse)').matches;
 const shareLabel = () => `${canNativeShare() ? 'Share' : 'Copy'} ${round.ranked ? 'result' : "today's result"}`;
