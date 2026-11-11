@@ -277,6 +277,15 @@ function makeHole(seed, i) {
 // few pots (stun, follow and draw at three paces), keeps the one that leaves the best next pot, and
 // must clear every ball in as many shots as there are balls, with no fouls. This rules out layouts
 // that only become impossible after the first pot (two balls frozen together on a rail, say).
+const AIM_TRIES = [0, 0.6, -0.6, 1.2, -1.2, 2, -2, 3, -3, 4.5, -4.5, 6, -6].map(d => d * Math.PI / 180);
+// Weather bends the line, so on weather days the bot (like a player) aims off a little until the ball drops.
+function potAim(t, l, pw) {
+  for (const o of AIM_TRIES) {
+    const s = simulate(t, l.angle + o, pw, 0), b = s.balls[l.bi];
+    if (!s.shot.scratch && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b)) return l.angle + o;
+  }
+  return null;
+}
 function clearable(h) {
   let t = new Table(h);
   for (let shot = 0; shot < h.balls.length; shot++) {
@@ -284,12 +293,16 @@ function clearable(h) {
     t.thunder(shot);   // stormy days: the bot faces the same thunder as the player
     const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.45).sort((a, b) => b.q - a.q).slice(0, 4);
     let best = null;
-    search: for (const l of ls) for (const pw of [0.4, 0.3, 0.55]) for (const sp of [0, 0.6, -0.6]) {
-      const s = simulate(t, l.angle, pw, sp), b = s.balls[l.bi];
+    search: for (const l of ls) for (const pw of [0.4, 0.3, 0.55]) {
+      let a = l.angle;
+      if (h.weather) { a = potAim(t, l, pw); if (a == null) continue; }
+      for (const sp of [0, 0.6, -0.6]) {
+      const s = simulate(t, a, pw, sp), b = s.balls[l.bi];
       if (s.shot.scratch || s.shot.firstHit !== b || !s.shot.pots.some(p => p.ball === b)) continue;
       const v = s.remaining() ? leaveQ(s) : 9;
       if (!best || v > best.v) best = { v, s };
       if (v >= 0.45) break search;   // a comfortable next pot: good enough
+      }
     }
     if (!best || (best.v <= 0 && best.s.remaining())) return false;
     best.s.shot = null; t = best.s;
@@ -308,6 +321,7 @@ function openingPot(h) {
   const t = new Table(h);
   const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.55).sort((a, b) => b.q - a.q).slice(0, 4);
   for (const l of ls) for (const pw of [0.3, 0.42, 0.55]) {
+    if (h.weather) { if (potAim(t, l, pw) != null) return true; continue; }
     const s = simulate(t, l.angle, pw, 0), b = s.balls[l.bi];
     if (!s.shot.scratch && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b)) return true;
   }
@@ -357,13 +371,13 @@ function buildHole(seed, i, attempt) {
   const weather = weatherFor(seed), wr = rngFor(`${seed}:weather:${i}` + (attempt ? `:${attempt}` : ''));
   let wind = null;
   // sunny: a slick sunbeam from the window lands somewhere new on each level
-  if (weather === 'sunny') patches.push({ type: 'sun', x: 130 + wr() * (W - 260), y: 150 + wr() * (H - 300), rx: 120 + wr() * 50, ry: 38 + wr() * 18, rot: 0.25 + wr() * 0.3, seed: 0 });
+  if (weather === 'sunny') patches.push({ type: 'sun', x: 140 + wr() * (W - 280), y: 170 + wr() * (H - 340), rx: 150 + wr() * 50, ry: 55 + wr() * 20, rot: 0.25 + wr() * 0.3, seed: 0 });
   // draughty: a breeze from the window pushes moving balls to the right inside one band of the table
-  if (weather === 'draughty') { const bh = 170 + wr() * 90, y0 = 80 + wr() * (H - 160 - bh); wind = { y0, y1: y0 + bh, ax: 16 + wr() * (8 + hz * 2) }; }
+  if (weather === 'draughty') { const bh = 280 + wr() * 100, y0 = 70 + wr() * (H - 140 - bh); wind = { y0, y1: y0 + bh, ax: 110 + wr() * 40 + hz * 5 }; }
   return {
     i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, weather, wind,
-    decel: weather === 'damp' ? 1.25 : 1,                    // damp: heavy cloth, balls die sooner
-    cushE: weather === 'cold' ? 0.88 : CUSHION_E,            // cold: lively cushions
+    decel: weather === 'damp' ? 1.5 : weather === 'cold' ? 0.8 : 1,           // damp: heavy cloth; cold: fast cloth
+    cushE: weather === 'cold' ? 0.95 : weather === 'damp' ? 0.62 : CUSHION_E,  // cold: lively cushions; damp: dead ones
     thunder: weather === 'stormy',                           // stormy: thunder before some shots
   };
 }
@@ -398,7 +412,7 @@ class Table {
       const sp = Math.hypot(b.vx, b.vy);
       if (sp > 0) {
         const lie = this.hole.patches.length ? lieAt(this.hole, b.x, b.y) : 'felt';
-        const fd = lie === 'rough' ? 3.2 : lie === 'slick' ? 0.3 : lie === 'sun' ? 0.5 : 1, fk = lie === 'rough' ? 1.6 : lie === 'slick' ? 0.4 : lie === 'sun' ? 0.6 : 1;
+        const fd = lie === 'rough' ? 3.2 : lie === 'slick' ? 0.3 : lie === 'sun' ? 0.15 : 1, fk = lie === 'rough' ? 1.6 : lie === 'slick' ? 0.4 : lie === 'sun' ? 0.25 : 1;
         const ns = Math.max(0, sp - (ROLL_DECEL * fd * dc + LIN_DAMP * fk * sp) * DT);
         const f = ns < STOP ? 0 : ns / sp;
         b.vx *= f; b.vy *= f;
@@ -486,10 +500,10 @@ class Table {
   thunder(k) {
     if (!this.hole.thunder || k < 1) return false;
     const r = rngFor(`${this.hole.seed}:${this.hole.i}:thunder:${k}`);
-    if (r() > 0.4) return false;
+    if (r() > 0.45) return false;
     const ang = r() * TAU;   // the jolt has a direction; each ball moves a little differently
     for (const b of this.live()) {
-      const a = ang + (r() - 0.5) * 1.2, d = 4 + r() * 8, x = b.x + Math.cos(a) * d, y = b.y + Math.sin(a) * d;
+      const a = ang + (r() - 0.5) * 1.2, d = 15 + r() * 15, x = b.x + Math.cos(a) * d, y = b.y + Math.sin(a) * d;
       const free = x > R && x < W - R && y > R && y < H - R &&
         this.live().every(o => o === b || Math.hypot(o.x - x, o.y - y) > 2 * R + 0.5) &&
         this.hole.bumpers.every(o => Math.hypot(o.x - x, o.y - y) > o.r + R) &&
@@ -590,6 +604,8 @@ const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
+// The table plays at 0.75x so there's time to watch the balls (and the weather) work; outcomes are unchanged.
+const PLAY = 0.75;
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // Scoring (the tiebreak under "level reached"): every pot is 100, banks and combos add 50, extra balls
@@ -733,6 +749,7 @@ const sfx = {
   holed(good) { const n = good ? [523.25, 659.25, 783.99, 1046.5, 1318.5] : [523.25, 659.25, 783.99]; n.forEach((f, k) => { tone(f, 0.7, 0.08, 'triangle', 1, k * 0.09, 0.6); tone(f * 2, 0.4, 0.025, 'sine', 1, k * 0.09 + 0.02, 0.6); }); },
   // a thunderclap: a sharp crack, then a long low rumble rolling away
   thunder() { noise(0.3, 0.45, 1400, 'lowpass', 0, 0.7); for (let k = 0; k < 4; k++) noise(0.9, 0.42 - k * 0.08, 150 - k * 20, 'lowpass', 0.12 + k * 0.45, 0.9); tone(42, 1.6, 0.3, 'sine', 0.7, 0.1, 0.3); },
+  distant() { noise(0.9, 0.12, 110, 'lowpass', 0.6, 0.9); noise(0.9, 0.08, 90, 'lowpass', 1.3, 0.9); },
   stamp() { noise(0.12, 0.5, 300); tone(80, 0.18, 0.3, 'sine', 0.6, 0, 0.1); },
   penalty() { tone(330, 0.2, 0.08, 'triangle', 0.7, 0, 0.3); tone(262, 0.3, 0.08, 'triangle', 0.7, 0.15, 0.3); },
   click() { tone(660, 0.05, 0.05, 'sine', 1, 0, 0.2); },
@@ -908,7 +925,7 @@ function contactDiff() {
     d2 = Math.min(trace(table, hit.ball.x, hit.ball.y, nx, ny, hit.ball).t, 1000);
   }
   const lie = lieAt(hole, c.x, c.y);
-  return clamp(0.05 + 0.75 * clamp((d1 + 0.6 * d2 - 150) / 1000, 0, 1) + Math.abs(aim.spin) * 0.12 + power * 0.1 + (lie === 'rough' ? 0.1 : 0), 0, 1);
+  return clamp(0.05 + 0.75 * clamp((d1 + 0.6 * d2 - 150) / 1000, 0, 1) + Math.abs(aim.spin) * 0.12 + power * 0.1 + (lie === 'rough' ? 0.1 : 0) + (hole.weather === 'cold' ? 0.12 : 0), 0, 1);   // cold hands: a shakier tip
 }
 // The gold spot is where you chose to hit the cue ball; it shrinks and the tip gets shakier as the shot gets harder.
 const spotR = d => lerp(0.22, 0.09, d);
@@ -1250,7 +1267,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      <p>🌦️ Every day has its own <b>weather</b>, the same for everyone: 🌧️ <b>damp</b> (heavy cloth, hit harder), ☀️ <b>sunny</b> (a slick sunbeam on the felt), 🌬️ <b>draughty</b> (a breeze pushes rolling balls right across one band), ⛈️ <b>stormy</b> (thunder shifts the balls before some shots) or ❄️ <b>cold</b> (lively cushions).</p>
+      <p>🌦️ Every day has its own <b>weather</b>, the same for everyone: 🌧️ <b>damp</b> (heavy cloth and dead cushions, hit harder), ☀️ <b>sunny</b> (a slippery sunbeam whose glare hides the aim line), 🌬️ <b>draughty</b> (a breeze pushes rolling balls right across one band), ⛈️ <b>stormy</b> (thunder shifts the balls before some shots) or ❄️ <b>cold</b> (lively cushions, fast cloth and shaky cold hands).</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
     </div>
@@ -1618,16 +1635,17 @@ const DECOR = {
   window: { x: -RAIL - 330, y: H * 0.05 },
 };
 const motes = Array.from({ length: 28 }, (_, i) => ({ x: hash01(i) * (W + 200) - 100, y: hash01(i + 40) * (H + 200) - 100, p: hash01(i + 80) * TAU, s: 0.4 + hash01(i + 120) }));
-const clouds = Array.from({ length: 3 }, (_, i) => ({ x: hash01(i + 7) * 1400 - 700, y: hash01(i + 9) * 1400 - 200, r: 500 + hash01(i + 11) * 400, v: 7 + hash01(i + 13) * 6 }));
+const clouds = Array.from({ length: 7 }, (_, i) => ({ x: hash01(i + 7) * 1400 - 700, y: hash01(i + 9) * 1400 - 200, r: 500 + hash01(i + 11) * 400, v: 7 + hash01(i + 13) * 6 }));
 let recordAngle = 0, recordSpeed = 0;
 // How the room looks in each weather: window light, what falls past the window, plant sway, a tint over everything.
+// clouds: how many cloud shadows cross the room, how fast and how dark; lamp: how brightly the lamp over the table glows.
 const WX_LOOK = {
-  none: { light: 'rgba(255,246,220,.22)', drops: 26, fall: 1, lean: 0.25, sway: 0.05 },
-  damp: { light: 'rgba(236,240,236,.16)', drops: 40, fall: 1.4, lean: 0.3, sway: 0.05, tint: 'rgba(50,65,85,.08)' },
-  sunny: { light: 'rgba(255,238,190,.38)', drops: 0, sway: 0.05, tint: 'rgba(255,200,120,.05)', motes: 1.6 },
-  draughty: { light: 'rgba(255,246,220,.22)', drops: 0, sway: 0.16, swayF: 1.8, drift: 50 },
-  stormy: { light: 'rgba(220,226,240,.12)', drops: 64, fall: 2.6, lean: 0.55, sway: 0.11, swayF: 1.4, tint: 'rgba(30,40,65,.14)' },
-  cold: { light: 'rgba(225,238,255,.26)', drops: 34, fall: 0.3, snow: true, sway: 0.04, tint: 'rgba(170,200,240,.09)' },
+  none: { light: 'rgba(255,246,220,.22)', drops: 26, fall: 1, lean: 0.25, sway: 0.05, clouds: [3, 1, 1], lamp: 1 },
+  damp: { light: 'rgba(236,240,236,.16)', drops: 40, fall: 1.4, lean: 0.3, sway: 0.05, tint: 'rgba(45,62,78,.16)', clouds: [6, 0.7, 1.6], lamp: 1.5, precip: 'rain' },
+  sunny: { light: 'rgba(255,238,190,.4)', drops: 0, sway: 0.05, tint: 'rgba(255,196,110,.10)', glow: 'rgba(255,236,190,.07)', motes: 2.2, clouds: [1, 1, 0.6], lamp: 0.6 },
+  draughty: { light: 'rgba(255,246,220,.22)', drops: 0, sway: 0.2, swayF: 2.2, drift: 70, tint: 'rgba(190,175,140,.06)', clouds: [5, 4, 1.1], lamp: 1, leaves: true },
+  stormy: { light: 'rgba(220,226,240,.12)', drops: 64, fall: 2.6, lean: 0.55, sway: 0.13, swayF: 1.6, tint: 'rgba(16,24,48,.28)', clouds: [7, 2.4, 2.2], lamp: 2.2, precip: 'storm' },
+  cold: { light: 'rgba(225,238,255,.26)', drops: 34, fall: 0.3, snow: true, sway: 0.04, tint: 'rgba(180,208,245,.17)', clouds: [3, 0.6, 1], lamp: 1.2, precip: 'snow', frost: true },
 };
 const wxLook = () => WX_LOOK[hole?.weather] || WX_LOOK.none;
 
@@ -1726,6 +1744,20 @@ function drawRecord(dt) {
   ctx.fillStyle = '#6f7575'; ctx.beginPath(); ctx.arc(x + 46, y - 36, 6, 0, TAU); ctx.fill();
 }
 function drawCat(t) {
+  if (hole?.weather === 'stormy') {
+    // hiding under the armchair: just a twitchy (and, after thunder, bushy) tail sticking out
+    const { x, y } = DECOR.chair, puff = 1 + fx.flash * 0.8, w = Math.sin(t * 5) * 0.25 + Math.sin(t * 13) * 0.08 * fx.flash;
+    ctx.save(); ctx.translate(x + 30, y + 56); ctx.rotate(0.12 + w);
+    ctx.strokeStyle = '#d98f45'; ctx.lineWidth = 9 * puff; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.quadraticCurveTo(6, 22, 26, 30); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  const sx = hole?.weather === 'sunny' ? 1.3 : hole?.weather === 'cold' ? 0.82 : 1, sy = hole?.weather === 'sunny' ? 0.82 : hole?.weather === 'cold' ? 0.9 : 1;
+  if (sx !== 1) { const { x, y } = DECOR.cat; ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy); ctx.translate(-x, -y); drawCatBody(t); ctx.restore(); }
+  else drawCatBody(t);
+}
+function drawCatBody(t) {
   const { x, y } = DECOR.cat, br = 1 + Math.sin(t * 1.6) * 0.025;
   const flick = Math.max(0, Math.sin(t * 0.45)) ** 12;
   ctx.drawImage(SOFT_SHADOW, x - 50, y - 38, 106, 86);
@@ -1744,6 +1776,138 @@ function drawCat(t) {
   ctx.strokeStyle = '#7a4a28'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(22, 10, 3, 0.2, 2.6); ctx.moveTo(31, 9); ctx.arc(29, 10, 3, 0.2, 2.6); ctx.stroke();
   ctx.restore();
+}
+
+/* ----- weather in the room ----- */
+
+// The sunbeam on the felt: a warm pool of light crossed by the window frame's shadow. It's drawn over the aim
+// line, so its glare hides the guide where the line crosses it; the dashed edge is where the felt turns slick.
+function drawSunbeams(t) {
+  for (const p of hole.patches) {
+    if (p.type !== 'sun') continue;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
+    ctx.save(); ctx.scale(1, p.ry / p.rx);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, p.rx), pulse = 0.04 * Math.sin(t * 0.7);
+    g.addColorStop(0, `rgba(255,246,212,${0.82 + pulse})`); g.addColorStop(0.75, `rgba(255,236,180,${0.62 + pulse})`); g.addColorStop(1, 'rgba(255,226,160,.4)');
+    ctx.fillStyle = g; ctx.fill(); ctx.restore();
+    ctx.save(); ctx.clip();
+    ctx.strokeStyle = 'rgba(110,85,45,.16)'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(0, -p.ry); ctx.lineTo(0, p.ry); ctx.moveTo(-p.rx, 0); ctx.lineTo(p.rx, 0); ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = 'rgba(255,255,235,.25)'; ctx.lineWidth = 14;
+    const sh = ((t * 25) % (p.rx * 3)) - p.rx * 1.5;
+    ctx.beginPath(); ctx.moveTo(sh - p.ry, -p.ry); ctx.lineTo(sh + p.ry, p.ry); ctx.stroke();
+    ctx.restore();
+    ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
+    ctx.setLineDash([7, 7]); ctx.strokeStyle = 'rgba(214,170,70,.75)'; ctx.lineWidth = 1.8; ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+// Sunny: broad shafts of window light across the floor, the cat sprawled in one.
+function drawSunPools(t) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const shafts = [[-RAIL - 420, -RAIL - 120, 320], [-RAIL - 300, H * 0.42, 360]];
+  for (const [x, y, w] of shafts) {
+    const g = ctx.createLinearGradient(x, y, x + 900, y + 520);
+    g.addColorStop(0, 'rgba(255,226,150,.22)'); g.addColorStop(1, 'rgba(255,226,150,.04)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y - 40); ctx.lineTo(x + w + 1150, y + 560); ctx.lineTo(x + 1150, y + 600); ctx.closePath(); ctx.fill();
+  }
+  const c = DECOR.cat, g = ctx.createRadialGradient(c.x, c.y, 10, c.x, c.y, 110);
+  g.addColorStop(0, 'rgba(255,220,140,.32)'); g.addColorStop(1, 'rgba(255,220,140,0)');
+  ctx.fillStyle = g; ctx.fillRect(c.x - 120, c.y - 120, 240, 240);
+  ctx.restore();
+}
+// Cold: a knitted blanket over the armchair and a mug of tea steaming beside it.
+function drawBlanketAndTea(t) {
+  const { x, y } = DECOR.chair;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(0.12);
+  ctx.fillStyle = '#b94a3a'; ctx.beginPath(); ctx.roundRect(-30, -40, 92, 84, 10); ctx.fill();
+  ctx.strokeStyle = 'rgba(245,232,210,.75)'; ctx.lineWidth = 3;
+  for (let k = -22; k < 60; k += 16) { ctx.beginPath(); ctx.moveTo(k, -40); ctx.lineTo(k, 44); ctx.stroke(); }
+  for (let k = -30; k < 44; k += 16) { ctx.beginPath(); ctx.moveTo(-30, k); ctx.lineTo(62, k); ctx.stroke(); }
+  ctx.strokeStyle = '#efe4ca'; ctx.lineWidth = 2;
+  for (let k = -36; k < 44; k += 6) { ctx.beginPath(); ctx.moveTo(62, k); ctx.lineTo(70, k + 2); ctx.stroke(); }
+  ctx.restore();
+  const mx = x + 82, my = y + 78;
+  ctx.drawImage(SOFT_SHADOW, mx - 20, my - 16, 46, 42);
+  ctx.fillStyle = '#e9dcc0'; ctx.beginPath(); ctx.arc(mx, my, 13, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#e9dcc0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(mx + 14, my, 6, -1.2, 1.2); ctx.stroke();
+  ctx.fillStyle = '#7a4a28'; ctx.beginPath(); ctx.arc(mx, my, 9.5, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (let k = 0; k < 3; k++) {
+    const ph = (t * 0.6 + k / 3) % 1, sy = my - 6 - ph * 60;
+    ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.8;
+    ctx.beginPath(); ctx.moveTo(mx - 4 + k * 4, sy + 14); ctx.quadraticCurveTo(mx + Math.sin(t * 2 + k) * 10, sy + 7, mx - 2 + k * 3 + Math.sin(t * 1.5 + k) * 6, sy); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+// Damp: the roof leaks into a tin bucket by the table.
+const BUCKET = { x: W + RAIL + 50, y: H * 0.56 };
+function drawBucket(t) {
+  const { x, y } = BUCKET;
+  ctx.drawImage(SOFT_SHADOW, x - 30, y - 24, 70, 64);
+  ctx.fillStyle = '#9aa3a6'; ctx.beginPath(); ctx.arc(x, y, 24, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#6f777a'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#5d7b86'; ctx.beginPath(); ctx.arc(x, y, 19, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#6f777a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 30, -2.4, -0.7); ctx.stroke();
+  const ph = (t / 1.6) % 1;
+  if (ph < 0.35) { const k = ph / 0.35; ctx.fillStyle = `rgba(190,215,225,${0.9 - k * 0.3})`; ctx.beginPath(); ctx.ellipse(x + 2, y - 2, 2.5 + k * 2, 4 - k, 0, 0, TAU); ctx.fill(); }
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, 19, 0, TAU); ctx.clip();
+  for (let r = 0; r < 3; r++) {
+    const k = (ph - 0.35 + r * 0.33 + 1) % 1;
+    ctx.strokeStyle = `rgba(220,238,245,${0.6 * (1 - k)})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x + 2, y - 2, 2 + k * 18, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
+// Damp and stormy: the shadows of rain on the window run across the whole room; cold: snowflakes drift.
+function drawPrecip(t, x0, y0, x1, y1) {
+  const kind = wxLook().precip;
+  if (!kind) return;
+  const n = kind === 'storm' ? 220 : kind === 'rain' ? 120 : 140, spanX = x1 - x0 + 200, spanY = y1 - y0 + 200;
+  ctx.save();
+  ctx.fillStyle = kind === 'snow' ? 'rgba(90,100,125,.12)' : 'rgba(60,70,90,.10)';
+  for (let k = 0; k < n; k++) {
+    const sp = kind === 'storm' ? 380 + hash01(k + 5) * 200 : kind === 'rain' ? 160 + hash01(k + 5) * 90 : 26 + hash01(k + 5) * 20;
+    const yy = y0 - 100 + ((hash01(k + 900) * spanY + t * sp) % spanY), lean = kind === 'storm' ? 0.35 : 0.15;
+    let xx = x0 - 100 + ((hash01(k + 700) * spanX + (yy - y0) * lean) % spanX);
+    ctx.beginPath();
+    if (kind === 'snow') { xx += Math.sin(t * 0.9 + k) * 14; ctx.arc(xx, yy, 2 + hash01(k + 11) * 2.5, 0, TAU); }
+    else ctx.ellipse(xx, yy, 1.4, kind === 'storm' ? 12 : 7, -lean, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+// Draughty: autumn leaves blow in through the window and skitter across the room, under the balls.
+const LEAF_COLS = ['#c4772f', '#b8553f', '#d9a441', '#8c6a3a'];
+function drawLeaves(t, x0, x1) {
+  const span = x1 - x0 + 300;
+  for (let k = 0; k < 9; k++) {
+    const v = 70 + hash01(k + 31) * 90, x = x0 - 150 + ((hash01(k + 41) * span + t * v) % span);
+    const y = hash01(k + 51) * (H + 2 * RAIL + 200) - RAIL - 100 + Math.sin(t * (0.9 + hash01(k) * 0.8) + k) * 34, rot = t * (1.5 + hash01(k + 61) * 3) + k;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalAlpha = 0.85;
+    ctx.fillStyle = LEAF_COLS[k % LEAF_COLS.length];
+    ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.5, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(80,45,20,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-11, 0); ctx.lineTo(8, 0); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+// Cold: frost creeping in from the corners of the screen.
+function drawFrost(cw, ch) {
+  for (const [cx, cy] of [[0, 0], [cw, 0], [0, ch], [cw, ch]]) {
+    const r = Math.min(cw, ch) * 0.45, g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, 'rgba(238,246,255,.55)'); g.addColorStop(0.5, 'rgba(238,246,255,.18)'); g.addColorStop(1, 'rgba(238,246,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  }
+  ctx.strokeStyle = 'rgba(250,253,255,.5)'; ctx.lineWidth = 1;
+  for (let k = 0; k < 48; k++) {
+    const c = k % 4, cx = c % 2 ? cw : 0, cy = c > 1 ? ch : 0, a = hash01(k + 500) * Math.PI / 2, d = 10 + hash01(k + 600) * 90;
+    const x = cx + (c % 2 ? -1 : 1) * Math.cos(a) * d, y = cy + (c > 1 ? -1 : 1) * Math.sin(a) * d, s = 4 + hash01(k + 650) * 7;
+    ctx.beginPath();
+    for (let j = 0; j < 3; j++) { const b = j * Math.PI / 3; ctx.moveTo(x - Math.cos(b) * s, y - Math.sin(b) * s); ctx.lineTo(x + Math.cos(b) * s, y + Math.sin(b) * s); }
+    ctx.stroke();
+  }
 }
 
 /* ----- the table ----- */
@@ -1774,22 +1938,10 @@ function drawTable(t, dt) {
     for (let k = 0; k < 90; k++) { const u = hash01(k + 300), side = k % 4, e = 2 + hash01(k + 400) * 6; ctx.fillRect(side === 0 ? u * W : side === 1 ? W - e : side === 2 ? u * W : e - 2, side === 0 ? e - 2 : side === 1 ? u * H : side === 2 ? H - e : u * H, 2, 2); }
   }
   for (const p of hole.patches) {
+    if (p.type === 'sun') continue;   // drawn later, over the aim line (drawSunbeams)
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
     ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
-    if (p.type === 'sun') {
-      // a warm pool of light from the window, crossed by the shadows of its frame; its dashed edge is the slick part
-      ctx.save(); ctx.scale(1, p.ry / p.rx);
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, p.rx);
-      const pulse = 0.04 * Math.sin(t * 0.7);
-      g.addColorStop(0, `rgba(255,240,180,${0.42 + pulse})`); g.addColorStop(0.8, `rgba(255,232,165,${0.28 + pulse})`); g.addColorStop(1, 'rgba(255,225,150,.16)');
-      ctx.fillStyle = g; ctx.fill(); ctx.restore();
-      ctx.save(); ctx.clip();
-      ctx.strokeStyle = 'rgba(110,85,45,.14)'; ctx.lineWidth = 7;
-      ctx.beginPath(); ctx.moveTo(0, -p.ry); ctx.lineTo(0, p.ry); ctx.moveTo(-p.rx, 0); ctx.lineTo(p.rx, 0); ctx.stroke();
-      ctx.restore();
-      ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
-      ctx.setLineDash([7, 7]); ctx.strokeStyle = 'rgba(255,228,150,.6)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
-    } else if (p.type === 'rough') {
+    if (p.type === 'rough') {
       ctx.fillStyle = '#c9b88c'; ctx.fill(); ctx.strokeStyle = '#b3a173'; ctx.lineWidth = 3; ctx.stroke(); ctx.clip();
       ctx.fillStyle = 'rgba(140,115,70,.35)';
       for (let k = 0; k < 70; k++) { const a = hash01(p.seed + k) * TAU, rr = Math.sqrt(hash01(p.seed + k + 99)); ctx.fillRect(Math.cos(a) * rr * p.rx, Math.sin(a) * rr * p.ry, 2, 2); }
@@ -2092,10 +2244,15 @@ function draw(t, dt) {
   drawFloor(x0, y0, x1, y1);
   drawWindowLight(t);
   drawRug();
+  if (hole.weather === 'sunny') drawSunPools(t);
   drawChair();
+  if (hole.weather === 'cold') drawBlanketAndTea(t);
   drawRecord(dt);
   drawCat(t);
+  if (hole.weather === 'damp') drawBucket(t);
+  drawPrecip(t, x0, y0, x1, y1);
   drawTable(t, dt);
+  if (wxLook().leaves) drawLeaves(t, x0, x1);
 
   for (const tr of trails) {
     ctx.fillStyle = `rgba(255,250,235,${tr === curTrail ? 0.85 : 0.35})`;
@@ -2108,6 +2265,7 @@ function draw(t, dt) {
   }
 
   drawAim(t);
+  drawSunbeams(t);
 
   for (const b of table.live()) updateSpin(b, dt);
   // potted balls swirl down into the pocket as they shrink
@@ -2181,10 +2339,13 @@ function draw(t, dt) {
   drawBanner(dt);
   drawStamp(dt);
 
-  for (const c of clouds) {
-    c.x += c.v * dt; if (c.x - c.r > x1 + 400) c.x = x0 - c.r - 200;
-    ctx.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
-  }
+  const [cn, cv, ca] = wxLook().clouds;
+  clouds.forEach((c, k) => {
+    c.x += c.v * cv * dt; if (c.x - c.r > x1 + 400) c.x = x0 - c.r - 200;
+    if (k >= cn) return;
+    for (let a = ca; a > 0; a--) { ctx.globalAlpha = Math.min(1, a); ctx.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2); }
+    ctx.globalAlpha = 1;
+  });
   ctx.globalCompositeOperation = 'lighter';
   const LK = wxLook();
   for (const m of motes) {
@@ -2194,7 +2355,8 @@ function draw(t, dt) {
     ctx.drawImage(MOTE, mx - 4, my - 4, 8, 8);
   }
   ctx.globalAlpha = 1;
-  ctx.drawImage(LAMP, W / 2 - H * 0.75, H / 2 - H * 0.75, H * 1.5, H * 1.5);
+  for (let a = wxLook().lamp; a > 0; a--) { ctx.globalAlpha = Math.min(1, a); ctx.drawImage(LAMP, W / 2 - H * 0.75, H / 2 - H * 0.75, H * 1.5, H * 1.5); }
+  ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -2207,9 +2369,16 @@ function draw(t, dt) {
     ctx.fillStyle = gg; ctx.fillRect(0, 0, cw, ch);
   }
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
-  vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + (1 - timeScale) * 0.45})`);
+  vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + clamp((PLAY - timeScale) / PLAY, 0, 1) * 0.45})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
   if (LK.tint) { ctx.fillStyle = LK.tint; ctx.fillRect(0, 0, cw, ch); }
+  if (LK.glow) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = LK.glow; ctx.fillRect(0, 0, cw, ch); ctx.globalCompositeOperation = 'source-over'; }
+  if (LK.frost) drawFrost(cw, ch);
+  // stormy: now and then distant lightning flickers (just the room; the thunder that moves balls is separate)
+  if (hole?.weather === 'stormy') {
+    if (!draw.storm || t > draw.storm + 40) draw.storm = t + 6 + Math.random() * 10;
+    if (t > draw.storm) { fx.flash = Math.max(fx.flash, 0.4); sfx.distant(); draw.storm = t + 9 + Math.random() * 14; }
+  }
   // lightning: a bright flash that flickers once as it fades
   if (fx.flash > 0) {
     fx.flash = Math.max(0, fx.flash - dt * 1.8);
@@ -2262,11 +2431,11 @@ function frame(now) {
     else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
   }
   // Fast-forward the dead time: a tap on the table (once the shot has rolled for 0.8 s) plays the rest at
-  // 4×, and once everything is just creeping (under 70, after 1.2 s) it runs at 2× by itself.
-  // Never during the slow-motion finish.
+  // 3×, and once everything is just creeping (under 35, after 2 s) it runs at 1.6× by itself. Otherwise the
+  // table plays at PLAY (0.75×). Never during the slow-motion finish.
   if (phase === 'moving') movingT += dt;
-  const creeping = phase === 'moving' && movingT > 1.2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 70);
-  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 4 : creeping ? 2 : 1;
+  const creeping = phase === 'moving' && movingT > 2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 35);
+  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
