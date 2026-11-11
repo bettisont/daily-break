@@ -221,10 +221,87 @@ function courseName(seed) {
 }
 
 // Where a ball must travel to drop in pocket i (just inside the mouth).
-function pocketAim(i) {
+function pocketAim(i, h) {
+  if (h?.shape) return h.shape.pockets[i].aim;
   const p = POCKETS[i];
   return { x: p.x <= 0 ? R + 1 : p.x >= W ? W - R - 1 : p.x, y: p.y <= 0 ? R + 1 : p.y >= H ? H - R - 1 : p.y };
 }
+
+// ---- table shapes ----
+// From level 3, each level is played on a table shape drawn for the day (the same for everyone): the classic
+// rectangle or one of these. Every shape fits the same 500 x 1000 box and has six pockets. Levels 1-2, days
+// before SHAPES_FROM and classic levels run exactly the old rectangle code, so their layouts never change.
+const SHAPES_FROM = '2026-11-12';
+const SHAPES_ON = false;   // prototype: off in the live game until it's signed off (the test build forces shapes)
+const segDist0 = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)); return Math.hypot(ax + dx * u - px, ay + dy * u - py); };
+function inPoly(pts, x, y) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function mkShape(key, name, emoji, outer, pockets, islands = [], spawn = [W / 2, H * 0.8]) {
+  const sh = { key, name, emoji, outer, islands, spawn, segs: [], reflex: [] };
+  const inFelt = (x, y) => inPoly(outer, x, y) && !islands.some(p => inPoly(p, x, y));
+  for (const poly of [outer, ...islands]) poly.forEach(([ax, ay], k) => {
+    const [bx, by] = poly[(k + 1) % poly.length], l = Math.hypot(bx - ax, by - ay);
+    let nx = -(by - ay) / l, ny = (bx - ax) / l;   // a normal; flip it to point into the felt
+    if (!inFelt((ax + bx) / 2 + nx * 3, (ay + by) / 2 + ny * 3)) { nx = -nx; ny = -ny; }
+    sh.segs.push({ ax, ay, bx, by, nx, ny, l2: l * l });
+  });
+  // corners that stick into the felt (the inside of the L, the hourglass waist) can block a pot
+  for (const poly of [outer, ...islands]) poly.forEach(([x, y], k) => {
+    const [px, py] = poly[(k + poly.length - 1) % poly.length], [qx, qy] = poly[(k + 1) % poly.length];
+    if (!inFelt(x + (px + qx - 2 * x) * 0.01, y + (py + qy - 2 * y) * 0.01)) sh.reflex.push([x, y]);
+  });
+  sh.inFelt = inFelt;
+  // where a ball's centre aims for each pocket: just inside the mouth, away from the cushions
+  sh.pockets = pockets.map(([x, y, c]) => {
+    let dx = 0, dy = 0;
+    for (const g of sh.segs) if (segDist0(x, y, g.ax, g.ay, g.bx, g.by) < 8) { dx += g.nx; dy += g.ny; }
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    let ax = x, ay = y;
+    for (let k = 0; k < 80 && !freeIn(sh, ax, ay, R + 1); k++) { ax += dx * 1.5; ay += dy * 1.5; }
+    return { x, y, cap: R * c, aim: { x: ax, y: ay } };
+  });
+  sh.reflex = sh.reflex.filter(([x, y]) => !sh.pockets.some(p => Math.hypot(p.x - x, p.y - y) < 2));
+  return sh;
+}
+// is a ball of radius rad at (x, y) wholly on the felt of shape sh?
+function freeIn(sh, x, y, rad) {
+  return sh.inFelt(x, y) && sh.segs.every(g => segDist0(x, y, g.ax, g.ay, g.bx, g.by) >= rad);
+}
+const ellipse = (n, cx, cy, rx, ry) => Array.from({ length: n }, (_, k) => { const a = k / n * TAU; return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]; });
+const onEllipse = (deg, out = 4) => { const a = deg * Math.PI / 180, x = Math.cos(a), y = Math.sin(a), n = Math.hypot(x / 250, y / 500); return [250 + x * (250 + out * n * 250), 500 + y * (500 + out * n * 500), 1.6]; };
+const SHAPES = [
+  mkShape('hexagon', 'Hexagon', '⬡', [[250, 0], [500, 190], [500, 810], [250, 1000], [0, 810], [0, 190]],
+    [[250, 0, 1.65], [500, 190, 1.65], [0, 190, 1.65], [500, 810, 1.65], [0, 810, 1.65], [250, 1000, 1.65]]),
+  mkShape('octagon', 'Octagon', '⯃', [[100, 0], [400, 0], [500, 100], [500, 900], [400, 1000], [100, 1000], [0, 900], [0, 100]],
+    [[46, 46, 1.75], [454, 46, 1.75], [-5, 500, 1.55], [505, 500, 1.55], [46, 954, 1.75], [454, 954, 1.75]]),
+  mkShape('ell', 'L-shape', '⌐', [[0, 0], [500, 0], [500, 540], [260, 540], [260, 1000], [0, 1000]],
+    [[0, 0, 1.75], [500, 0, 1.75], [-5, 520, 1.55], [500, 540, 1.75], [0, 1000, 1.75], [260, 1000, 1.75]], [], [130, 820]),
+  mkShape('hourglass', 'Hourglass', '⧗', [[0, 0], [500, 0], [500, 390], [330, 500], [500, 610], [500, 1000], [0, 1000], [0, 610], [170, 500], [0, 390]],
+    [[0, 0, 1.75], [500, 0, 1.75], [170, 500, 1.5], [330, 500, 1.5], [0, 1000, 1.75], [500, 1000, 1.75]]),
+  mkShape('oval', 'Oval', '⬭', ellipse(56, 250, 500, 250, 500),
+    [onEllipse(-90), onEllipse(-35), onEllipse(-145), onEllipse(35), onEllipse(145), onEllipse(90)]),
+  mkShape('island', 'Island', '⊡', [[0, 0], [W, 0], [W, H], [0, H]],
+    POCKETS.map(p => [p.x, p.y, p.cap / R]), [[[215, 410], [285, 410], [315, 440], [315, 560], [285, 590], [215, 590], [185, 560], [185, 440]]]),
+];
+const SHAPE_KEYS = ['classic', ...SHAPES.map(s => s.key)];
+let shapeOverride = null;   // the test build forces a shape here
+// The shape for level i (0-based): classic for levels 1-2 and older days. From level 3 the day's shapes are
+// dealt like a shuffled deck (classic included), so you see all seven before any repeats, never twice running.
+function shapeFor(seed, i) {
+  if (shapeOverride) return shapeOverride === 'classic' ? null : SHAPES.find(s => s.key === shapeOverride);
+  if (!SHAPES_ON || i < 2 || (isDailySeed(seed) && seed < SHAPES_FROM)) return null;
+  const n = SHAPE_KEYS.length, c = Math.floor((i - 2) / n);
+  const deck = c => shuffle(rngFor(`${seed}:shapes:${c}`), SHAPE_KEYS), cur = deck(c);
+  if (c > 0 && cur[0] === deck(c - 1)[n - 1]) [cur[0], cur[1]] = [cur[1], cur[0]];
+  return SHAPES.find(s => s.key === cur[(i - 2) % n]) || null;
+}
+const pocketsOf = h => h.shape ? h.shape.pockets : POCKETS;
 function inPatch(p, x, y) {
   const c = Math.cos(-p.rot), s = Math.sin(-p.rot), dx = x - p.x, dy = y - p.y;
   const lx = dx * c - dy * s, ly = dx * s + dy * c;
@@ -239,7 +316,7 @@ function lieAt(hole, x, y) {
 // It's re-rolled (deterministically) until the opening shot really drops.
 const holeCache = new Map();
 function makeHole(seed, i) {
-  const key = `${seed}:${i}`;
+  const key = `${seed}:${i}:${shapeOverride || ''}`;
   if (holeCache.has(key)) return holeCache.get(key);
   const n = Math.min(i + 1, MAX_BALLS);
   let h = null, fallback = null;
@@ -297,10 +374,10 @@ function buildHole(seed, i, attempt) {
   // hazards start at level 3 and ramp up from there
   const hz = clamp(i - 1, 0, 8), haz = p => hz > 0 && rnd() < p;
   const closed = haz(0.04 + hz * 0.04) ? [Math.floor(rnd() * 6)] : [];
-  const placed = [];
-  const ok = (x, y, rad, gap) => x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6 &&
+  const placed = [], shape = shapeFor(seed, i), pks = shape ? shape.pockets : POCKETS;
+  const ok = (x, y, rad, gap) => (shape ? freeIn(shape, x, y, rad + 6) : x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6) &&
     placed.every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + gap) &&
-    POCKETS.every(p => Math.hypot(p.x - x, p.y - y) > rad + R * 3.2);
+    pks.every(p => Math.hypot(p.x - x, p.y - y) > rad + R * 3.2);
   const place = (gen, rad, gap) => {
     for (let k = 0; k < 500; k++) {
       const [x, y] = gen();
@@ -308,7 +385,7 @@ function buildHole(seed, i, attempt) {
     }
     return null;
   };
-  const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || { x: W / 2, y: H * 0.8 };
+  const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || (shape ? { x: shape.spawn[0], y: shape.spawn[1] } : { x: W / 2, y: H * 0.8 });
   const bumpers = [];
   const nBump = haz(0.08 + hz * 0.05) ? 1 + (hz > 5 && rnd() < 0.4 ? 1 : 0) : 0;
   for (let k = 0; k < nBump; k++) {
@@ -320,6 +397,7 @@ function buildHole(seed, i, attempt) {
     const mode = balls.length && rnd() < 0.35 ? 'cluster' : rnd() < 0.22 ? 'rail' : 'open';
     const o = place(() => {
       if (mode === 'cluster') { const b = balls[Math.floor(rnd() * balls.length)], a = rnd() * TAU, d = 2 * R + 3 + rnd() * R * 1.5; return [b.x + Math.cos(a) * d, b.y + Math.sin(a) * d]; }
+      if (mode === 'rail' && shape) { const g = shape.segs[Math.floor(rnd() * shape.segs.length)], u = 0.15 + rnd() * 0.7; return [g.ax + (g.bx - g.ax) * u + g.nx * (R + 8), g.ay + (g.by - g.ay) * u + g.ny * (R + 8)]; }
       if (mode === 'rail') { const side = Math.floor(rnd() * 3), u = rnd(); return side === 0 ? [R + 8, 60 + u * (H * 0.7)] : side === 1 ? [W - R - 8, 60 + u * (H * 0.7)] : [60 + u * (W - 120), R + 8]; }
       return [40 + rnd() * (W - 80), 40 + rnd() * (H * 0.72 - 40)];
     }, R, mode === 'cluster' ? 1 : R * 0.8);
@@ -332,7 +410,7 @@ function buildHole(seed, i, attempt) {
     const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (6 + hz * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
-  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt };
+  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape };
 }
 
 class Table {
@@ -341,6 +419,7 @@ class Table {
     this.cue = { x: hole.cue.x, y: hole.cue.y, vx: 0, vy: 0, n: 0, m: 1, potted: false, isCue: true };
     this.balls = hole.balls.map(b => ({ ...b, vx: 0, vy: 0, m: 1, potted: false }));
     this.shot = null;
+    this.pk = pocketsOf(hole);
   }
   openPocket(i) { return !this.hole.closed.includes(i); }
   live() { return [this.cue, ...this.balls].filter(b => !b.potted); }
@@ -412,7 +491,7 @@ class Table {
       let potted = false;
       for (let i = 0; i < 6 && !potted; i++) {
         if (!this.openPocket(i)) continue;
-        const pk = POCKETS[i], dx = b.x - pk.x, dy = b.y - pk.y, d = Math.hypot(dx, dy);
+        const pk = this.pk[i], dx = b.x - pk.x, dy = b.y - pk.y, d = Math.hypot(dx, dy);
         if (d >= pk.cap) continue;
         const sp = Math.hypot(b.vx, b.vy);
         if (sp > POT_MAX_SPEED) {
@@ -427,10 +506,23 @@ class Table {
       if (potted) continue;
       const sp = Math.hypot(b.vx, b.vy);
       let hitWall = false;
+      if (this.hole.shape) {
+        // any shape: push the ball off the nearest point of each cushion it overlaps and bounce off that normal
+        for (const g of this.hole.shape.segs) {
+          const ex = g.bx - g.ax, ey = g.by - g.ay, u = clamp(((b.x - g.ax) * ex + (b.y - g.ay) * ey) / g.l2, 0, 1);
+          const cx = g.ax + ex * u, cy = g.ay + ey * u, dx = b.x - cx, dy = b.y - cy, d2 = dx * dx + dy * dy;
+          if (d2 >= R * R) continue;
+          const d = Math.sqrt(d2), nx = d ? dx / d : g.nx, ny = d ? dy / d : g.ny;
+          b.x = cx + nx * R; b.y = cy + ny * R;
+          const vn = b.vx * nx + b.vy * ny;
+          if (vn < 0) { b.vx -= (1 + CUSHION_E) * vn * nx; b.vy -= (1 + CUSHION_E) * vn * ny; hitWall = true; }
+        }
+      } else {
       if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * CUSHION_E; hitWall = true; }
       if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx) * CUSHION_E; hitWall = true; }
       if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * CUSHION_E; hitWall = true; }
       if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) * CUSHION_E; hitWall = true; }
+      }
       if (hitWall) b.cush = (b.cush || 0) + 1;
       if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
     }
@@ -446,10 +538,10 @@ class Table {
 
   // put a ball back near (x, y) without overlapping anything
   respot(b, x, y) {
-    const free = (px, py) => px > R && px < W - R && py > R && py < H - R &&
+    const free = (px, py) => (this.hole.shape ? freeIn(this.hole.shape, px, py, R + 1) : px > R && px < W - R && py > R && py < H - R) &&
       this.live().every(o => o === b || Math.hypot(o.x - px, o.y - py) > 2 * R + 2) &&
       this.hole.bumpers.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
-      POCKETS.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4);
+      this.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4);
     for (let rad = 0; rad < 600; rad += 4) {
       for (let a = 0; a < TAU; a += 0.3) {
         const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
@@ -474,8 +566,33 @@ function segDist(px, py, ax, ay, bx, by) {
   return Math.hypot(ax + dx * u - px, ay + dy * u - py);
 }
 function pathBlocked(t, ax, ay, bx, by, skip) {
+  const sh = t.hole.shape;
   return t.balls.some(b => !b.potted && b !== skip && segDist(b.x, b.y, ax, ay, bx, by) < 2 * R - 0.5) ||
-    t.hole.bumpers.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R);
+    t.hole.bumpers.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R) ||
+    // shaped tables: corners sticking into the felt, and islands, get in the way
+    !!sh && (sh.reflex.some(([x, y]) => segDist(x, y, ax, ay, bx, by) < R) ||
+      sh.islands.length > 0 && sh.segs.slice(sh.outer.length).some(g => segSeg(ax, ay, bx, by, g.ax, g.ay, g.bx, g.by) < R));
+}
+// shortest distance between two segments
+function segSeg(ax, ay, bx, by, cx, cy, dx, dy) {
+  const cr = (px, py, qx, qy) => px * qy - py * qx, d1 = cr(bx - ax, by - ay, cx - ax, cy - ay), d2 = cr(bx - ax, by - ay, dx - ax, dy - ay), d3 = cr(dx - cx, dy - cy, ax - cx, ay - cy), d4 = cr(dx - cx, dy - cy, bx - cx, by - cy);
+  if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
+  return Math.min(segDist(ax, ay, cx, cy, dx, dy), segDist(bx, by, cx, cy, dx, dy), segDist(cx, cy, ax, ay, bx, by), segDist(dx, dy, ax, ay, bx, by));
+}
+// How far a ball's centre travels from (px, py) along (dx, dy) before it touches cushion segment g.
+function rayCushion(px, py, dx, dy, g) {
+  let best = Infinity;
+  const ex = g.bx - g.ax, ey = g.by - g.ay, den = dx * ey - dy * ex;
+  if (Math.abs(den) > 1e-9) for (const sgn of [1, -1]) {
+    if (dx * g.nx * sgn + dy * g.ny * sgn >= 0) continue;   // only the side the ball is heading into
+    const qx = g.ax + g.nx * R * sgn - px, qy = g.ay + g.ny * R * sgn - py, t = (qx * ey - qy * ex) / den, u = (qx * dy - qy * dx) / den;
+    if (t > -0.5 && u >= 0 && u <= 1) best = Math.min(best, Math.max(0, t));
+  }
+  for (const [cx, cy] of [[g.ax, g.ay], [g.bx, g.by]]) {
+    const ox = px - cx, oy = py - cy, b = ox * dx + oy * dy, c = ox * ox + oy * oy - R * R, disc = b * b - c;
+    if (disc >= 0) { const t = -b - Math.sqrt(disc); if (t > 0.001) best = Math.min(best, t); }
+  }
+  return best;
 }
 // First thing a ball meets travelling from (px, py) along (dx, dy).
 function trace(t, px, py, dx, dy, skip = null) {
@@ -488,6 +605,10 @@ function trace(t, px, py, dx, dy, skip = null) {
   let best = { t: Infinity };
   for (const b of t.balls) { if (b.potted || b === skip) continue; const s = ray(b.x, b.y, 2 * R); if (s < best.t) best = { t: s, ball: b }; }
   for (const o of t.hole.bumpers) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
+  if (t.hole.shape) {
+    for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true }; }
+    return best;
+  }
   const tx = dx > 0 ? (W - R - px) / dx : dx < 0 ? (R - px) / dx : Infinity;
   const ty = dy > 0 ? (H - R - py) / dy : dy < 0 ? (R - py) / dy : Infinity;
   if (Math.min(tx, ty) < best.t) best = { t: Math.min(tx, ty), wall: true };
@@ -500,10 +621,10 @@ function trace(t, px, py, dx, dy, skip = null) {
 function potLine(t, bi, i, from = t.cue) {
   const ball = t.balls[bi];
   if (ball.potted || !t.openPocket(i)) return null;
-  const P = pocketAim(i), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
+  const P = pocketAim(i, t.hole), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
   if (d2 < 1) return null;
   const ux = (P.x - ball.x) / d2, uy = (P.y - ball.y) / d2, gx = ball.x - ux * 2 * R, gy = ball.y - uy * 2 * R;
-  if (gx < R || gx > W - R || gy < R || gy > H - R) return null;
+  if (t.hole.shape ? !freeIn(t.hole.shape, gx, gy, R - 1) : gx < R || gx > W - R || gy < R || gy > H - R) return null;
   const d1 = Math.hypot(gx - from.x, gy - from.y);
   if (d1 < 1) return null;
   const dx = (gx - from.x) / d1, dy = (gy - from.y) / d1, cos = dx * ux + dy * uy;
@@ -711,7 +832,7 @@ function onEvent(type, e) {
   else if (type === 'bumper') { sfx.bumper(); e.o.flash = 1; ring(e.o.x, e.o.y, '230,190,100', 34, 0.5, e.o.r); }
   else if (type === 'rattle') { sfx.rattle(); float(e.x, e.y - 30, 'Rattled out', '#b8553f', 18); fx.shake = 4; }
   else if (type === 'pot') {
-    const p = POCKETS[e.pocket], b = e.ball, tx = clamp(p.x, 0, W), ty = clamp(p.y, 0, H);
+    const p = table.pk[e.pocket], b = e.ball, tx = clamp(p.x, 0, W), ty = clamp(p.y, 0, H);
     ensureSpin(b);
     fx.sinks.push({ x: e.x, y: e.y, tx, ty, b: { n: b.n, spot: b.spot, pole: b.pole }, t: 0 });
     ring(tx, ty, '255,250,235', 46, 0.6);
@@ -761,7 +882,7 @@ function startHole(i) {
   lineUp();
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
-  banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: 1.5, max: 1.5 };
+  banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -1672,25 +1793,63 @@ function drawCat(t) {
 
 /* ----- the table ----- */
 
-function drawTable(t, dt) {
-  ctx.save();
+const polyPath = (pts, move = true) => { pts.forEach(([x, y], k) => k || !move ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
+// the felt of a shaped table: its outline, minus any islands (fill or clip with 'evenodd')
+function feltPath(sh) { ctx.beginPath(); polyPath(sh.outer); for (const isl of sh.islands) polyPath(isl); }
+// A shaped table: a walnut rail, the green cushion and the felt follow its outline; islands are walnut blocks
+// edged with cushion.
+function drawShapedTable(sh) {
+  ctx.save(); ctx.lineJoin = 'round';
   ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
-  ctx.fillStyle = '#6e4a30'; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+  ctx.beginPath(); polyPath(sh.outer); ctx.fillStyle = '#6e4a30'; ctx.fill(); ctx.strokeStyle = '#6e4a30'; ctx.lineWidth = RAIL * 2; ctx.stroke();
   ctx.restore();
   const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
   wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
-  ctx.fillStyle = wood; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
-  ctx.fillStyle = '#efe4ca';
-  const dia = (x, y) => { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 3, y); ctx.fill(); };
-  for (let i = 1; i < 8; i++) if (i !== 4) for (const x of [-RAIL / 2 - 2, W + RAIL / 2 + 2]) dia(x, H * i / 8);
-  for (let i = 1; i < 4; i++) for (const y of [-RAIL / 2 - 2, H + RAIL / 2 + 2]) dia(W * i / 4, y);
-  ctx.fillStyle = '#4f7f68'; ctx.fillRect(-12, -12, W + 24, H + 24);
+  ctx.save(); ctx.lineJoin = 'round';
+  ctx.beginPath(); polyPath(sh.outer);
+  ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = RAIL * 2 - 4; ctx.stroke();
+  ctx.strokeStyle = wood; ctx.lineWidth = RAIL * 2 - 9; ctx.stroke();
+  ctx.strokeStyle = '#4f7f68'; ctx.lineWidth = 24; ctx.stroke();   // the cushion
+  feltPath(sh);
   const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
   felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
-  ctx.fillStyle = felt; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+  ctx.fillStyle = felt; ctx.fill('evenodd');
+  ctx.fillStyle = FELT_NOISE; ctx.fill('evenodd');
+  ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.stroke();
+  for (const isl of sh.islands) {
+    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = '#4f7f68'; ctx.lineWidth = 24; ctx.stroke();   // its cushion, on the felt side
+    ctx.fillStyle = wood; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTable(t, dt) {
+  const sh = hole.shape;
+  if (sh) drawShapedTable(sh);
+  else {
+    ctx.save();
+    ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
+    ctx.fillStyle = '#6e4a30'; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+    ctx.restore();
+    const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
+    wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
+    ctx.fillStyle = wood; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
+    ctx.fillStyle = '#efe4ca';
+    const dia = (x, y) => { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 3, y); ctx.fill(); };
+    for (let i = 1; i < 8; i++) if (i !== 4) for (const x of [-RAIL / 2 - 2, W + RAIL / 2 + 2]) dia(x, H * i / 8);
+    for (let i = 1; i < 4; i++) for (const y of [-RAIL / 2 - 2, H + RAIL / 2 + 2]) dia(W * i / 4, y);
+    ctx.fillStyle = '#4f7f68'; ctx.fillRect(-12, -12, W + 24, H + 24);
+    const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
+    felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
+    ctx.fillStyle = felt; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+  }
+  // everything on the felt is clipped to the table's shape
+  ctx.save();
+  if (sh) { feltPath(sh); ctx.clip('evenodd'); }
   for (const p of hole.patches) {
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
     ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
@@ -1719,10 +1878,10 @@ function drawTable(t, dt) {
     }
     ctx.restore();
   }
-  ctx.strokeStyle = 'rgba(255,255,240,.18)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke();
-  POCKETS.forEach((p, i) => {
-    const pr = p.cap * 0.95;
+  if (!sh) { ctx.strokeStyle = 'rgba(255,255,240,.18)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke(); }
+  ctx.restore();   // end of the felt clip
+  table.pk.forEach((p, i) => {
+    const pr = Math.min(p.cap, R * 1.75) * 0.95;
     ctx.fillStyle = '#3a2618'; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.fill();
     if (!table.openPocket(i)) {
       ctx.fillStyle = '#9a6c48'; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
@@ -2046,7 +2205,7 @@ function draw(t, dt) {
     const k = Math.min(1, sk.t) ** 1.6, a = k * 2.6, dx = (sk.x - sk.tx) * (1 - k), dy = (sk.y - sk.ty) * (1 - k);
     drawBall(sk.b, sk.tx + dx * Math.cos(a) - dy * Math.sin(a), sk.ty + dx * Math.sin(a) + dy * Math.cos(a), 1 - 0.6 * k, 1 - k * k);
   }
-  for (const p of POCKETS) if (p.glow > 0) {
+  for (const p of table.pk) if (p.glow > 0) {
     p.glow = Math.max(0, p.glow - dt * 1.8);
     const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.cap * 2.4);
     g.addColorStop(0, `rgba(255,214,120,${0.55 * p.glow})`); g.addColorStop(1, 'rgba(255,214,120,0)');
@@ -2178,7 +2337,7 @@ function frame(now) {
   // Slow motion and a push-in as the rack's last ball heads for the pocket.
   let slow = false, tk = 1, tx = W / 2, ty = H / 2;
   if (cine) {
-    const b = table.balls.find(o => o.n === cine.n), p = POCKETS[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
+    const b = table.balls.find(o => o.n === cine.n), p = table.pk[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
     else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
   }
