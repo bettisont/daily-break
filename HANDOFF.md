@@ -179,16 +179,16 @@ spin helps (`spinPulse`):
 - Whenever the pull-back path hint shows a scratch (the red X), the spin ball pulses while it's shown; the
   first three times ever (`dailybreak:scratchTips`) the table also says "Scratch ahead: try spin".
 
-## Table shapes (prototype, 11 Nov 2026; off in the live game)
+## Table shapes (from 12 Nov 2026)
 
-`SHAPES_ON` is false, so the live game is unchanged; the test build turns shapes on. When on, levels 3 and
+`SHAPES_ON` switches them on (set it false to go back to the classic table only). Levels 3 and
 up are played on a table shape dealt for the day like a shuffled deck (`shapeFor`: classic plus six shapes, all
 seven before any repeat, never the same twice running), the same for everyone, from `SHAPES_FROM`. Levels
 1–2, older days and classic levels run exactly the old rectangle code (layouts checked identical).
 
 Shapes (`SHAPES`, built by `mkShape`; each fits the 500 × 1000 box and has six pockets): ⬡ Hexagon (a
 pocket at each corner), ⯃ Octagon (pockets on the four diagonals plus two sides), ⌐ L-shape, ⧗ Hourglass
-(two chambers; pockets on the two waist points), ⬭ Oval (pockets round the rim) and ⊡ Island (a classic
+(two chambers joined by a waist half the table's width; pockets on the two waist points), ⬭ Oval (pockets round the rim) and ⊡ Island (a classic
 table with a walnut block in the middle).
 
 - Physics: a shaped table's cushions are segments (`sh.segs`, with normals into the felt). A ball overlapping
@@ -198,10 +198,11 @@ table with a walnut block in the middle).
   and islands.
 - Generation: balls are placed only where they fit on the felt (`freeIn`), rail balls go along any cushion,
   and the usual opening-pot and clearable checks apply. In testing (40 levels per shape, levels 3–10) every
-  level had a real opening pot and 239/240 were clearable; no ball left the felt in 1,440 random shots.
-  Generation averages 13–29 ms per level except the hourglass (~130 ms, worst ~600 ms).
+  level had a real opening pot and was clearable; no ball left the felt in 1,440 random shots.
+  Generation averages 11–31 ms per level except the hourglass (~70 ms, worst ~430 ms; its waist was widened
+  from 160 to 250 px because the narrow one rejected about 14 layouts per level, now about 5).
 - Drawing: `drawShapedTable` draws the walnut rail, cushion and felt round the outline; everything on the
-  felt is clipped to it (`feltPath`). The level banner names the table.
+  felt is clipped to it (`feltPath`). The level banner names the table, and the help explains it. Not on the share card (by choice).
 
 Ideas next: portals or bridges linking two parts of a table (the aim line would need to follow the ball
-through), a table emoji per level on the share card, and tuning which shapes appear at which levels.
+through), and tuning which shapes appear at which levels.

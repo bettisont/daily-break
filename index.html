@@ -232,7 +232,7 @@ function pocketAim(i, h) {
 // rectangle or one of these. Every shape fits the same 500 x 1000 box and has six pockets. Levels 1-2, days
 // before SHAPES_FROM and classic levels run exactly the old rectangle code, so their layouts never change.
 const SHAPES_FROM = '2026-11-12';
-const SHAPES_ON = false;   // prototype: off in the live game until it's signed off (the test build forces shapes)
+const SHAPES_ON = true;   // set false to go back to the classic table only
 const segDist0 = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)); return Math.hypot(ax + dx * u - px, ay + dy * u - py); };
 function inPoly(pts, x, y) {
   let inside = false;
@@ -282,8 +282,8 @@ const SHAPES = [
     [[46, 46, 1.75], [454, 46, 1.75], [-5, 500, 1.55], [505, 500, 1.55], [46, 954, 1.75], [454, 954, 1.75]]),
   mkShape('ell', 'L-shape', '⌐', [[0, 0], [500, 0], [500, 540], [260, 540], [260, 1000], [0, 1000]],
     [[0, 0, 1.75], [500, 0, 1.75], [-5, 520, 1.55], [500, 540, 1.75], [0, 1000, 1.75], [260, 1000, 1.75]], [], [130, 820]),
-  mkShape('hourglass', 'Hourglass', '⧗', [[0, 0], [500, 0], [500, 390], [330, 500], [500, 610], [500, 1000], [0, 1000], [0, 610], [170, 500], [0, 390]],
-    [[0, 0, 1.75], [500, 0, 1.75], [170, 500, 1.5], [330, 500, 1.5], [0, 1000, 1.75], [500, 1000, 1.75]]),
+  mkShape('hourglass', 'Hourglass', '⧗', [[0, 0], [500, 0], [500, 410], [375, 500], [500, 590], [500, 1000], [0, 1000], [0, 590], [125, 500], [0, 410]],
+    [[0, 0, 1.75], [500, 0, 1.75], [125, 500, 1.45], [375, 500, 1.45], [0, 1000, 1.75], [500, 1000, 1.75]]),
   mkShape('oval', 'Oval', '⬭', ellipse(56, 250, 500, 250, 500),
     [onEllipse(-90), onEllipse(-35), onEllipse(-145), onEllipse(35), onEllipse(145), onEllipse(90)]),
   mkShape('island', 'Island', '⊡', [[0, 0], [W, 0], [W, H], [0, H]],
@@ -1312,6 +1312,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
+      <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
     </div>
