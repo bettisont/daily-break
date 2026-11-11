@@ -740,6 +740,7 @@ function newRound(seed, ranked) {
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
   const saved = ranked ? ls('dailybreak:ladder:' + seed) : null;
+  if (!saved && resumeRun()) return;
   startHole(0);
   if (saved) { try { Object.assign(round, JSON.parse(saved), { done: true }); hs.points = round.points; renderCard9(); showFinal(true); } catch {} }
 }
@@ -758,6 +759,7 @@ function startHole(i) {
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: 1.5, max: 1.5 };
   // level 2 tip, until the player has tapped a ball once
+  saveRun();
   if (i === 1 && !ls('dailybreak:tappedBall')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') float(W / 2, H * 0.62, 'Tap a ball to target it', '#2f6b4f', 20, 2.6); }, 1700); }
   renderCard9(); updateUI();
 }
@@ -920,9 +922,40 @@ function resolveShot() {
   }
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (round.lives <= 0) endRun();
-  else if (!table.remaining()) finishHole();
-  else lineUp();
+  else if (!table.remaining()) { finishHole(); saveRun(round.level + 1); }
+  else { lineUp(); saveRun(); }
   renderCard9(); updateUI();
+}
+
+// A ranked run in progress is saved after every shot (level, lives, score and where every ball is),
+// so closing or reloading the page carries on from the same spot instead of restarting the day's run.
+const runKey = () => 'dailybreak:run:' + round.seed;
+function saveRun(nextLevel) {
+  if (!round.ranked || !isDailySeed(round.seed) || round.done || ls('dailybreak:ladder:' + round.seed)) return;
+  const fresh = nextLevel != null;
+  ls(runKey(), JSON.stringify({
+    level: fresh ? nextLevel : round.level, lives: round.lives, potted: round.potted, results: round.results,
+    bestStreak: round.bestStreak, points: hs.points, streak: hs.streak, misses: fresh ? 0 : levelMisses,
+    cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
+  }));
+}
+function resumeRun() {
+  if (!round.ranked || !isDailySeed(round.seed)) return false;
+  let r; try { r = JSON.parse(ls(runKey())); } catch {}
+  if (!r || !Number.isInteger(r.level)) return false;
+  Object.assign(round, { lives: r.lives, potted: r.potted, results: r.results || [], bestStreak: r.bestStreak || 0 });
+  hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
+  startHole(r.level);
+  if (r.balls && r.balls.length === table.balls.length) {
+    r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));
+    if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
+    levelMisses = r.misses || 0;
+    lineUp();
+    saveRun();   // startHole saved a fresh layout; put the real one back so a second reload can't reset the balls
+  }
+  banner = { title: `Level ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${hearts(round.lives)}`, life: 1.8, max: 1.8 };
+  renderCard9(); updateUI();
+  return true;
 }
 
 // Level cleared: a bonus per ball, and a life back if it went without a miss.
@@ -949,6 +982,7 @@ function finishHole() {
 // Out of lives: the run ends on the level you were playing.
 function endRun() {
   track('finish');
+  try { localStorage.removeItem(runKey()); } catch {}
   round.results.push('fail'); round.done = true; round.points = hs.points; round.left = table.remaining();
   phase = 'over';
   const forLevel = round.level;
