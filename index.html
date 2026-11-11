@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ece5d3">
 <title>Daily Break - Daily Pool Game</title>
-<meta name="description" content="One new pool ladder every day. One ball, then two, then three, with four lives: how far can you get? See how your run ranks against other players.">
+<meta name="description" content="A new pool game every day. Pot one ball, then two, then three, with four lives: how far can you get? See how your run ranks against other players.">
 <link rel="canonical" href="https://dailybreak.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Daily Break">
 <meta property="og:title" content="Daily Break - Daily Pool Game">
-<meta property="og:description" content="One new pool ladder every day. One ball, then two, then three: how far can you get? See how your run ranks against other players.">
+<meta property="og:description" content="A new pool game every day. Pot one ball, then two, then three: how far can you get? See how your run ranks against other players.">
 <meta property="og:url" content="https://dailybreak.app/">
-<meta property="og:image" content="https://dailybreak.app/og.png?v=2">
+<meta property="og:image" content="https://dailybreak.app/og.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Daily Break: your daily pool ladder. A red ball lined up on a corner pocket.">
+<meta property="og:image:alt" content="Daily Break: one more ball every level. A red ball lined up on a corner pocket.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -972,7 +972,7 @@ function fillRank() {
   const L = round.level + 1, others = t.players - 1;
   const lower = Object.entries(t.levels).reduce((a, [lv, n]) => a + (+lv < L ? n : 0), 0);
   const same = (t.levels[L] || 0) - 1, pct = others > 0 ? Math.round(100 * lower / others) : 100;
-  const line = others <= 0 ? "You're the first to finish today's ladder" :
+  const line = others <= 0 ? "You're the first to finish today's game" :
     lower === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best run today so far 🏆') :
     `Better than ${pct}% of today's players`;
   el.innerHTML = `<b>${line}</b>`;   // no player count shown (Tim, 11 Nov)
@@ -1097,7 +1097,7 @@ function showFinal(already) {
 }
 function showIntro() {
   $('card').innerHTML = `
-    <div class="k mono">Daily Break · a pool ladder</div>
+    <div class="k mono">Daily Break · daily pool</div>
     <h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
@@ -1161,13 +1161,13 @@ function statsHtml() {
   const cell = (v, k) => `<div><b>${v}</b><span>${k}</span></div>`;
   return `<div class="stats">${cell(st.played, 'Played')}${cell(st.streak, 'Day streak')}${cell(st.best, 'Best level')}${cell(st.avg.toFixed(1), 'Average')}</div>`;
 }
-// Countdown to the next daily ladder (local midnight).
+// Countdown to the next daily game (local midnight).
 function tickNext() {
   const el = $('nextIn');
   if (!el) { clearInterval(tickNext.t); return; }
   const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), ms = next - now;
   const h = Math.floor(ms / 36e5), m = Math.floor(ms / 6e4) % 60, sec = Math.floor(ms / 1e3) % 60;
-  el.textContent = `Next ladder in ${h ? `${h}h ${m}m` : `${m}m ${String(sec).padStart(2, '0')}s`}`;
+  el.textContent = `Next game in ${h ? `${h}h ${m}m` : `${m}m ${String(sec).padStart(2, '0')}s`}`;
 }
 const FEEDBACK_EMAIL = '';   // hidden until hello@dailybreak.app forwards somewhere (set it to show the link)
 const feedbackLink = () => FEEDBACK_EMAIL ? `<div class="fbrow"><a href="${feedbackHref()}">Send feedback</a></div>` : '';
