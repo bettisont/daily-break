@@ -122,9 +122,8 @@ post to the endpoint, so treat the numbers as a guide, not a leaderboard.
 - Near miss (`nearMiss`, from this device's history; the run end stores `left`, balls left on the
   table): new personal best › one ball off the next level › equal to your best › one level off it.
 
-Link preview card (11 Nov 2026): `static/og.png` is a flat illustration (wordmark, "One more ball every
-level.", a table corner with a ball lined up on the pocket), drawn in `tools/og-card.html` and
+Link preview card (11 Nov 2026): `static/og.png` is a flat illustration (wordmark, "Your daily frame.", a table corner with a ball lined up on the pocket), drawn in `tools/og-card.html` and
 rendered at 1200×630 with headless Chromium. `og:image` carries a `?v=` number so WhatsApp and others
 fetch the new picture; bump it when the card changes.
 
-Wording (11 Nov 2026): players never see the word "ladder" (it reads as a ranking table in the UK); it's "a new pool game every day", "one more ball every level", "Next game in…". Code names (`dailybreak:ladder:` keys, `ladderStats`) are unchanged so saved results keep working.
+Wording (11 Nov 2026): players never see the word "ladder" (it reads as a ranking table in the UK); it's "a new pool game every day", "Your daily frame." (tagline), "Next game in…". Code names (`dailybreak:ladder:` keys, `ladderStats`) are unchanged so saved results keep working.
