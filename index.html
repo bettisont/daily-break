@@ -747,6 +747,7 @@ function newRound(seed, ranked) {
 // A new level: a fresh seeded layout with one more ball than the last.
 function startHole(i) {
   round.level = i;
+  if (i === 2) track('level3');
   hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
   strokes = 0; levelMisses = 0;
@@ -888,6 +889,7 @@ function release() {
 
 function resolveShot() {
   const s = table.shot, c = table.cue;
+  track('shot');
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
   const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
   round.potted += shotLog.length;
@@ -925,6 +927,7 @@ function resolveShot() {
 
 // Level cleared: a bonus per ball, and a life back if it went without a miss.
 function finishHole() {
+  if (round.level === 0) track('clear1');
   const n = hole.balls.length, clean = !levelMisses, bonus = PTS.level * n, refill = clean && round.lives < LIVES;
   hs.points += bonus;
   if (refill) round.lives++;
@@ -945,6 +948,7 @@ function finishHole() {
 }
 // Out of lives: the run ends on the level you were playing.
 function endRun() {
+  track('finish');
   round.results.push('fail'); round.done = true; round.points = hs.points; round.left = table.remaining();
   phase = 'over';
   const forLevel = round.level;
@@ -958,6 +962,17 @@ function endRun() {
 }
 // One anonymous note per ranked day (day, level, balls, points; no IDs) so we can see how far people get.
 // Only from the live site, so local tests and previews don't count.
+// The drop-off funnel: one anonymous signal per step, at most once per device per day, ranked runs on
+// the live site only (open → first shot → cleared level 1 → reached level 3 → finished).
+function track(step) {
+  if (location.hostname !== 'dailybreak.app' || !round?.ranked || !isDailySeed(round.seed) || round.done && step !== 'finish') return;
+  const key = `dailybreak:ev:${round.seed}:${step}`;
+  if (ls(key)) return;
+  ls(key, '1');
+  const body = JSON.stringify({ day: round.seed, step });
+  try { if (navigator.sendBeacon?.('/api/event', new Blob([body], { type: 'application/json' }))) return; } catch {}
+  fetch('/api/event', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
+}
 function sendResult() {
   if (location.hostname !== 'dailybreak.app' || !isDailySeed(round.seed)) return;
   const body = JSON.stringify({ day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
@@ -2114,7 +2129,7 @@ function frame(now) {
 resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
-if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else newRound(todayKey(), true);
+if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); }
 if (!ls('dailybreak:seenHelp') && !$('overlay').classList.contains('show')) showIntro();
 requestAnimationFrame(frame);
 </script>

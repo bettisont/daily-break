@@ -4,6 +4,8 @@
 // POST /api/result  one anonymous ranked result {day, level, potted, points}. It goes to Workers
 //                   Analytics Engine (dataset daily_break_results, read by .github/workflows/results.yml)
 //                   and is counted in the DayCounts Durable Object. Replies with that day's tally.
+// POST /api/event   one anonymous funnel step {day, step} (open, shot, clear1, level3, finish), sent at
+//                   most once per device per day; Analytics Engine dataset daily_break_events.
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
 //                   so the result card can say "better than X% of today's players".
 import { DurableObject } from 'cloudflare:workers';
@@ -28,6 +30,14 @@ export class DayCounts extends DurableObject {
     return { players: Object.values(levels).reduce((a, b) => a + b, 0), levels };
   }
 }
+const STEPS = new Set(['open', 'shot', 'clear1', 'level3', 'finish']);
+async function recordEvent(request, env) {
+  let e;
+  try { e = await request.json(); } catch { return new Response('bad json', { status: 400 }); }
+  if (!e || !DAY.test(e.day) || !STEPS.has(e.step) || !dayIsCurrent(e.day)) return new Response('bad event', { status: 400 });
+  env.EVENTS?.writeDataPoint({ indexes: [e.day], blobs: [e.day, e.step], doubles: [1] });
+  return new Response(null, { status: 204 });
+}
 const counter = env => env.DAYS.get(env.DAYS.idFromName('all'));
 
 async function recordResult(request, env) {
@@ -49,6 +59,10 @@ export default {
     if (url.pathname === '/api/result') {
       if (request.method !== 'POST') return new Response('POST only', { status: 405, headers: { allow: 'POST' } });
       return recordResult(request, env);
+    }
+    if (url.pathname === '/api/event') {
+      if (request.method !== 'POST') return new Response('POST only', { status: 405, headers: { allow: 'POST' } });
+      return recordEvent(request, env);
     }
     if (url.pathname === '/api/day') {
       const day = url.searchParams.get('day') || '';
