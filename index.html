@@ -305,6 +305,39 @@ function shapeFor(seed, i) {
   return SHAPES.find(s => s.key === cur[(i - 2) % n]) || null;
 }
 const pocketsOf = h => h.shape ? h.shape.pockets : POCKETS;
+
+// ---- obstacles (prototype; OBSTACLES_ON is off in the live game, the test build turns it on) ----
+// On par days, holes 3-6 each get at most one obstacle, dealt for the day like the shapes (one of each, plus a
+// hole with none): a water hazard (a ball that rolls in costs a penalty stroke and comes back out at the
+// edge), a windmill (two crossed bars that turn while balls are rolling) or a one-way gate (a hinged flap
+// that swings open from one side and is solid from the other). All of it runs in the deterministic physics.
+const OBSTACLES_ON = false, OBST_KEYS = ['none', 'water', 'windmill', 'gate'];
+const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way gate' };
+const BAR_T = 6, WM_W = 1.5, GATE_MAX = 1.45, GATE_BACK = 2.2;
+let obstacleOverride = null;   // the test build forces an obstacle here
+function obstFor(seed, i) {
+  if (obstacleOverride) return obstacleOverride === 'none' ? null : obstacleOverride;
+  if (!OBSTACLES_ON || i < 2 || !parSeed(seed)) return null;
+  const n = OBST_KEYS.length, c = Math.floor((i - 2) / n), deck = shuffle(rngFor(`${seed}:obst:${c}`), OBST_KEYS);
+  const k = deck[(i - 2) % n];
+  return k === 'none' ? null : k;
+}
+// is (x, y) within m of the pond's water?
+function inPond(o, x, y, m = 0) {
+  const c = Math.cos(-o.rot), sn = Math.sin(-o.rot), dx = x - o.x, dy = y - o.y, lx = dx * c - dy * sn, ly = dx * sn + dy * c;
+  return (lx / (o.rx + m)) ** 2 + (ly / (o.ry + m)) ** 2 < 1;
+}
+// The solid bars of a table's obstacle right now: [ax, ay, bx, by, solidSide or null]
+function obstBars(t) {
+  const o = t.hole.obst;
+  if (!o) return [];
+  if (o.type === 'windmill') return [0, Math.PI / 2].map(k => { const a = t.wa + k, ux = Math.cos(a) * o.len, uy = Math.sin(a) * o.len; return [o.x - ux, o.y - uy, o.x + ux, o.y + uy, null]; });
+  if (o.type === 'gate') {
+    const a = o.a0 + o.dir * t.gp, ex = o.x + Math.cos(a) * o.len, ey = o.y + Math.sin(a) * o.len;
+    return [[o.x, o.y, ex, ey, { nx: -o.dir * Math.sin(a), ny: o.dir * Math.cos(a) }]];
+  }
+  return [];
+}
 function inPatch(p, x, y) {
   const c = Math.cos(-p.rot), s = Math.sin(-p.rot), dx = x - p.x, dy = y - p.y;
   const lx = dx * c - dy * s, ly = dx * s + dy * c;
@@ -319,7 +352,7 @@ function lieAt(hole, x, y) {
 // It's re-rolled (deterministically) until the opening shot really drops.
 const holeCache = new Map();
 function makeHole(seed, i) {
-  const key = `${seed}:${i}:${shapeOverride || ''}`;
+  const key = `${seed}:${i}:${shapeOverride || ''}:${obstacleOverride || ''}`;
   if (holeCache.has(key)) return holeCache.get(key);
   const n = Math.min(i + 1, MAX_BALLS);
   let h = null, fallback = null;
@@ -345,7 +378,7 @@ function clearable(h) {
     let best = null;
     search: for (const l of ls) for (const pw of [0.4, 0.3, 0.55]) for (const sp of [0, 0.6, -0.6]) {
       const s = simulate(t, l.angle, pw, sp), b = s.balls[l.bi];
-      if (s.shot.scratch || s.shot.firstHit !== b || !s.shot.pots.some(p => p.ball === b)) continue;
+      if (s.shot.scratch || s.shot.splashes || s.shot.firstHit !== b || !s.shot.pots.some(p => p.ball === b)) continue;
       const v = s.remaining() ? leaveQ(s) : 9;
       if (!best || v > best.v) best = { v, s };
       if (v >= 0.45) break search;   // a comfortable next pot: good enough
@@ -368,7 +401,7 @@ function openingPot(h) {
   const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.55).sort((a, b) => b.q - a.q).slice(0, 4);
   for (const l of ls) for (const pw of [0.3, 0.42, 0.55]) {
     const s = simulate(t, l.angle, pw, 0), b = s.balls[l.bi];
-    if (!s.shot.scratch && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b)) return true;
+    if (!s.shot.scratch && !s.shot.splashes && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b)) return true;
   }
   return false;
 }
@@ -378,7 +411,8 @@ function buildHole(seed, i, attempt) {
   const hz = clamp(i - 1, 0, 8), haz = p => hz > 0 && rnd() < p;
   const closed = haz(0.04 + hz * 0.04) ? [Math.floor(rnd() * 6)] : [];
   const placed = [], shape = shapeFor(seed, i), pks = shape ? shape.pockets : POCKETS;
-  const ok = (x, y, rad, gap) => (shape ? freeIn(shape, x, y, rad + 6) : x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6) &&
+  let obst = null;
+  const ok = (x, y, rad, gap) => (!obst || obst.type !== 'water' || !inPond(obst, x, y, rad + 10)) && (shape ? freeIn(shape, x, y, rad + 6) : x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6) &&
     placed.every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + gap) &&
     pks.every(p => Math.hypot(p.x - x, p.y - y) > rad + R * 3.2);
   const place = (gen, rad, gap) => {
@@ -388,6 +422,14 @@ function buildHole(seed, i, attempt) {
     }
     return null;
   };
+  const kind = obstFor(seed, i);
+  if (kind) {
+    const orr = rngFor(`${seed}:obstacle:${i}` + (attempt ? `:${attempt}` : ''));
+    const spot = (r, gen) => place(gen || (() => [80 + orr() * (W - 160), 220 + orr() * (H - 470)]), r, R * 1.5);
+    if (kind === 'water') { const rx = 70 + orr() * 40, ry = 48 + orr() * 30, o = spot(Math.max(rx, ry)); if (o) obst = { type: 'water', x: o.x, y: o.y, rx, ry, rot: orr() * Math.PI }; }
+    if (kind === 'windmill') { const len = 62 + orr() * 18, o = spot(len + BAR_T + 4); if (o) obst = { type: 'windmill', x: o.x, y: o.y, len, a0: orr() * Math.PI }; }
+    if (kind === 'gate') { const len = 70 + orr() * 20, o = spot(len + BAR_T); if (o) obst = { type: 'gate', x: o.x, y: o.y, len, a0: orr() * TAU, dir: orr() < 0.5 ? 1 : -1 }; }
+  }
   const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || (shape ? { x: shape.spawn[0], y: shape.spawn[1] } : { x: W / 2, y: H * 0.8 });
   const bumpers = [];
   const nBump = haz(0.08 + hz * 0.05) ? 1 + (hz > 5 && rnd() < 0.4 ? 1 : 0) : 0;
@@ -413,7 +455,7 @@ function buildHole(seed, i, attempt) {
     const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (6 + hz * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
-  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape };
+  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape, obst };
 }
 
 class Table {
@@ -423,6 +465,8 @@ class Table {
     this.balls = hole.balls.map(b => ({ ...b, vx: 0, vy: 0, m: 1, potted: false }));
     this.shot = null;
     this.pk = pocketsOf(hole);
+    this.wa = hole.obst?.a0 || 0;   // windmill angle
+    this.gp = 0;                    // how far the gate is open
   }
   openPocket(i) { return !this.hole.closed.includes(i); }
   live() { return [this.cue, ...this.balls].filter(b => !b.potted); }
@@ -433,7 +477,7 @@ class Table {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
     for (const b of this.balls) b.cush = 0;
-    this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false };
+    this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false, splashes: 0 };
   }
 
   step() {
@@ -481,8 +525,20 @@ class Table {
         a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
       }
     }
+    if (this.hole.obst) this.stepObstacle(live);
     for (const b of live) {
       if (b.potted || (!b.vx && !b.vy)) continue;
+      // water: a ball whose centre reaches the water splashes, costs a penalty stroke and comes back out where it went in
+      const ob = this.hole.obst;
+      if (ob?.type === 'water' && inPond(ob, b.x, b.y)) {
+        const sp = Math.hypot(b.vx, b.vy) || 1, ux = -b.vx / sp, uy = -b.vy / sp;
+        let px = b.x, py = b.y;
+        for (let k = 0; k < 200 && inPond(ob, px, py, R + 3); k++) { px += ux * 2; py += uy * 2; }
+        this.ev('splash', { x: b.x, y: b.y, ball: b });
+        this.respot(b, px, py);
+        if (s) s.splashes++;
+        continue;
+      }
       for (const o of this.hole.bumpers) {
         const dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy), min = o.r + R;
         if (d >= min || d === 0) continue;
@@ -539,12 +595,57 @@ class Table {
     if (b.isCue) s.scratch = true; else s.pots.push({ ball: b, pocket: i });
   }
 
+  // The windmill turns while balls are rolling and sweeps whatever it meets; the gate swings open when a
+  // ball pushes it from its open side, is solid from the other, and swings shut again behind the ball.
+  stepObstacle(live) {
+    const o = this.hole.obst;
+    if (o.type === 'windmill') {
+      this.wa += WM_W * DT;
+      for (const b of live) for (const [ax, ay, bx, by] of obstBars(this)) {
+        const ex = bx - ax, ey = by - ay, u = clamp(((b.x - ax) * ex + (b.y - ay) * ey) / (ex * ex + ey * ey), 0, 1);
+        const cx = ax + ex * u, cy = ay + ey * u, dx = b.x - cx, dy = b.y - cy, d = Math.hypot(dx, dy), min = R + BAR_T;
+        if (d >= min) continue;
+        const nx = d ? dx / d : 1, ny = d ? dy / d : 0;
+        b.x = cx + nx * min; b.y = cy + ny * min;
+        const vbx = -WM_W * (cy - o.y), vby = WM_W * (cx - o.x), vn = (b.vx - vbx) * nx + (b.vy - vby) * ny;
+        if (vn < 0) { b.vx -= 1.6 * vn * nx; b.vy -= 1.6 * vn * ny; if (-vn > 60) this.ev('cushion', { speed: -vn, x: b.x, y: b.y }); }
+      }
+    } else if (o.type === 'gate') {
+      const hits = () => { const [[ax, ay, bx, by]] = obstBars(this); return live.filter(b => segDist(b.x, b.y, ax, ay, bx, by) < R + BAR_T); };
+      // swing back towards shut, but never into a ball
+      if (this.gp > 0) { const was = this.gp; this.gp = Math.max(0, this.gp - GATE_BACK * DT); if (hits().length) this.gp = was; }
+      for (const b of hits()) {
+        const [[ax, ay, bx, by, side]] = obstBars(this);
+        const ex = bx - ax, ey = by - ay, u = clamp(((b.x - ax) * ex + (b.y - ay) * ey) / (ex * ex + ey * ey), 0, 1);
+        const cx = ax + ex * u, cy = ay + ey * u, dx = b.x - cx, dy = b.y - cy, d = Math.hypot(dx, dy) || 1, nx = dx / d, ny = dy / d;
+        const vn = b.vx * nx + b.vy * ny, fromOpen = nx * side.nx + ny * side.ny < 0;
+        if (fromOpen && vn < 0 && this.gp < GATE_MAX) {
+          // the ball pushes the flap open and carries on, losing a little pace
+          const first = this.gp < 0.05;
+          for (let k = 0; k < 60 && this.gp < GATE_MAX && segDist(b.x, b.y, ...obstBars(this)[0].slice(0, 4)) < R + BAR_T; k++) this.gp = Math.min(GATE_MAX, this.gp + 0.02);
+          // pushing the flap costs a little pace: a knock on first contact, then a gentle drag
+          const f = first ? 0.85 : 0.998; b.vx *= f; b.vy *= f;
+          if (first && -vn > 60) this.ev('gate', { speed: -vn, x: b.x, y: b.y });
+        }
+        const [[ax2, ay2, bx2, by2]] = obstBars(this), e2x = bx2 - ax2, e2y = by2 - ay2, u2 = clamp(((b.x - ax2) * e2x + (b.y - ay2) * e2y) / (e2x * e2x + e2y * e2y), 0, 1);
+        const c2x = ax2 + e2x * u2, c2y = ay2 + e2y * u2, d2x = b.x - c2x, d2y = b.y - c2y, dd = Math.hypot(d2x, d2y);
+        if (dd >= R + BAR_T) continue;
+        // still touching: it's the solid side (or the flap is wide open), so it's a wall
+        const mx = dd ? d2x / dd : nx, my = dd ? d2y / dd : ny;
+        b.x = c2x + mx * (R + BAR_T); b.y = c2y + my * (R + BAR_T);
+        const v2 = b.vx * mx + b.vy * my;
+        if (v2 < 0) { b.vx -= (1 + CUSHION_E) * v2 * mx; b.vy -= (1 + CUSHION_E) * v2 * my; if (-v2 > 60) this.ev('cushion', { speed: -v2, x: b.x, y: b.y }); }
+      }
+    }
+  }
+
   // put a ball back near (x, y) without overlapping anything
   respot(b, x, y) {
     const free = (px, py) => (this.hole.shape ? freeIn(this.hole.shape, px, py, R + 1) : px > R && px < W - R && py > R && py < H - R) &&
       this.live().every(o => o === b || Math.hypot(o.x - px, o.y - py) > 2 * R + 2) &&
       this.hole.bumpers.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
-      this.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4);
+      this.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4) &&
+      (!this.hole.obst || (this.hole.obst.type === 'water' ? !inPond(this.hole.obst, px, py, R + 2) : obstBars(this).every(([ax, ay, bx, by]) => segDist(px, py, ax, ay, bx, by) > R + BAR_T + 2)));
     for (let rad = 0; rad < 600; rad += 4) {
       for (let a = 0; a < TAU; a += 0.3) {
         const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
@@ -569,7 +670,11 @@ function segDist(px, py, ax, ay, bx, by) {
   return Math.hypot(ax + dx * u - px, ay + dy * u - py);
 }
 function pathBlocked(t, ax, ay, bx, by, skip) {
-  const sh = t.hole.shape;
+  const sh = t.hole.shape, ob = t.hole.obst;
+  if (ob) {
+    if (ob.type === 'water') { const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 10); for (let k = 0; k <= n; k++) if (inPond(ob, ax + (bx - ax) * k / n, ay + (by - ay) * k / n, R * 0.5)) return true; }
+    else if (obstBars(t).some(([cx, cy, dx, dy]) => segSeg(ax, ay, bx, by, cx, cy, dx, dy) < R + BAR_T)) return true;
+  }
   return t.balls.some(b => !b.potted && b !== skip && segDist(b.x, b.y, ax, ay, bx, by) < 2 * R - 0.5) ||
     t.hole.bumpers.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R) ||
     // shaped tables: corners sticking into the felt, and islands, get in the way
@@ -597,6 +702,23 @@ function rayCushion(px, py, dx, dy, g) {
   }
   return best;
 }
+// How far a ball's centre travels along (dx, dy) before it touches a bar of half-thickness th (only from the
+// solid side if one is given).
+function rayBar(px, py, dx, dy, ax, ay, bx, by, th, solid) {
+  const ex = bx - ax, ey = by - ay, l = Math.hypot(ex, ey), nx = -ey / l, ny = ex / l, r = R + th;
+  if (solid && dx * solid.nx + dy * solid.ny >= 0) return Infinity;   // coming from the open side: it gives way
+  let best = Infinity;
+  const den = dx * ey - dy * ex;
+  if (Math.abs(den) > 1e-9) for (const sgn of [1, -1]) {
+    const qx = ax + nx * r * sgn - px, qy = ay + ny * r * sgn - py, t = (qx * ey - qy * ex) / den, u = (qx * dy - qy * dx) / den;
+    if (t > 0.001 && u >= 0 && u <= 1) best = Math.min(best, t);
+  }
+  for (const [cx, cy] of [[ax, ay], [bx, by]]) {
+    const ox = px - cx, oy = py - cy, b = ox * dx + oy * dy, c = ox * ox + oy * oy - r * r, disc = b * b - c;
+    if (disc >= 0) { const t = -b - Math.sqrt(disc); if (t > 0.001) best = Math.min(best, t); }
+  }
+  return best;
+}
 // First thing a ball meets travelling from (px, py) along (dx, dy).
 function trace(t, px, py, dx, dy, skip = null) {
   const ray = (cx, cy, rad) => {
@@ -608,6 +730,7 @@ function trace(t, px, py, dx, dy, skip = null) {
   let best = { t: Infinity };
   for (const b of t.balls) { if (b.potted || b === skip) continue; const s = ray(b.x, b.y, 2 * R); if (s < best.t) best = { t: s, ball: b }; }
   for (const o of t.hole.bumpers) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
+  for (const [ax, ay, bx, by, solid] of obstBars(t)) { const s = rayBar(px, py, dx, dy, ax, ay, bx, by, BAR_T, solid); if (s < best.t) best = { t: s, wall: true }; }
   if (t.hole.shape) {
     for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true }; }
     return best;
@@ -804,6 +927,9 @@ const sfx = {
   lifeUp() { [659.25, 880, 1318.5].forEach((f, k) => tone(f, 0.3, 0.06, 'sine', 1, 0.5 + k * 0.08, 0.5)); },
   multi(n) { [784, 988, 1175, 1568].slice(0, n + 1).forEach((f, k) => tone(f, 0.25, 0.05, 'sine', 1, 0.05 + k * 0.06, 0.5)); },
   pot() { tone(170, 0.22, 0.35, 'sine', 0.5, 0, 0.1); noise(0.14, 0.25, 700, 'lowpass', 0.03); tone(1300, 0.025, 0.05, 'triangle', 1, 0.1, 0.1); tone(950, 0.025, 0.04, 'triangle', 1, 0.17, 0.1); },
+  // water: a plop and a splash; the gate: a woody creak and clack
+  splash() { tone(260, 0.18, 0.18, 'sine', 0.45, 0, 0.2); noise(0.35, 0.3, 1400, 'bandpass', 0.02, 0.8); noise(0.5, 0.15, 600, 'lowpass', 0.1); },
+  gate(v) { v = Math.min(1, v / 1500); noise(0.08, 0.25 * v + 0.05, 700, 'bandpass', 0, 3); tone(330, 0.06, 0.06 * v + 0.02, 'triangle', 0.7, 0.03, 0.05); },
   rattle() { for (let k = 0; k < 4; k++) tone(700 - k * 90, 0.04, 0.09, 'triangle', 0.8, k * 0.05, 0.1); noise(0.12, 0.2, 900, 'bandpass', 0, 2); },
   strike(p) { noise(0.02, 0.3 + 0.4 * p, 2400, 'bandpass', 0, 1); tone(820, 0.035, 0.08 + 0.1 * p, 'triangle', 1, 0, 0); },
   bumper() { tone(523, 0.25, 0.1, 'sine', 1.5, 0, 0.4); tone(784, 0.25, 0.06, 'sine', 1.5, 0.03, 0.4); },
@@ -849,6 +975,13 @@ function onEvent(type, e) {
     spinFx = { t: 0, kind, amt };
   }
   else if (type === 'bumper') { sfx.bumper(); e.o.flash = 1; ring(e.o.x, e.o.y, '230,190,100', 34, 0.5, e.o.r); }
+  else if (type === 'splash') {
+    atX(e.x, () => sfx.splash()); buzz([20, 30, 20]);
+    for (let k = 0; k < 3; k++) fx.rings.push({ x: e.x, y: e.y, r: 6 + k * 6, grow: 40 + k * 14, life: 0.7 + k * 0.15, max: 0.7 + k * 0.15, color: '200,230,250' });
+    for (let k = 0; k < 16; k++) { const a = Math.random() * TAU, v = 60 + Math.random() * 110; fx.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.5 + Math.random() * 0.3, color: 'rgba(210,235,250,.9)', r: 1.5 + Math.random() * 2 }); }
+    float(e.x, e.y - 34, 'Splash!', '#3b6ea6', 20);
+  }
+  else if (type === 'gate') atX(e.x, () => sfx.gate(e.speed));
   else if (type === 'rattle') { sfx.rattle(); float(e.x, e.y - 30, 'Rattled out', '#b8553f', 18); fx.shake = 4; }
   else if (type === 'pot') {
     const p = table.pk[e.pocket], b = e.ball, tx = clamp(p.x, 0, W), ty = clamp(p.y, 0, H);
@@ -902,7 +1035,7 @@ function startHole(i) {
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
-  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}` });
+  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${hole.obst ? `${OBST_NAMES[hole.obst.type]} · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life: hole.obst ? 2.3 : banner.life, max: hole.obst ? 2.3 : banner.max });
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -1066,7 +1199,7 @@ function resolveShot() {
   const s = table.shot, c = table.cue;
   track('shot');
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
-  const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
+  const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : s.splashes ? 'In the water' : null;
   round.potted += shotLog.length;
   if ((foul || !shotLog.length) && round.level === 0) {
     // level 1 is a warm-up: a miss or foul there is free, so nobody loses a life in their first ten seconds
@@ -1121,6 +1254,9 @@ function resolveParShot() {
     say(`${foul} · +1 stroke`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
     hs.streak = 0;
   } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); hs.streak = 0; }
+  // water costs a penalty stroke per ball that went in, but doesn't stack on top of a foul's
+  const wet = Math.max(0, s.splashes - (foul ? 1 : 0));
+  if (wet) { strokes += wet; say(`In the water · +${wet} stroke${wet > 1 ? 's' : ''}`, table.cue.y + 70, '#3b6ea6'); }
   if (!foul && shotLog.length) scorePots();
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (!table.remaining()) finishParHole(false);
@@ -1480,6 +1616,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
+      <p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
@@ -1963,6 +2100,63 @@ function drawCat(t) {
   ctx.restore();
 }
 
+/* ----- obstacles ----- */
+
+function drawObstacle(o, t) {
+  if (o.type === 'water') {
+    ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.rot);
+    // a stony edge, then the water with drifting ripples
+    ctx.beginPath(); ctx.ellipse(0, 0, o.rx + 7, o.ry + 7, 0, 0, TAU); ctx.fillStyle = '#b9ad93'; ctx.fill();
+    for (let k = 0; k < 22; k++) { const a = k / 22 * TAU, sx = Math.cos(a) * (o.rx + 5), sy = Math.sin(a) * (o.ry + 5); ctx.fillStyle = k % 3 ? '#a49778' : '#c7bca0'; ctx.beginPath(); ctx.ellipse(sx, sy, 6, 4.5, a, 0, TAU); ctx.fill(); }
+    ctx.beginPath(); ctx.ellipse(0, 0, o.rx, o.ry, 0, 0, TAU);
+    const g = ctx.createRadialGradient(-o.rx * 0.2, -o.ry * 0.2, 4, 0, 0, Math.max(o.rx, o.ry));
+    g.addColorStop(0, '#6fa8c4'); g.addColorStop(1, '#3f7593');
+    ctx.fillStyle = g; ctx.fill(); ctx.save(); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 2;
+    for (let k = 0; k < 4; k++) { const ph = (t * 0.25 + k / 4) % 1; ctx.globalAlpha = Math.sin(ph * Math.PI); ctx.beginPath(); ctx.ellipse(Math.sin(k * 2.1) * o.rx * 0.3, Math.cos(k * 1.7) * o.ry * 0.3, 6 + ph * o.rx * 0.6, 3 + ph * o.ry * 0.4, 0, 0, TAU); ctx.stroke(); }
+    ctx.globalAlpha = 1; ctx.restore();
+    ctx.fillStyle = '#5f8f50';
+    for (const [a, l] of [[0.6, 1], [2.4, 0.8], [4.1, 1.1]]) { const bx = Math.cos(a) * (o.rx + 2), by = Math.sin(a) * (o.ry + 2); for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.ellipse(bx + k * 4, by, 2, 9 * l, k * 0.3, 0, TAU); ctx.fill(); } }
+    ctx.restore();
+    return;
+  }
+  const plank = (ax, ay, bx, by) => {
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(40,25,10,.3)'; ctx.lineWidth = BAR_T * 2 + 2; ctx.beginPath(); ctx.moveTo(ax + 3, ay + 5); ctx.lineTo(bx + 3, by + 5); ctx.stroke();
+    ctx.strokeStyle = '#7d5538'; ctx.lineWidth = BAR_T * 2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,225,190,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax, ay - 2); ctx.lineTo(bx, by - 2); ctx.stroke();
+  };
+  if (o.type === 'windmill') {
+    // the circle it sweeps, faintly, so you can see where it reaches
+    ctx.setLineDash([4, 8]); ctx.strokeStyle = 'rgba(255,255,240,.25)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.len + BAR_T, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    for (const [ax, ay, bx, by] of obstBars(table)) plank(ax, ay, bx, by);
+    ctx.fillStyle = '#c4472f'; ctx.beginPath(); ctx.arc(o.x, o.y, 11, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#efe4ca'; ctx.beginPath(); ctx.arc(o.x, o.y, 4, 0, TAU); ctx.fill();
+    // which way it turns
+    ctx.strokeStyle = 'rgba(255,255,240,.5)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.len + BAR_T + 8, -0.5, 0.3); ctx.stroke();
+    const ea = 0.3, tx = o.x + Math.cos(ea) * (o.len + BAR_T + 8), ty = o.y + Math.sin(ea) * (o.len + BAR_T + 8);
+    ctx.beginPath(); ctx.moveTo(tx - 7, ty - 3); ctx.lineTo(tx, ty); ctx.lineTo(tx + 1, ty - 8); ctx.stroke();
+    return;
+  }
+  if (o.type === 'gate') {
+    const [[ax, ay, bx, by, side]] = obstBars(table), sa = o.a0 + o.dir * 0;
+    // the arc it swings through, and big arrows painted on the felt showing the way through
+    const nx = -o.dir * Math.sin(sa), ny = o.dir * Math.cos(sa);
+    ctx.setLineDash([4, 7]); ctx.strokeStyle = 'rgba(255,255,240,.3)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.len, Math.min(sa, sa + o.dir * GATE_MAX), Math.max(sa, sa + o.dir * GATE_MAX)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,250,225,.75)'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const f of [0.35, 0.75]) {
+      const cx = o.x + Math.cos(sa) * o.len * f - nx * 22, cy = o.y + Math.sin(sa) * o.len * f - ny * 22;
+      ctx.beginPath(); ctx.moveTo(cx - nx * 12 - Math.cos(sa) * 10, cy - ny * 12 - Math.sin(sa) * 10); ctx.lineTo(cx, cy); ctx.lineTo(cx - nx * 12 + Math.cos(sa) * 10, cy - ny * 12 + Math.sin(sa) * 10); ctx.stroke();
+    }
+    plank(ax, ay, bx, by);
+    ctx.fillStyle = '#3a2618'; ctx.beginPath(); ctx.arc(o.x, o.y, 8, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#c99a43'; ctx.beginPath(); ctx.arc(o.x, o.y, 4, 0, TAU); ctx.fill();
+  }
+}
+
 /* ----- the table ----- */
 
 const polyPath = (pts, move = true) => { pts.forEach(([x, y], k) => k || !move ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
@@ -2065,6 +2259,7 @@ function drawTable(t, dt) {
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
     }
   });
+  if (hole.obst) drawObstacle(hole.obst, t);
   for (const o of hole.bumpers) {
     o.flash = Math.max(0, (o.flash || 0) - dt * 3);
     ctx.drawImage(SOFT_SHADOW, o.x - o.r * 1.3 + 3, o.y - o.r * 1.3 + 6, o.r * 2.6, o.r * 2.6);

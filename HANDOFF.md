@@ -231,3 +231,25 @@ up at par + 3 (`capOf`), which scores par + 3. Table shapes apply from hole 3.
   returns `{players, scores}` and the card says "Better than X% of today's players" (lower is better). The
   Results report has a par table (`par_report`) and keeps the level table for lives days.
 - Not done: the device stats (days played, streak, best) and the near-miss line aren't on the par card yet.
+
+## Obstacles (prototype, 11 Nov 2026; off in the live game)
+
+`OBSTACLES_ON` is false; the test build turns it on. On par days, holes 3–6 each get at most one obstacle,
+dealt for the day like the shapes (`obstFor`: water, windmill, gate and one hole with none, shuffled), placed
+before the balls from their own random stream (`seed:obstacle:i`), so holes without one are unchanged. They
+work with every table shape.
+
+- 💧 Water hazard (`inPond`): a pond with a stony edge. A ball whose centre reaches the water splashes, is put
+  back just outside where it went in, and costs a penalty stroke (`shot.splashes`); pots in the same shot
+  still count, and it doesn't stack with a foul's penalty. Pot lines across the pond count as blocked.
+- ✣ Windmill: two crossed bars (`BAR_T` half-thickness) that turn at `WM_W` (1.5 rad/s) only while balls are
+  rolling, so it's still while you aim and the path hint stays exact. It sweeps balls it meets, resting ones
+  included. A dashed circle shows its reach and an arrow its direction.
+- ⇥ One-way gate: a hinged flap (`Table.gp`, how far open, up to `GATE_MAX`). A ball pushing from the open side
+  swings it open and carries on (a small knock, then a gentle drag); from the other side it's a wall. It swings
+  shut behind (`GATE_BACK`), never into a ball. Painted arrows show the way through; the aim line passes
+  through it from the open side and stops at it from the solid side (`rayBar`).
+- `obstBars` gives the bars' current positions to the physics, `trace`, `pathBlocked` and `respot`.
+- Testing: 48 holes per obstacle (holes 3–6 on classic, hexagon, L-shape and oval) all had the obstacle,
+  a real opening pot and were clearable; in 1,152 random shots no ball left the table, rested in water or
+  stuck in a bar. Generation averages 11–21 ms per hole (worst ~160 ms).
