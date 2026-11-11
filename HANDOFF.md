@@ -202,3 +202,20 @@ table with a walnut block in the middle).
 
 Ideas next: portals or bridges linking two parts of a table (the aim line would need to follow the ball
 through), and tuning which shapes appear at which levels.
+
+## Par scoring (prototype, 11 Nov 2026; off in the live game)
+
+`PAR_MODE` is false, so the live game is unchanged; the test build turns it on. A round is six holes of 1–6
+balls with no lives. Every shot is a stroke; a foul (scratch, no contact) adds a penalty stroke and balls that
+drop on it stay down. Par is the number of balls, +1 from hole 3 (`parOf`: 1, 2, 4, 5, 6, 7 = 25). A hole ends
+when it's cleared, or you pick up at par + 3 (`capOf`), which scores par + 3. Shapes apply from hole 3.
+
+- Gimmes (`findGimmes`, `tapIn`): a ball within two ball widths of an open pocket with a clear, nearly
+  straight line from the cue ball (cut cos > 0.9) glows green with a "Tap in ⛳" label. Tapping it pots it for
+  one stroke; the cue ball doesn't move. Tapping any other ball still targets it.
+- Flow: `resolveParShot`, `finishParHole` (stamp: Eagle / Birdie / Par / Bogey / Double bogey / Picked up),
+  `endParRound`, `showParFinal` (scorecard table, 🟦🟩🟨🟥 per hole, share text "Daily Break 12 Nov ⛳ +2").
+  Points and the streak still count, as a tiebreak.
+- Header: hole n/6, par, score to par; info bar: strokes on this hole and score.
+- Not done yet: saving a round in progress (`saveRun` is skipped), ranked storage and the server tally by score
+  (the worker counts levels), the Results report and funnel steps, the intro card.

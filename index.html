@@ -58,6 +58,9 @@
   #card9 .c.cur{background:var(--hi);border-color:#b9c9a8;color:var(--ink)}
   #card9 .c b{font-weight:700;color:var(--ink)}
   #card9 .c.lives{font-size:12px;letter-spacing:1px}
+  .card-par{border-collapse:collapse;margin:12px auto 2px;font-size:13px;font-variant-numeric:tabular-nums}
+  .card-par th,.card-par td{padding:4px 8px;border:1px solid var(--line);text-align:center}
+  .card-par th{font-weight:500;color:var(--muted)}
   #card9 .c.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #card9 .c.b1 .v{color:#2f6b4f} #card9 .c.b2 .v{color:var(--gold)} #card9 .c.o1 .v{color:var(--red)}
   #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:crosshair}
@@ -664,6 +667,19 @@ const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // in one shot add 50, and consecutive potting shots build a streak multiplier. Clearing a level adds
 // 100 per ball in it. A miss or a foul costs a life; clearing a level without one wins a life back.
 const PTS = { pot: 100, bank: 50, combo: 50, multi: 50, level: 100 };
+// ---- par (golf) scoring: a prototype, off in the live game (the test build turns it on) ----
+// A round is six holes of 1-6 balls, no lives. Every shot is a stroke, a foul adds a penalty stroke, and par
+// is the number of balls (+1 from hole 3). A hole ends when it's cleared, or you pick up at par + 3. A ball
+// sitting near an open pocket on a clear, straight line is a gimme: tap it to tap in, for one stroke.
+const PAR_MODE = false, HOLES = 6;
+const parOf = i => i < 2 ? i + 1 : i + 2;
+const capOf = i => parOf(i) + 3;
+const toPar = n => n === 0 ? 'E' : n > 0 ? `+${n}` : `−${-n}`;
+const cardEmoji = d => d < 0 ? '🟦' : d === 0 ? '🟩' : d === 1 ? '🟨' : '🟥';
+const holeWord = d => d <= -2 ? 'Eagle!' : d === -1 ? 'Birdie!' : d === 0 ? 'Par' : d === 1 ? 'Bogey' : d === 2 ? 'Double bogey' : `${toPar(d)}`;
+const holeColor = d => d < 0 ? '#3b5ea6' : d === 0 ? '#2f6b4f' : d === 1 ? '#9a7a2a' : '#b8553f';
+const parTotal = () => (round.cards || []).reduce((a, c) => a + c.strokes - c.par, 0);
+let gimmes = [];
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 const aidLevel = () => 2;
 const hearts = n => '❤️'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, LIVES - n));
@@ -861,11 +877,11 @@ function onEvent(type, e) {
 /* ----- round / hole flow ----- */
 
 function newRound(seed, ranked) {
-  round = { seed, ranked, level: 0, lives: LIVES, potted: 0, results: [], bestStreak: 0, done: false };
+  round = { seed, ranked, level: 0, lives: LIVES, potted: 0, results: [], bestStreak: 0, done: false, cards: [] };
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
   const saved = ranked ? ls('dailybreak:ladder:' + seed) : null;
-  if (!saved && resumeRun()) return;
+  if (!saved && !PAR_MODE && resumeRun()) return;
   startHole(0);
   if (saved) { try { Object.assign(round, JSON.parse(saved), { done: true }); hs.points = round.points; renderCard9(); showFinal(true); } catch {} }
 }
@@ -883,6 +899,7 @@ function startHole(i) {
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
+  if (PAR_MODE) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}` });
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -892,7 +909,31 @@ function startHole(i) {
 }
 
 // Each shot starts lined up dead centre on the ball with the easiest pot.
-function lineUp() { phase = 'aim'; focusBall(bestBall(), true); updateUI(); }
+function lineUp() { phase = 'aim'; gimmes = PAR_MODE ? findGimmes() : []; focusBall(bestBall(), true); updateUI(); }
+// Gimmes: a ball within two ball widths of an open pocket, with a clear, nearly straight line from the cue ball.
+function findGimmes() {
+  const out = [];
+  table.balls.forEach((b, bi) => {
+    if (b.potted) return;
+    for (let i = 0; i < 6; i++) {
+      const p = table.pk[i], l = potLine(table, bi, i);
+      if (l && !l.blocked && l.cos > 0.9 && Math.hypot(b.x - p.x, b.y - p.y) < p.cap + 2 * R) { out.push({ bi, pocket: i }); break; }
+    }
+  });
+  return out;
+}
+function tapIn(g) {
+  if (phase !== 'aim') return;
+  const b = table.balls[g.bi];
+  ensureAudio();
+  shotLog = []; strokes++; strokeStart = { x: table.cue.x, y: table.cue.y };
+  for (const o of table.balls) o.cush = 0;
+  table.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: b, spin: 0, spinUsed: true };
+  sfx.thock(0.15);
+  float(clamp(b.x, 60, W - 60), clamp(b.y - 44, 40, H - 40), 'Tap-in', '#2f6b4f', 18);
+  table.pot(b, g.pocket);
+  resolveShot();
+}
 function bestBall() {
   const ls = allLines(table).filter(l => !l.blocked).sort((a, b) => b.q - a.q);
   if (ls.length) return ls[0].bi;
@@ -1018,6 +1059,7 @@ function release() {
 }
 
 function resolveShot() {
+  if (PAR_MODE) return resolveParShot();
   const s = table.shot, c = table.cue;
   track('shot');
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
@@ -1038,7 +1080,12 @@ function resolveShot() {
     sfx.lifeLost(); buzz([30, 60, 30]); fx.shake = 6;
     hs.streak = 0;
     bumpChip('lives');
-  } else {
+  } else scorePots();
+  afterShot();
+}
+// a shot that potted something: streak, points and the floats
+function scorePots() {
+  {
     hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
     setTimeout(() => { const el = $('iLie').querySelector('b'); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0);
     let base = PTS.multi * (shotLog.length - 1);
@@ -1048,6 +1095,8 @@ function resolveShot() {
     float(W / 2, H * 0.3, `+${gain}${mult > 1 ? `  ×${mult}` : ''}`, '#b88a2e', 24 + Math.min(14, hs.streak * 3), 1.6);
     if (hs.streak >= 2) float(W / 2, H * 0.3 + 46, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.6);
   }
+}
+function afterShot() {
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (round.lives <= 0) endRun();
   else if (!table.remaining()) { finishHole(); saveRun(round.level + 1); }
@@ -1055,10 +1104,85 @@ function resolveShot() {
   renderCard9(); updateUI();
 }
 
+// Par: a miss just costs its stroke; a foul adds a penalty stroke. Clear the balls to finish the hole, or pick
+// up once you reach par + 3.
+function resolveParShot() {
+  const s = table.shot, c = table.cue;
+  track('shot');
+  const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
+  const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
+  round.potted += shotLog.length;
+  if (foul) {
+    strokes++;   // the penalty stroke
+    if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
+    say(`${foul} · +1 stroke`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
+    hs.streak = 0;
+  } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); hs.streak = 0; }
+  if (!foul && shotLog.length) scorePots();
+  table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
+  if (!table.remaining()) finishParHole(false);
+  else if (strokes >= capOf(round.level)) finishParHole(true);
+  else lineUp();
+  renderCard9(); updateUI();
+}
+function finishParHole(picked) {
+  if (round.level === 0) track('clear1');
+  const forLevel = round.level, par = parOf(forLevel), n = picked ? capOf(forLevel) : strokes, d = n - par;
+  round.cards.push({ strokes: n, par, picked });
+  hs.points += picked ? 0 : PTS.level * hole.balls.length;
+  phase = 'holed'; gimmes = [];
+  setTimeout(() => {
+    if (round.level !== forLevel || phase !== 'holed') return;
+    stamp = { text: picked ? 'Picked up' : holeWord(d), sub: `Hole ${forLevel + 1} · ${n} stroke${n === 1 ? '' : 's'} · par ${par}`, color: holeColor(d), t: 0 };
+    sfx.stamp(); fx.shake = 6; buzz(25); sfx.holed(d <= 0);
+    if (d < 0) confettiBurst(Math.min(140, 60 + forLevel * 15));
+    renderCard9(); updateUI();
+  }, 450);
+  setTimeout(() => {
+    if (round.level !== forLevel || phase !== 'holed') return;
+    if (forLevel + 1 >= HOLES) endParRound(); else act();
+  }, 450 + 1700);
+}
+function endParRound() {
+  track('finish');
+  round.done = true; round.points = hs.points; phase = 'over';
+  const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
+  stamp = { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
+  sfx.stamp(); fx.shake = 6;
+  setTimeout(() => { if (phase === 'over') showFinal(false); }, 2300);
+}
+function parShareText(r = round) {
+  const tot = r.cards.reduce((a, c) => a + c.strokes - c.par, 0);
+  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⛳ ${toPar(tot)}\n${r.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}\n${gameUrl()}`;
+}
+function showParFinal() {
+  const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0), parAll = round.cards.reduce((a, c) => a + c.par, 0);
+  const cell = c => `<td style="color:${holeColor(c.strokes - c.par)};font-weight:700">${c.strokes}${c.picked ? '*' : ''}</td>`;
+  $('card').innerHTML = `
+    <div class="k mono">${round.ranked ? courseName(round.seed) : 'Practice · not ranked'}</div>
+    <h2>Round over</h2>
+    <div class="k mono">score</div>
+    <div class="big">${toPar(tot)}</div>
+    <div class="k mono">${strokesAll} strokes · par ${parAll}${round.bestStreak > 1 ? ` · best streak ${round.bestStreak}` : ''}</div>
+    <table class="card-par mono"><tr><th>Hole</th>${round.cards.map((c, k) => `<th>${k + 1}</th>`).join('')}</tr>
+      <tr><th>Par</th>${round.cards.map(c => `<td>${c.par}</td>`).join('')}</tr>
+      <tr><th>You</th>${round.cards.map(cell).join('')}</tr></table>
+    <div style="font-size:26px;letter-spacing:4px;margin:10px 0 4px">${round.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}</div>
+    <div class="k mono">🟦 under par · 🟩 par · 🟨 one over · 🟥 two or more${round.cards.some(c => c.picked) ? ' · * picked up' : ''}</div>
+    <div id="share">${parShareText()}</div>
+    <div class="row">
+      <button class="btn primary" data-copy-par>${canNativeShare() ? 'Share' : 'Copy'} result</button>
+      ${practiceLeft() > 0 ? '<button class="btn" data-practice>Play again</button><button class="btn" data-random>Random course</button>' : ''}
+    </div>`;
+  $('overlay').classList.add('show');
+  phase = 'over'; updateUI();
+}
+
 // A ranked run in progress is saved after every shot (level, lives, score and where every ball is),
 // so closing or reloading the page carries on from the same spot instead of restarting the day's run.
 const runKey = () => 'dailybreak:run:' + round.seed;
 function saveRun(nextLevel) {
+  if (PAR_MODE) return;   // prototype: par rounds aren't saved yet
   if (!round.ranked || !isDailySeed(round.seed) || round.done || ls('dailybreak:ladder:' + round.seed)) return;
   const fresh = nextLevel != null;
   ls(runKey(), JSON.stringify({
@@ -1190,6 +1314,7 @@ function confettiBurst(n) {
 const RESULT_EMOJI = { clean: '🟢', life: '🟡', fail: '❌' };
 // The header: the level you're on and your lives.
 function renderCard9() {
+  if (PAR_MODE) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`; return; }
   $('card9').innerHTML = `<div class="c cur lvl"><b>Level ${round.level + 1}</b></div><div class="c lives">${hearts(round.lives)}</div>`;
 }
 function updateUI() {
@@ -1197,13 +1322,18 @@ function updateUI() {
   const left = table.remaining();
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
+  if (PAR_MODE) {
+    const n = Math.min(strokes, capOf(round.level));
+    $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
+    $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
+  }
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold);
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
-    `Pot it<b>+${potGain()}</b>`;
+    PAR_MODE ? (gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`) : `Pot it<b>+${potGain()}</b>`;
   updateMeter(); updateAimUI(); updateSpinBall();
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
@@ -1261,6 +1391,7 @@ async function shareResult(b) {
   setTimeout(() => b.textContent = shareLabel(), 1400);
 }
 function showFinal(already) {
+  if (PAR_MODE) return showParFinal();
   const practice = !round.ranked, today = shareText();
   $('card').innerHTML = `
     <div class="k mono">${practice ? 'Practice · not ranked' : courseName(round.seed)}</div>
@@ -1305,7 +1436,8 @@ function showHelp() {
     <h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
-      <p>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
+      ${PAR_MODE ? `<p>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3. Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>` : ''}
+      <p${PAR_MODE ? ' hidden' : ''}>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. To go for a different ball, <b>tap it on the table</b>.</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dotted line shows where the object ball will go.</p>
@@ -1327,6 +1459,7 @@ $('card').addEventListener('click', e => {
   ensureAudio(); sfx.click();
   if ('close' in b.dataset) { ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
   else if ('copy' in b.dataset) shareResult(b);
+  else if ('copyPar' in b.dataset) { const text = parShareText(); (canNativeShare() ? navigator.share({ text }).catch(() => {}) : navigator.clipboard.writeText(text).then(() => { b.textContent = 'Copied!'; }, () => { b.textContent = 'Select the text to copy'; })); }
   else if ('practice' in b.dataset) startPractice(todayKey());   // today's levels again, unranked
   else if ('random' in b.dataset) startPractice(Math.random().toString(36).slice(2, 8));   // a fresh random set of levels
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
@@ -1414,6 +1547,8 @@ stage.addEventListener('pointerup', e => {
   const p = toWorld(e);
   let bi = -1, bd = R * 3;   // generous, so a thumb can pick a ball
   table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; bi = k; } } });
+  const g = PAR_MODE && gimmes.find(o => o.bi === bi);
+  if (g) { tapIn(g); return; }
   if (bi >= 0) { focusBall(bi); ls('dailybreak:tappedBall', '1'); }
 });
 stage.addEventListener('pointercancel', () => { drag = null; });
@@ -2019,6 +2154,20 @@ function drawAim(t) {
     ctx.beginPath(); ctx.moveTo(b.x + nx * (R + 3), b.y + ny * (R + 3)); ctx.lineTo(b.x + nx * len, b.y + ny * len); ctx.stroke();
   }
 }
+// Gimmes glow green with a "Tap in" label; tapping one pots it for a stroke.
+function drawGimmes(t) {
+  for (const g of gimmes) {
+    const b = table.balls[g.bi];
+    if (!b || b.potted) continue;
+    const k = (t * 1.2) % 1;
+    ctx.strokeStyle = `rgba(120,210,140,${0.9 * (1 - k)})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(b.x, b.y, R + 4 + k * 14, 0, TAU); ctx.stroke();
+    ctx.font = "700 16px 'DM Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const txt = 'Tap in ⛳', tw = ctx.measureText(txt).width + 18, lx = clamp(b.x, tw / 2 + 4, W - tw / 2 - 4), ly = b.y - R - 22 < 16 ? b.y + R + 22 : b.y - R - 22;
+    ctx.fillStyle = 'rgba(47,107,79,.94)'; ctx.beginPath(); ctx.roundRect(lx - tw / 2, ly - 13, tw, 26, 13); ctx.fill();
+    ctx.fillStyle = '#f4efe2'; ctx.fillText(txt, lx, ly + 0.5);
+  }
+}
 // Labels drawn above the balls (none at the moment; kept for the placement pass).
 function drawAimLabels() { placed = []; }
 
@@ -2198,6 +2347,7 @@ function draw(t, dt) {
   if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
   if (phase === 'aim') drawCue(aim.angle, power, 0);
   drawAimLabels();
+  if (phase === 'aim' && !hold) drawGimmes(t);
   if (phase === 'strike') drawCue(strike.angle, strike.power, clamp((strike.t - (SHOOT_T - 0.1)) / 0.1, 0, 1));
 
   for (const g of fx.rings) {
