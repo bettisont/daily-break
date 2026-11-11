@@ -2023,35 +2023,10 @@ function drawAimLabels() { placed = []; }
 
 let spinTouched = false, zoom = null;
 
-// The close-up of the cue ball. While you hold the cue back it sits in the middle of the screen with the
-// gold spot (where you chose to hit) and the wobbling tip. When you let go it grows into the strike: the
-// tip comes in and hits where it was, and the contact is graded.
-// The close-up of the cue ball (the timing challenge) sits centred left to right while you pull back, at
-// whichever of three heights is furthest from the shot (the cue ball, aim line, object-ball line and the
-// spin path), so it never hides them. It picks a spot when it appears and only glides to another if the
-// path grows into it. On release it grows from there into the strike.
-let panelAt = null;
-const panelR = () => clamp(Math.min(view.cw, view.ch) * 0.2, 64, 110);
-function contactPanel() { return panelAt ? { ...panelAt, R: panelR() } : { x: view.cw / 2, y: view.ch * 0.42, R: panelR() }; }
-function shotPoints() {
-  const { s, ox, oy } = view, pts = [], c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle);
-  const add = (x, y) => pts.push([ox + x * s, oy + y * s]);
-  const line = (ax, ay, bx, by) => { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 18)); for (let k = 0; k <= n; k++) add(lerp(ax, bx, k / n), lerp(ay, by, k / n)); };
-  const hit = trace(table, c.x, c.y, dx, dy), gx = c.x + dx * hit.t, gy = c.y + dy * hit.t;
-  line(c.x, c.y, gx, gy);
-  if (hit.ball) { const b = hit.ball, nx = (b.x - gx) / (2 * R), ny = (b.y - gy) / (2 * R); line(b.x, b.y, b.x + nx * 330, b.y + ny * 330); }
-  for (const [x, y] of spinPaths()[0]?.pts || []) add(x, y);
-  return pts;
-}
-function placePanel(dt) {
-  const { cw, ch } = view, Rb = panelR(), pts = shotPoints(), pad = 26;
-  const clear = y => pts.reduce((m, [px, py]) => Math.min(m, Math.hypot(px - cw / 2, py - y) - Rb - pad), Infinity);
-  const spots = [ch * 0.42, Rb + 24, ch - Rb - 40].map(y => ({ y, c: clear(y) }));
-  if (!panelAt) { const best = spots.reduce((a, b) => (b.c > a.c + 1 ? b : a)); panelAt = { x: cw / 2, y: best.y, ty: best.y }; return; }
-  const cur = clear(panelAt.ty), best = spots.reduce((a, b) => (b.c > a.c ? b : a));
-  if (cur < 0 && best.c > cur + 30) panelAt.ty = best.y;   // only move if the path has grown into it
-  panelAt.y = lerp(panelAt.y, panelAt.ty, Math.min(1, dt * 10));
-}
+// The close-up of the cue ball. While you hold the cue back it sits in the bottom-left corner of the
+// table with the gold spot (where you chose to hit) and the wobbling tip. When you let go it zooms to
+// the middle and plays the strike: the tip comes in and hits where it was, and the contact is graded.
+function contactPanel() { const { cw, ch } = view, Rb = clamp(cw * 0.17, 54, 84); return { x: Rb + 10, y: ch - Rb - 26, R: Rb }; }
 function drawFace(x, y, Rb, d, tip, flash, quality) {
   const rb = Rb * 0.82, r = spotR(d);
   ctx.save(); ctx.translate(x, y);
@@ -2086,22 +2061,15 @@ function drawFace(x, y, Rb, d, tip, flash, quality) {
 }
 function drawContact(dt) {
   if (hold && power >= MIN_PULL && phase === 'aim') {
-    placePanel(dt);
-    drawContact.t = (drawContact.t || 0) + dt;
-    const p = contactPanel(), d = contactDiff(), pop = 1 - (1 - Math.min(1, drawContact.t / 0.16)) ** 3;
-    p.R *= lerp(0.6, 1, pop);
-    ctx.save(); ctx.globalAlpha = pop;
+    const p = contactPanel(), d = contactDiff();
     drawFace(p.x, p.y, p.R, d, tipPos(d), 0, null);
     const word = d < 0.3 ? 'Short shot' : d < 0.6 ? 'Medium shot' : 'Long shot · shaky';
     ctx.font = "700 10px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const txt = word.toUpperCase(), tw = ctx.measureText(txt).width + 14;
     ctx.fillStyle = 'rgba(45,58,48,.9)'; ctx.beginPath(); ctx.roundRect(p.x - tw / 2, p.y + p.R + 4, tw, 18, 9); ctx.fill();
     ctx.fillStyle = d < 0.3 ? '#a9d8a0' : d < 0.6 ? '#e2c46c' : '#ffb08a'; ctx.fillText(txt, p.x, p.y + p.R + 13.5);
-    ctx.restore();
     return;
   }
-  drawContact.t = 0;
-  if (phase !== 'strike') panelAt = null;
   if (!zoom) return;
   zoom.t += dt;
   const z = zoom, { cw, ch } = view, T = z.t;
