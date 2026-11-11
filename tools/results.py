@@ -16,8 +16,45 @@ def call(url, data=None):
         return json.load(r)
 
 
-def fetch(days):
-    acc = call(API + '/accounts')['result'][0]['id']
+def account():
+    return call(API + '/accounts')['result'][0]['id']
+
+
+VISITS_Q = """query($acc: string!, $since: Date!) { viewer { accounts(filter: {accountTag: $acc}) {
+  days: rumPageloadEventsAdaptiveGroups(limit: 100, filter: {date_geq: $since, requestHost: "dailybreak.app"}, orderBy: [date_DESC]) { count sum { visits } dimensions { date } }
+  refs: rumPageloadEventsAdaptiveGroups(limit: 8, filter: {date_geq: $since, requestHost: "dailybreak.app"}, orderBy: [sum_visits_DESC]) { sum { visits } dimensions { refererHost } }
+  devices: rumPageloadEventsAdaptiveGroups(limit: 5, filter: {date_geq: $since, requestHost: "dailybreak.app"}, orderBy: [sum_visits_DESC]) { sum { visits } dimensions { deviceType } }
+} } }"""
+
+
+def fetch_visits(acc, days):
+    since = (dt.date.today() - dt.timedelta(days=int(days))).isoformat()
+    body = json.dumps({'query': VISITS_Q, 'variables': {'acc': acc, 'since': since}}).encode()
+    req = urllib.request.Request(API + '/graphql', data=body, headers={'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN'], 'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        res = json.load(r)
+    if res.get('errors'):
+        raise RuntimeError('; '.join(e.get('message', '?') for e in res['errors']))
+    return res['data']['viewer']['accounts'][0]
+
+
+def visits_report(v):
+    out = ['## Visits (Cloudflare Web Analytics)', '']
+    if not v['days']:
+        return '\n'.join(out + ['No visits recorded yet.', ''])
+    out += ['| Day | Visits | Page views |', '|---|---|---|']
+    for g in v['days']:
+        d = dt.date.fromisoformat(g['dimensions']['date']).strftime('%a %-d %b')
+        out.append(f"| {d} | {g['sum']['visits']} | {g['count']} |")
+    if v['refs']:
+        out += ['', 'Where visits came from: ' + ', '.join(f"{g['dimensions']['refererHost'] or 'direct / app'} {g['sum']['visits']}" for g in v['refs'])]
+    if v['devices']:
+        out += ['', 'Devices: ' + ', '.join(f"{g['dimensions']['deviceType'] or 'unknown'} {g['sum']['visits']}" for g in v['devices'])]
+    return '\n'.join(out + [''])
+
+
+def fetch(days, acc=None):
+    acc = acc or account()
     sql = (f"SELECT blob1 AS day, double1 AS level, SUM(_sample_interval) AS n FROM daily_break_results "
            f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY GROUP BY day, level FORMAT JSON")
     return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
@@ -44,4 +81,9 @@ def report(rows, days=14):
 
 if __name__ == '__main__':
     days = int(sys.argv[1]) if len(sys.argv) > 1 else 14
-    print(report(fetch(days), days))
+    acc = account()
+    print(report(fetch(days, acc), days))
+    try:
+        print(visits_report(fetch_visits(acc, days)))
+    except Exception as e:   # visits are a bonus: never fail the results report over them
+        print(f'## Visits\n\nCould not read Web Analytics: {e}\n')
