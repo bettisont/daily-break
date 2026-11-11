@@ -8,7 +8,6 @@ import datetime as dt, json, os, sys, urllib.request
 from collections import Counter, defaultdict
 
 API = 'https://api.cloudflare.com/client/v4'
-LAUNCH = dt.date(2026, 11, 11)   # Daily Break #1 (matches EPOCH in index.html)
 
 
 def call(url, data=None):
@@ -31,11 +30,11 @@ def report(rows, days=14):
     out = ['# Daily Break results', '']
     if not by_day:
         return '\n'.join(out + ['No ranked runs recorded yet.', ''])
-    out += ['| Day | Date | Players | Average level | Median | Most common | Best |', '|---|---|---|---|---|---|---|']
+    out += ['| Day | Players | Average level | Median | Most common | Best |', '|---|---|---|---|---|---|']
     for day in sorted(by_day, reverse=True)[:days]:
         c = by_day[day]; n = sum(c.values()); levels = sorted(c.elements())
-        num = (dt.date.fromisoformat(day) - LAUNCH).days + 1
-        out.append(f'| #{num} | {day} | {n} | {sum(levels) / n:.1f} | {levels[(n - 1) // 2]} | {c.most_common(1)[0][0]} | {max(c)} |')
+        label = dt.date.fromisoformat(day).strftime('%a %-d %b')
+        out.append(f'| {label} | {n} | {sum(levels) / n:.1f} | {levels[(n - 1) // 2]} | {c.most_common(1)[0][0]} | {max(c)} |')
     latest = max(by_day); c = by_day[latest]; n = sum(c.values())
     out += ['', f'## Where runs ended on {latest}', '', '| Level | Runs | |', '|---|---|---|']
     for lvl in range(1, max(c) + 1):
