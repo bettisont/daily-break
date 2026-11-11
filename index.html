@@ -605,7 +605,7 @@ const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 // The table plays at 0.75x so there's time to watch the balls (and the weather) work; outcomes are unchanged.
-const PLAY = 0.75;
+const PLAY = 0.75, PULL_ZOOM = 1.12;
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // Scoring (the tiebreak under "level reached"): every pot is 100, banks and combos add 50, extra balls
@@ -623,7 +623,7 @@ let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc 
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [], levelMisses = 0;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
-let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
+let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2, px: 0, py: 0 }, timeScale = 1;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0, flash: 0 };
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
@@ -2237,7 +2237,7 @@ function draw(t, dt) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   // the camera can push in on a point (cam.x, cam.y) for the slow-motion finish
-  const S = s * cam.k, OX = ox + cam.x * s * (1 - cam.k), OY = oy + cam.y * s * (1 - cam.k);
+  const S = s * cam.k, OX = ox + cam.x * s * (1 - cam.k) + cam.px, OY = oy + cam.y * s * (1 - cam.k) + cam.py;
   ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
   const x0 = -OX / S - 20, y0 = -OY / S - 20, x1 = (cw - OX) / S + 20, y1 = (ch - OY) / S + 20;
 
@@ -2424,7 +2424,16 @@ function frame(now) {
     }
   }
   // Slow motion and a push-in as the rack's last ball heads for the pocket.
-  let slow = false, tk = 1, tx = W / 2, ty = H / 2;
+  let slow = false, tk = 1, tx = W / 2, ty = H / 2, tpx = 0, tpy = 0;
+  // Pulling back: the camera glides the cue ball to the middle of the screen and leans in a little, until the
+  // balls start rolling. If that would push the target ball off screen, it stops short so the target stays in view.
+  if (table && !table.cue.potted && ((hold && phase === 'aim') || (phase === 'strike' && strike.t < SHOOT_T + 0.1))) {
+    const c = table.cue, fb = table.balls[aim.bi], { s, ox, oy, cw, ch } = view;
+    tk = PULL_ZOOM; tx = c.x; ty = c.y;
+    const keep = (d, half) => { const lim = half - 44; return Math.sign(d) * Math.max(0, Math.abs(d) - lim); };
+    const sxk = fb && !fb.potted ? keep((fb.x - c.x) * s * tk, cw / 2) : 0, syk = fb && !fb.potted ? keep((fb.y - c.y) * s * tk, ch / 2) : 0;
+    tpx = cw / 2 - ox - c.x * s - sxk; tpy = ch / 2 - oy - c.y * s - syk;
+  }
   if (cine) {
     const b = table.balls.find(o => o.n === cine.n), p = POCKETS[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
@@ -2439,6 +2448,7 @@ function frame(now) {
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
+  cam.px = lerp(cam.px, tpx, ck); cam.py = lerp(cam.py, tpy, ck);
   if (phase === 'moving') {
     if (hitStop > 0) hitStop -= dt;   // a blink of freeze on big moments
     else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; } }

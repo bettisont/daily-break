@@ -183,6 +183,11 @@ has to; without that, strong weather made most layouts fail the check. All five 
 clearable (60/60 each in testing). Generation is slower on weather days: 17–56 ms per level on average,
 worst seen ~350 ms (draughty); it runs in the background 1.5 s into the previous level.
 
+Pull-back camera: while you hold the pull-back cue (and through the strike, until the balls roll) the camera
+glides the cue ball to the middle of the screen and zooms to 1.12× (`PULL_ZOOM`, `cam.px`/`cam.py` pan),
+stopping short if that would push the targeted ball within 44 px of the screen edge; it eases back to the
+full table as the shot rolls.
+
 Pace: the table plays at 0.75× (`PLAY`), the automatic speed-up waits until everything is under 35 after 2 s
 and runs at 1.6×, and a tap fast-forwards at 3× (was 1×, 2× after 1.2 s under 70, and 4×). Outcomes are
 unchanged; a medium shot takes about a second longer to watch.
