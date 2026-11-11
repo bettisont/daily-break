@@ -164,3 +164,14 @@ today's result exists.
 - A daily weather system (damp, sunny, draughty, stormy, cold) was built and tried on this branch on 11 Nov
   2026 and taken out again: it changed how balls rolled but not what you were trying to do on each level.
   It's in the branch history (commits "Daily weather…" and "Stronger weather…") if it's ever wanted.
+
+## Teaching spin (11 Nov 2026)
+
+Playtest feedback: a player got the hang of the pull but didn't notice spin. Two nudges, both at the moment
+spin helps (`spinPulse`):
+
+- Level 3, until the player has used spin (any spot off centre, remembered as `dailybreak:usedSpin`): the spin
+  ball pulses gold and the table shows "Spin: drag the gold spot / Down brings the cue ball back · up follows
+  through" 1.7 s in.
+- Whenever the pull-back path hint shows a scratch (the red X), the spin ball pulses while it's shown; the
+  first three times ever (`dailybreak:scratchTips`) the table also says "Scratch ahead: try spin".
