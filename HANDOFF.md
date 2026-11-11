@@ -110,3 +110,14 @@ months). To read it: Actions › **Results** › Run workflow; the table (player
 common/best level per day, plus where runs ended on the latest day) appears on the run's summary
 page (`tools/results.py`). The token needs Account › Account Analytics › Read for that. Anyone can
 post to the endpoint, so treat the numbers as a guide, not a leaderboard.
+
+## Today's rank and the near miss (11 Nov 2026)
+
+- `src/worker.js` keeps a per-day count of players at each level in the `DayCounts` Durable Object
+  (SQLite-backed, one instance named "all"; key `d:<day>` → `{ level: count }`, nothing else).
+  `POST /api/result` adds to it and replies with the tally; `GET /api/day?day=` returns it.
+- The result card shows "Better than X% of today's players · N played so far" (`fillRank`,
+  `loadRank`: X = players on a lower level ÷ everyone else), or "Best run today so far 🏆" /
+  "You're the first to finish today's ladder". Only on dailybreak.app, ranked daily runs.
+- Near miss (`nearMiss`, from this device's history; the run end stores `left`, balls left on the
+  table): new personal best › one ball off the next level › equal to your best › one level off it.

@@ -12,5 +12,8 @@
   ],
   // anonymous ranked results (day, level, balls, points) for .github/workflows/results.yml
   "analytics_engine_datasets": [{ "binding": "RESULTS", "dataset": "daily_break_results" }],
+  // per-day count of players at each level, for "better than X% of today's players"
+  "durable_objects": { "bindings": [{ "name": "DAYS", "class_name": "DayCounts" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DayCounts"] }],
   "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": true }
 }
