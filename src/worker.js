@@ -1,13 +1,15 @@
 // Serves the game from dailybreak.app. Any other host (the old workers.dev address,
 // www.dailybreak.app) gets a permanent redirect to the same path on dailybreak.app.
 //
-// POST /api/result  one anonymous ranked result {day, level, potted, points}. It goes to Workers
+// POST /api/result  one anonymous ranked result: {day, level, potted, points} for a lives day, or
+//                   {day, mode: 'par', score, strokes, points} for a par (golf) day. It goes to Workers
 //                   Analytics Engine (dataset daily_break_results, read by .github/workflows/results.yml)
 //                   and is counted in the DayCounts Durable Object. Replies with that day's tally.
 // POST /api/event   one anonymous funnel step {day, step} (open, shot, clear1, level3, finish), sent at
 //                   most once per device per day; Analytics Engine dataset daily_break_events.
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
-//                   so the result card can say "better than X% of today's players".
+//                   so the result card can say "better than X% of today's players". With &mode=par:
+//                   { players, scores: { "<score to par>": count } }.
 import { DurableObject } from 'cloudflare:workers';
 
 const HOST = 'dailybreak.app';
@@ -29,6 +31,17 @@ export class DayCounts extends DurableObject {
     await this.ctx.storage.put(key, levels);
     return { players: Object.values(levels).reduce((a, b) => a + b, 0), levels };
   }
+  // par days: a count of players per score to par
+  async tallyPar(day) {
+    const scores = (await this.ctx.storage.get('p:' + day)) || {};
+    return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
+  }
+  async addPar(day, score) {
+    const key = 'p:' + day, scores = (await this.ctx.storage.get(key)) || {};
+    scores[score] = (scores[score] || 0) + 1;
+    await this.ctx.storage.put(key, scores);
+    return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
+  }
 }
 const STEPS = new Set(['open', 'shot', 'clear1', 'level3', 'finish']);
 async function recordEvent(request, env) {
@@ -43,6 +56,12 @@ const counter = env => env.DAYS.get(env.DAYS.idFromName('all'));
 async function recordResult(request, env) {
   let r;
   try { r = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+  if (r && r.mode === 'par') {
+    if (!DAY.test(r.day) || !int(r.score, -30, 60) || !int(r.strokes, 0, 200) || !int(r.points, 0, 10_000_000)) return json({ error: 'bad result' }, 400);
+    if (!dayIsCurrent(r.day)) return json({ error: 'wrong day' }, 400);
+    env.RESULTS?.writeDataPoint({ indexes: [r.day], blobs: [r.day, 'par'], doubles: [r.score, r.strokes, r.points] });
+    return json(await counter(env).addPar(r.day, r.score));
+  }
   if (!r || !DAY.test(r.day) || !int(r.level, 1, 99) || !int(r.potted, 0, 2000) || !int(r.points, 0, 10_000_000)) return json({ error: 'bad result' }, 400);
   if (!dayIsCurrent(r.day)) return json({ error: 'wrong day' }, 400);
   env.RESULTS?.writeDataPoint({ indexes: [r.day], blobs: [r.day], doubles: [r.level, r.potted, r.points] });
@@ -67,7 +86,7 @@ export default {
     if (url.pathname === '/api/day') {
       const day = url.searchParams.get('day') || '';
       if (!DAY.test(day) || !dayIsCurrent(day)) return json({ error: 'bad day' }, 400);
-      return json(await counter(env).tally(day));
+      return json(url.searchParams.get('mode') === 'par' ? await counter(env).tallyPar(day) : await counter(env).tally(day));
     }
     return env.ASSETS.fetch(request);
   },

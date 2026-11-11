@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ece5d3">
 <title>Daily Break - Daily Pool Game</title>
-<meta name="description" content="A new pool game every day. Pot one ball, then two, then three, with four lives: how far can you get? See how your run ranks against other players.">
+<meta name="description" content="A new pool game every day: six holes on tables of all shapes, scored like golf. Pot one ball, then two, then three, in as few shots as you can, and see how you rank against other players.">
 <link rel="canonical" href="https://dailybreak.app/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Daily Break">
 <meta property="og:title" content="Daily Break - Daily Pool Game">
-<meta property="og:description" content="A new pool game every day. Pot one ball, then two, then three: how far can you get? See how your run ranks against other players.">
+<meta property="og:description" content="A new pool game every day: six holes on tables of all shapes, scored like golf. How few shots can you do it in?">
 <meta property="og:url" content="https://dailybreak.app/">
 <meta property="og:image" content="https://dailybreak.app/og.png?v=4">
 <meta property="og:image:width" content="1200">
@@ -58,6 +58,9 @@
   #card9 .c.cur{background:var(--hi);border-color:#b9c9a8;color:var(--ink)}
   #card9 .c b{font-weight:700;color:var(--ink)}
   #card9 .c.lives{font-size:12px;letter-spacing:1px}
+  .card-par{border-collapse:collapse;margin:12px auto 2px;font-size:13px;font-variant-numeric:tabular-nums}
+  .card-par th,.card-par td{padding:4px 8px;border:1px solid var(--line);text-align:center}
+  .card-par th{font-weight:500;color:var(--muted)}
   #card9 .c.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #card9 .c.b1 .v{color:#2f6b4f} #card9 .c.b2 .v{color:var(--gold)} #card9 .c.o1 .v{color:var(--red)}
   #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:crosshair}
@@ -85,6 +88,8 @@
   #strip.off,#rowB.off,#pull.off{opacity:.5}
   /* spin: a small cue ball; tap to cycle Stun, Follow, Draw. The dot is where the tip will hit. */
   #spinBall{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;touch-action:none;cursor:ns-resize;color:var(--ink)}
+  #spinFace.pulse{animation:spinPulse 1.4s ease-out infinite}
+  @keyframes spinPulse{0%{box-shadow:0 3px 0 #1d251f,0 0 0 0 rgba(226,177,60,.8)}100%{box-shadow:0 3px 0 #1d251f,0 0 0 16px rgba(226,177,60,0)}}
   #spinFace{position:relative;width:106px;height:106px;border-radius:50%;background:#2f3a31;box-shadow:0 3px 0 #1d251f,0 5px 12px rgba(60,45,25,.25)}
   #spinFace .f{position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffdf7,#d8cdb4);box-shadow:inset 0 0 0 5px rgba(184,85,63,.25)}
   #spinFace .f::before,#spinFace .f::after{content:'';position:absolute;background:rgba(60,45,25,.15)}
@@ -219,10 +224,87 @@ function courseName(seed) {
 }
 
 // Where a ball must travel to drop in pocket i (just inside the mouth).
-function pocketAim(i) {
+function pocketAim(i, h) {
+  if (h?.shape) return h.shape.pockets[i].aim;
   const p = POCKETS[i];
   return { x: p.x <= 0 ? R + 1 : p.x >= W ? W - R - 1 : p.x, y: p.y <= 0 ? R + 1 : p.y >= H ? H - R - 1 : p.y };
 }
+
+// ---- table shapes ----
+// From level 3, each level is played on a table shape drawn for the day (the same for everyone): the classic
+// rectangle or one of these. Every shape fits the same 500 x 1000 box and has six pockets. Levels 1-2, days
+// before SHAPES_FROM and classic levels run exactly the old rectangle code, so their layouts never change.
+const SHAPES_FROM = '2026-11-12';
+const SHAPES_ON = true;   // set false to go back to the classic table only
+const segDist0 = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)); return Math.hypot(ax + dx * u - px, ay + dy * u - py); };
+function inPoly(pts, x, y) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function mkShape(key, name, emoji, outer, pockets, islands = [], spawn = [W / 2, H * 0.8]) {
+  const sh = { key, name, emoji, outer, islands, spawn, segs: [], reflex: [] };
+  const inFelt = (x, y) => inPoly(outer, x, y) && !islands.some(p => inPoly(p, x, y));
+  for (const poly of [outer, ...islands]) poly.forEach(([ax, ay], k) => {
+    const [bx, by] = poly[(k + 1) % poly.length], l = Math.hypot(bx - ax, by - ay);
+    let nx = -(by - ay) / l, ny = (bx - ax) / l;   // a normal; flip it to point into the felt
+    if (!inFelt((ax + bx) / 2 + nx * 3, (ay + by) / 2 + ny * 3)) { nx = -nx; ny = -ny; }
+    sh.segs.push({ ax, ay, bx, by, nx, ny, l2: l * l });
+  });
+  // corners that stick into the felt (the inside of the L, the hourglass waist) can block a pot
+  for (const poly of [outer, ...islands]) poly.forEach(([x, y], k) => {
+    const [px, py] = poly[(k + poly.length - 1) % poly.length], [qx, qy] = poly[(k + 1) % poly.length];
+    if (!inFelt(x + (px + qx - 2 * x) * 0.01, y + (py + qy - 2 * y) * 0.01)) sh.reflex.push([x, y]);
+  });
+  sh.inFelt = inFelt;
+  // where a ball's centre aims for each pocket: just inside the mouth, away from the cushions
+  sh.pockets = pockets.map(([x, y, c]) => {
+    let dx = 0, dy = 0;
+    for (const g of sh.segs) if (segDist0(x, y, g.ax, g.ay, g.bx, g.by) < 8) { dx += g.nx; dy += g.ny; }
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    let ax = x, ay = y;
+    for (let k = 0; k < 80 && !freeIn(sh, ax, ay, R + 1); k++) { ax += dx * 1.5; ay += dy * 1.5; }
+    return { x, y, cap: R * c, aim: { x: ax, y: ay } };
+  });
+  sh.reflex = sh.reflex.filter(([x, y]) => !sh.pockets.some(p => Math.hypot(p.x - x, p.y - y) < 2));
+  return sh;
+}
+// is a ball of radius rad at (x, y) wholly on the felt of shape sh?
+function freeIn(sh, x, y, rad) {
+  return sh.inFelt(x, y) && sh.segs.every(g => segDist0(x, y, g.ax, g.ay, g.bx, g.by) >= rad);
+}
+const ellipse = (n, cx, cy, rx, ry) => Array.from({ length: n }, (_, k) => { const a = k / n * TAU; return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]; });
+const onEllipse = (deg, out = 4) => { const a = deg * Math.PI / 180, x = Math.cos(a), y = Math.sin(a), n = Math.hypot(x / 250, y / 500); return [250 + x * (250 + out * n * 250), 500 + y * (500 + out * n * 500), 1.6]; };
+const SHAPES = [
+  mkShape('hexagon', 'Hexagon', '⬡', [[250, 0], [500, 190], [500, 810], [250, 1000], [0, 810], [0, 190]],
+    [[250, 0, 1.65], [500, 190, 1.65], [0, 190, 1.65], [500, 810, 1.65], [0, 810, 1.65], [250, 1000, 1.65]]),
+  mkShape('octagon', 'Octagon', '⯃', [[100, 0], [400, 0], [500, 100], [500, 900], [400, 1000], [100, 1000], [0, 900], [0, 100]],
+    [[46, 46, 1.75], [454, 46, 1.75], [-5, 500, 1.55], [505, 500, 1.55], [46, 954, 1.75], [454, 954, 1.75]]),
+  mkShape('ell', 'L-shape', '⌐', [[0, 0], [500, 0], [500, 540], [260, 540], [260, 1000], [0, 1000]],
+    [[0, 0, 1.75], [500, 0, 1.75], [-5, 520, 1.55], [500, 540, 1.75], [0, 1000, 1.75], [260, 1000, 1.75]], [], [130, 820]),
+  mkShape('hourglass', 'Hourglass', '⧗', [[0, 0], [500, 0], [500, 410], [375, 500], [500, 590], [500, 1000], [0, 1000], [0, 590], [125, 500], [0, 410]],
+    [[0, 0, 1.75], [500, 0, 1.75], [125, 500, 1.45], [375, 500, 1.45], [0, 1000, 1.75], [500, 1000, 1.75]]),
+  mkShape('oval', 'Oval', '⬭', ellipse(56, 250, 500, 250, 500),
+    [onEllipse(-90), onEllipse(-35), onEllipse(-145), onEllipse(35), onEllipse(145), onEllipse(90)]),
+  mkShape('island', 'Island', '⊡', [[0, 0], [W, 0], [W, H], [0, H]],
+    POCKETS.map(p => [p.x, p.y, p.cap / R]), [[[215, 410], [285, 410], [315, 440], [315, 560], [285, 590], [215, 590], [185, 560], [185, 440]]]),
+];
+const SHAPE_KEYS = ['classic', ...SHAPES.map(s => s.key)];
+let shapeOverride = null;   // the test build forces a shape here
+// The shape for level i (0-based): classic for levels 1-2 and older days. From level 3 the day's shapes are
+// dealt like a shuffled deck (classic included), so you see all seven before any repeats, never twice running.
+function shapeFor(seed, i) {
+  if (shapeOverride) return shapeOverride === 'classic' ? null : SHAPES.find(s => s.key === shapeOverride);
+  if (!SHAPES_ON || i < 2 || (isDailySeed(seed) && seed < SHAPES_FROM)) return null;
+  const n = SHAPE_KEYS.length, c = Math.floor((i - 2) / n);
+  const deck = c => shuffle(rngFor(`${seed}:shapes:${c}`), SHAPE_KEYS), cur = deck(c);
+  if (c > 0 && cur[0] === deck(c - 1)[n - 1]) [cur[0], cur[1]] = [cur[1], cur[0]];
+  return SHAPES.find(s => s.key === cur[(i - 2) % n]) || null;
+}
+const pocketsOf = h => h.shape ? h.shape.pockets : POCKETS;
 function inPatch(p, x, y) {
   const c = Math.cos(-p.rot), s = Math.sin(-p.rot), dx = x - p.x, dy = y - p.y;
   const lx = dx * c - dy * s, ly = dx * s + dy * c;
@@ -237,7 +319,7 @@ function lieAt(hole, x, y) {
 // It's re-rolled (deterministically) until the opening shot really drops.
 const holeCache = new Map();
 function makeHole(seed, i) {
-  const key = `${seed}:${i}`;
+  const key = `${seed}:${i}:${shapeOverride || ''}`;
   if (holeCache.has(key)) return holeCache.get(key);
   const n = Math.min(i + 1, MAX_BALLS);
   let h = null, fallback = null;
@@ -295,10 +377,10 @@ function buildHole(seed, i, attempt) {
   // hazards start at level 3 and ramp up from there
   const hz = clamp(i - 1, 0, 8), haz = p => hz > 0 && rnd() < p;
   const closed = haz(0.04 + hz * 0.04) ? [Math.floor(rnd() * 6)] : [];
-  const placed = [];
-  const ok = (x, y, rad, gap) => x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6 &&
+  const placed = [], shape = shapeFor(seed, i), pks = shape ? shape.pockets : POCKETS;
+  const ok = (x, y, rad, gap) => (shape ? freeIn(shape, x, y, rad + 6) : x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6) &&
     placed.every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + gap) &&
-    POCKETS.every(p => Math.hypot(p.x - x, p.y - y) > rad + R * 3.2);
+    pks.every(p => Math.hypot(p.x - x, p.y - y) > rad + R * 3.2);
   const place = (gen, rad, gap) => {
     for (let k = 0; k < 500; k++) {
       const [x, y] = gen();
@@ -306,7 +388,7 @@ function buildHole(seed, i, attempt) {
     }
     return null;
   };
-  const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || { x: W / 2, y: H * 0.8 };
+  const cue = place(() => [70 + rnd() * (W - 140), H * 0.62 + rnd() * H * 0.32], R, R * 2) || (shape ? { x: shape.spawn[0], y: shape.spawn[1] } : { x: W / 2, y: H * 0.8 });
   const bumpers = [];
   const nBump = haz(0.08 + hz * 0.05) ? 1 + (hz > 5 && rnd() < 0.4 ? 1 : 0) : 0;
   for (let k = 0; k < nBump; k++) {
@@ -318,6 +400,7 @@ function buildHole(seed, i, attempt) {
     const mode = balls.length && rnd() < 0.35 ? 'cluster' : rnd() < 0.22 ? 'rail' : 'open';
     const o = place(() => {
       if (mode === 'cluster') { const b = balls[Math.floor(rnd() * balls.length)], a = rnd() * TAU, d = 2 * R + 3 + rnd() * R * 1.5; return [b.x + Math.cos(a) * d, b.y + Math.sin(a) * d]; }
+      if (mode === 'rail' && shape) { const g = shape.segs[Math.floor(rnd() * shape.segs.length)], u = 0.15 + rnd() * 0.7; return [g.ax + (g.bx - g.ax) * u + g.nx * (R + 8), g.ay + (g.by - g.ay) * u + g.ny * (R + 8)]; }
       if (mode === 'rail') { const side = Math.floor(rnd() * 3), u = rnd(); return side === 0 ? [R + 8, 60 + u * (H * 0.7)] : side === 1 ? [W - R - 8, 60 + u * (H * 0.7)] : [60 + u * (W - 120), R + 8]; }
       return [40 + rnd() * (W - 80), 40 + rnd() * (H * 0.72 - 40)];
     }, R, mode === 'cluster' ? 1 : R * 0.8);
@@ -330,7 +413,7 @@ function buildHole(seed, i, attempt) {
     const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (6 + hz * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
-  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt };
+  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape };
 }
 
 class Table {
@@ -339,6 +422,7 @@ class Table {
     this.cue = { x: hole.cue.x, y: hole.cue.y, vx: 0, vy: 0, n: 0, m: 1, potted: false, isCue: true };
     this.balls = hole.balls.map(b => ({ ...b, vx: 0, vy: 0, m: 1, potted: false }));
     this.shot = null;
+    this.pk = pocketsOf(hole);
   }
   openPocket(i) { return !this.hole.closed.includes(i); }
   live() { return [this.cue, ...this.balls].filter(b => !b.potted); }
@@ -410,7 +494,7 @@ class Table {
       let potted = false;
       for (let i = 0; i < 6 && !potted; i++) {
         if (!this.openPocket(i)) continue;
-        const pk = POCKETS[i], dx = b.x - pk.x, dy = b.y - pk.y, d = Math.hypot(dx, dy);
+        const pk = this.pk[i], dx = b.x - pk.x, dy = b.y - pk.y, d = Math.hypot(dx, dy);
         if (d >= pk.cap) continue;
         const sp = Math.hypot(b.vx, b.vy);
         if (sp > POT_MAX_SPEED) {
@@ -425,10 +509,23 @@ class Table {
       if (potted) continue;
       const sp = Math.hypot(b.vx, b.vy);
       let hitWall = false;
+      if (this.hole.shape) {
+        // any shape: push the ball off the nearest point of each cushion it overlaps and bounce off that normal
+        for (const g of this.hole.shape.segs) {
+          const ex = g.bx - g.ax, ey = g.by - g.ay, u = clamp(((b.x - g.ax) * ex + (b.y - g.ay) * ey) / g.l2, 0, 1);
+          const cx = g.ax + ex * u, cy = g.ay + ey * u, dx = b.x - cx, dy = b.y - cy, d2 = dx * dx + dy * dy;
+          if (d2 >= R * R) continue;
+          const d = Math.sqrt(d2), nx = d ? dx / d : g.nx, ny = d ? dy / d : g.ny;
+          b.x = cx + nx * R; b.y = cy + ny * R;
+          const vn = b.vx * nx + b.vy * ny;
+          if (vn < 0) { b.vx -= (1 + CUSHION_E) * vn * nx; b.vy -= (1 + CUSHION_E) * vn * ny; hitWall = true; }
+        }
+      } else {
       if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * CUSHION_E; hitWall = true; }
       if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx) * CUSHION_E; hitWall = true; }
       if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * CUSHION_E; hitWall = true; }
       if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) * CUSHION_E; hitWall = true; }
+      }
       if (hitWall) b.cush = (b.cush || 0) + 1;
       if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
     }
@@ -444,10 +541,10 @@ class Table {
 
   // put a ball back near (x, y) without overlapping anything
   respot(b, x, y) {
-    const free = (px, py) => px > R && px < W - R && py > R && py < H - R &&
+    const free = (px, py) => (this.hole.shape ? freeIn(this.hole.shape, px, py, R + 1) : px > R && px < W - R && py > R && py < H - R) &&
       this.live().every(o => o === b || Math.hypot(o.x - px, o.y - py) > 2 * R + 2) &&
       this.hole.bumpers.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
-      POCKETS.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4);
+      this.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4);
     for (let rad = 0; rad < 600; rad += 4) {
       for (let a = 0; a < TAU; a += 0.3) {
         const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
@@ -472,8 +569,33 @@ function segDist(px, py, ax, ay, bx, by) {
   return Math.hypot(ax + dx * u - px, ay + dy * u - py);
 }
 function pathBlocked(t, ax, ay, bx, by, skip) {
+  const sh = t.hole.shape;
   return t.balls.some(b => !b.potted && b !== skip && segDist(b.x, b.y, ax, ay, bx, by) < 2 * R - 0.5) ||
-    t.hole.bumpers.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R);
+    t.hole.bumpers.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R) ||
+    // shaped tables: corners sticking into the felt, and islands, get in the way
+    !!sh && (sh.reflex.some(([x, y]) => segDist(x, y, ax, ay, bx, by) < R) ||
+      sh.islands.length > 0 && sh.segs.slice(sh.outer.length).some(g => segSeg(ax, ay, bx, by, g.ax, g.ay, g.bx, g.by) < R));
+}
+// shortest distance between two segments
+function segSeg(ax, ay, bx, by, cx, cy, dx, dy) {
+  const cr = (px, py, qx, qy) => px * qy - py * qx, d1 = cr(bx - ax, by - ay, cx - ax, cy - ay), d2 = cr(bx - ax, by - ay, dx - ax, dy - ay), d3 = cr(dx - cx, dy - cy, ax - cx, ay - cy), d4 = cr(dx - cx, dy - cy, bx - cx, by - cy);
+  if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
+  return Math.min(segDist(ax, ay, cx, cy, dx, dy), segDist(bx, by, cx, cy, dx, dy), segDist(cx, cy, ax, ay, bx, by), segDist(dx, dy, ax, ay, bx, by));
+}
+// How far a ball's centre travels from (px, py) along (dx, dy) before it touches cushion segment g.
+function rayCushion(px, py, dx, dy, g) {
+  let best = Infinity;
+  const ex = g.bx - g.ax, ey = g.by - g.ay, den = dx * ey - dy * ex;
+  if (Math.abs(den) > 1e-9) for (const sgn of [1, -1]) {
+    if (dx * g.nx * sgn + dy * g.ny * sgn >= 0) continue;   // only the side the ball is heading into
+    const qx = g.ax + g.nx * R * sgn - px, qy = g.ay + g.ny * R * sgn - py, t = (qx * ey - qy * ex) / den, u = (qx * dy - qy * dx) / den;
+    if (t > -0.5 && u >= 0 && u <= 1) best = Math.min(best, Math.max(0, t));
+  }
+  for (const [cx, cy] of [[g.ax, g.ay], [g.bx, g.by]]) {
+    const ox = px - cx, oy = py - cy, b = ox * dx + oy * dy, c = ox * ox + oy * oy - R * R, disc = b * b - c;
+    if (disc >= 0) { const t = -b - Math.sqrt(disc); if (t > 0.001) best = Math.min(best, t); }
+  }
+  return best;
 }
 // First thing a ball meets travelling from (px, py) along (dx, dy).
 function trace(t, px, py, dx, dy, skip = null) {
@@ -486,6 +608,10 @@ function trace(t, px, py, dx, dy, skip = null) {
   let best = { t: Infinity };
   for (const b of t.balls) { if (b.potted || b === skip) continue; const s = ray(b.x, b.y, 2 * R); if (s < best.t) best = { t: s, ball: b }; }
   for (const o of t.hole.bumpers) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
+  if (t.hole.shape) {
+    for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true }; }
+    return best;
+  }
   const tx = dx > 0 ? (W - R - px) / dx : dx < 0 ? (R - px) / dx : Infinity;
   const ty = dy > 0 ? (H - R - py) / dy : dy < 0 ? (R - py) / dy : Infinity;
   if (Math.min(tx, ty) < best.t) best = { t: Math.min(tx, ty), wall: true };
@@ -498,10 +624,10 @@ function trace(t, px, py, dx, dy, skip = null) {
 function potLine(t, bi, i, from = t.cue) {
   const ball = t.balls[bi];
   if (ball.potted || !t.openPocket(i)) return null;
-  const P = pocketAim(i), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
+  const P = pocketAim(i, t.hole), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
   if (d2 < 1) return null;
   const ux = (P.x - ball.x) / d2, uy = (P.y - ball.y) / d2, gx = ball.x - ux * 2 * R, gy = ball.y - uy * 2 * R;
-  if (gx < R || gx > W - R || gy < R || gy > H - R) return null;
+  if (t.hole.shape ? !freeIn(t.hole.shape, gx, gy, R - 1) : gx < R || gx > W - R || gy < R || gy > H - R) return null;
   const d1 = Math.hypot(gx - from.x, gy - from.y);
   if (d1 < 1) return null;
   const dx = (gx - from.x) / d1, dy = (gy - from.y) / d1, cos = dx * ux + dy * uy;
@@ -533,12 +659,30 @@ const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
+// The table plays at 0.75x so there's time to watch the balls; outcomes are unchanged.
+const PLAY = 0.75;
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // Scoring (the tiebreak under "level reached"): every pot is 100, banks and combos add 50, extra balls
 // in one shot add 50, and consecutive potting shots build a streak multiplier. Clearing a level adds
 // 100 per ball in it. A miss or a foul costs a life; clearing a level without one wins a life back.
 const PTS = { pot: 100, bank: 50, combo: 50, multi: 50, level: 100 };
+// ---- par (golf) scoring: the daily game from PAR_FROM (earlier days, and practice on them, keep lives) ----
+// A round is six holes of 1-6 balls, no lives. Every shot is a stroke, a foul adds a penalty stroke, and par
+// is the number of balls (+1 from hole 3). A hole ends when it's cleared, or you pick up at par + 3. A ball
+// sitting near an open pocket on a clear, straight line is a gimme: tap it to tap in, for one stroke.
+const PAR_ON = true, PAR_FROM = '2026-11-12', HOLES = 6;
+const parSeed = seed => PAR_ON && (!isDailySeed(seed) || seed >= PAR_FROM);
+const isPar = () => !!round?.par;
+const parKey = seed => 'dailybreak:par:' + seed;
+const parOf = i => i < 2 ? i + 1 : i + 2;
+const capOf = i => parOf(i) + 3;
+const toPar = n => n === 0 ? 'E' : n > 0 ? `+${n}` : `−${-n}`;
+const cardEmoji = d => d < 0 ? '🟦' : d === 0 ? '🟩' : d === 1 ? '🟨' : '🟥';
+const holeWord = d => d <= -2 ? 'Eagle!' : d === -1 ? 'Birdie!' : d === 0 ? 'Par' : d === 1 ? 'Bogey' : d === 2 ? 'Double bogey' : `${toPar(d)}`;
+const holeColor = d => d < 0 ? '#3b5ea6' : d === 0 ? '#2f6b4f' : d === 1 ? '#9a7a2a' : '#b8553f';
+const parTotal = () => (round.cards || []).reduce((a, c) => a + c.strokes - c.par, 0);
+let gimmes = [];
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 const aidLevel = () => 2;
 const hearts = n => '❤️'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, LIVES - n));
@@ -707,7 +851,7 @@ function onEvent(type, e) {
   else if (type === 'bumper') { sfx.bumper(); e.o.flash = 1; ring(e.o.x, e.o.y, '230,190,100', 34, 0.5, e.o.r); }
   else if (type === 'rattle') { sfx.rattle(); float(e.x, e.y - 30, 'Rattled out', '#b8553f', 18); fx.shake = 4; }
   else if (type === 'pot') {
-    const p = POCKETS[e.pocket], b = e.ball, tx = clamp(p.x, 0, W), ty = clamp(p.y, 0, H);
+    const p = table.pk[e.pocket], b = e.ball, tx = clamp(p.x, 0, W), ty = clamp(p.y, 0, H);
     ensureSpin(b);
     fx.sinks.push({ x: e.x, y: e.y, tx, ty, b: { n: b.n, spot: b.spot, pole: b.pole }, t: 0 });
     ring(tx, ty, '255,250,235', 46, 0.6);
@@ -736,13 +880,13 @@ function onEvent(type, e) {
 /* ----- round / hole flow ----- */
 
 function newRound(seed, ranked) {
-  round = { seed, ranked, level: 0, lives: LIVES, potted: 0, results: [], bestStreak: 0, done: false };
+  round = { seed, ranked, level: 0, lives: LIVES, potted: 0, results: [], bestStreak: 0, done: false, cards: [], par: parSeed(seed) };
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
-  const saved = ranked ? ls('dailybreak:ladder:' + seed) : null;
+  const saved = ranked ? ls(round.par ? parKey(seed) : 'dailybreak:ladder:' + seed) : null;
   if (!saved && resumeRun()) return;
   startHole(0);
-  if (saved) { try { Object.assign(round, JSON.parse(saved), { done: true }); hs.points = round.points; renderCard9(); showFinal(true); } catch {} }
+  if (saved) { try { Object.assign(round, JSON.parse(saved), { done: true }); hs.points = round.points; renderCard9(); updateUI(); showFinal(true); } catch {} }
 }
 
 // A new level: a fresh seeded layout with one more ball than the last.
@@ -757,15 +901,42 @@ function startHole(i) {
   lineUp();
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
-  banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: 1.5, max: 1.5 };
+  banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
+  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}` });
   // level 2 tip, until the player has tapped a ball once
   saveRun();
+  // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
+  if (i === 2 && !ls('dailybreak:usedSpin')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') { float(W / 2, H * 0.58, 'Spin: drag the gold spot', '#2f6b4f', 22, 3.6); float(W / 2, H * 0.58 + 40, 'Down brings the cue ball back · up follows through', '#2f6b4f', 15, 3.6); } }, 1700); }
   if (i === 1 && !ls('dailybreak:tappedBall')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') float(W / 2, H * 0.62, 'Tap a ball to target it', '#2f6b4f', 20, 2.6); }, 1700); }
   renderCard9(); updateUI();
 }
 
 // Each shot starts lined up dead centre on the ball with the easiest pot.
-function lineUp() { phase = 'aim'; focusBall(bestBall(), true); updateUI(); }
+function lineUp() { phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true); updateUI(); }
+// Gimmes: a ball within two ball widths of an open pocket, with a clear, nearly straight line from the cue ball.
+function findGimmes() {
+  const out = [];
+  table.balls.forEach((b, bi) => {
+    if (b.potted) return;
+    for (let i = 0; i < 6; i++) {
+      const p = table.pk[i], l = potLine(table, bi, i);
+      if (l && !l.blocked && l.cos > 0.9 && Math.hypot(b.x - p.x, b.y - p.y) < p.cap + 2 * R) { out.push({ bi, pocket: i }); break; }
+    }
+  });
+  return out;
+}
+function tapIn(g) {
+  if (phase !== 'aim') return;
+  const b = table.balls[g.bi];
+  ensureAudio();
+  shotLog = []; strokes++; strokeStart = { x: table.cue.x, y: table.cue.y };
+  for (const o of table.balls) o.cush = 0;
+  table.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: b, spin: 0, spinUsed: true };
+  sfx.thock(0.15);
+  float(clamp(b.x, 60, W - 60), clamp(b.y - 44, 40, H - 40), 'Tap-in', '#2f6b4f', 18);
+  table.pot(b, g.pocket);
+  resolveShot();
+}
 function bestBall() {
   const ls = allLines(table).filter(l => !l.blocked).sort((a, b) => b.q - a.q);
   if (ls.length) return ls[0].bi;
@@ -813,6 +984,7 @@ function setSpot(y, quiet) {
   if (phase !== 'aim') return;
   aim.spotY = clamp(Math.abs(y) < 0.06 ? 0 : y, -0.5, 0.5); aim.spin = spinFor(aim.spotY);
   spinTouched = true;
+  if (aim.spotY) ls('dailybreak:usedSpin', '1');
   if (!quiet) { sfx.click(); buzz(5); }
   updateUI();
 }
@@ -890,6 +1062,7 @@ function release() {
 }
 
 function resolveShot() {
+  if (isPar()) return resolveParShot();
   const s = table.shot, c = table.cue;
   track('shot');
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
@@ -910,7 +1083,12 @@ function resolveShot() {
     sfx.lifeLost(); buzz([30, 60, 30]); fx.shake = 6;
     hs.streak = 0;
     bumpChip('lives');
-  } else {
+  } else scorePots();
+  afterShot();
+}
+// a shot that potted something: streak, points and the floats
+function scorePots() {
+  {
     hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
     setTimeout(() => { const el = $('iLie').querySelector('b'); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0);
     let base = PTS.multi * (shotLog.length - 1);
@@ -920,6 +1098,8 @@ function resolveShot() {
     float(W / 2, H * 0.3, `+${gain}${mult > 1 ? `  ×${mult}` : ''}`, '#b88a2e', 24 + Math.min(14, hs.streak * 3), 1.6);
     if (hs.streak >= 2) float(W / 2, H * 0.3 + 46, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.6);
   }
+}
+function afterShot() {
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (round.lives <= 0) endRun();
   else if (!table.remaining()) { finishHole(); saveRun(round.level + 1); }
@@ -927,12 +1107,104 @@ function resolveShot() {
   renderCard9(); updateUI();
 }
 
+// Par: a miss just costs its stroke; a foul adds a penalty stroke. Clear the balls to finish the hole, or pick
+// up once you reach par + 3.
+function resolveParShot() {
+  const s = table.shot, c = table.cue;
+  track('shot');
+  const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
+  const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
+  round.potted += shotLog.length;
+  if (foul) {
+    strokes++;   // the penalty stroke
+    if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
+    say(`${foul} · +1 stroke`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
+    hs.streak = 0;
+  } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); hs.streak = 0; }
+  if (!foul && shotLog.length) scorePots();
+  table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
+  if (!table.remaining()) finishParHole(false);
+  else if (strokes >= capOf(round.level)) finishParHole(true);
+  else { lineUp(); saveRun(); }
+  renderCard9(); updateUI();
+}
+function finishParHole(picked) {
+  if (round.level === 0) track('clear1');
+  const forLevel = round.level, par = parOf(forLevel), n = picked ? capOf(forLevel) : strokes, d = n - par;
+  round.cards.push({ strokes: n, par, picked });
+  hs.points += picked ? 0 : PTS.level * hole.balls.length;
+  phase = 'holed'; gimmes = [];
+  if (forLevel + 1 < HOLES) saveRun(forLevel + 1);
+  setTimeout(() => {
+    if (round.level !== forLevel || phase !== 'holed') return;
+    stamp = { text: picked ? 'Picked up' : holeWord(d), sub: `Hole ${forLevel + 1} · ${n} stroke${n === 1 ? '' : 's'} · par ${par}`, color: holeColor(d), t: 0 };
+    sfx.stamp(); fx.shake = 6; buzz(25); sfx.holed(d <= 0);
+    if (d < 0) confettiBurst(Math.min(140, 60 + forLevel * 15));
+    renderCard9(); updateUI();
+  }, 450);
+  setTimeout(() => {
+    if (round.level !== forLevel || phase !== 'holed') return;
+    if (forLevel + 1 >= HOLES) endParRound(); else act();
+  }, 450 + 1700);
+}
+function endParRound() {
+  track('finish');
+  try { localStorage.removeItem(runKey()); } catch {}
+  round.done = true; round.points = hs.points; phase = 'over';
+  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak })); sendResult(); }
+  const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
+  stamp = { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
+  sfx.stamp(); fx.shake = 6;
+  setTimeout(() => { if (phase === 'over') showFinal(false); }, 2300);
+}
+function parShareText(r = round) {
+  const tot = r.cards.reduce((a, c) => a + c.strokes - c.par, 0);
+  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⛳ ${toPar(tot)}\n${r.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}\n${gameUrl()}`;
+}
+function showParFinal(already) {
+  const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0), parAll = round.cards.reduce((a, c) => a + c.par, 0);
+  const cell = c => `<td style="color:${holeColor(c.strokes - c.par)};font-weight:700">${c.strokes}${c.picked ? '*' : ''}</td>`;
+  $('card').innerHTML = `
+    <div class="k mono">${round.ranked ? courseName(round.seed) : 'Practice · not ranked'}</div>
+    <h2>${already ? "Today's round is in" : 'Round over'}</h2>
+    <div class="k mono">score</div>
+    <div class="big">${toPar(tot)}</div>
+    <div class="k mono">${strokesAll} strokes · par ${parAll}${round.bestStreak > 1 ? ` · best streak ${round.bestStreak}` : ''}</div>
+    <table class="card-par mono"><tr><th>Hole</th>${round.cards.map((c, k) => `<th>${k + 1}</th>`).join('')}</tr>
+      <tr><th>Par</th>${round.cards.map(c => `<td>${c.par}</td>`).join('')}</tr>
+      <tr><th>You</th>${round.cards.map(cell).join('')}</tr></table>
+    <div style="font-size:26px;letter-spacing:4px;margin:10px 0 4px">${round.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}</div>
+    <div class="k mono">🟦 under par · 🟩 par · 🟨 one over · 🟥 two or more${round.cards.some(c => c.picked) ? ' · * picked up' : ''}</div>
+    <div id="rank" hidden></div>
+    <div id="share">${parShareText()}</div>
+    <div class="row">
+      <button class="btn primary" data-copy-par>${canNativeShare() ? 'Share' : 'Copy'} result</button>
+      ${practiceLeft() > 0 ? '<button class="btn" data-random>Practice course</button>' : ''}
+      ${!round.ranked ? `<button class="btn" data-daily>Today's round</button>` : ''}
+    </div>
+    <div class="k mono" style="margin-top:8px">${practiceLeft() > 0 ? `${practiceLeft()} practice round${practiceLeft() === 1 ? '' : 's'} left today` : 'No practice rounds left today'}</div>
+    <div class="k mono" id="nextIn" style="margin-top:10px"></div>
+    ${feedbackLink()}`;
+  tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
+  if (round.ranked) loadRank();
+  $('overlay').classList.add('show');
+  phase = 'over'; updateUI();
+}
+
 // A ranked run in progress is saved after every shot (level, lives, score and where every ball is),
 // so closing or reloading the page carries on from the same spot instead of restarting the day's run.
 const runKey = () => 'dailybreak:run:' + round.seed;
 function saveRun(nextLevel) {
-  if (!round.ranked || !isDailySeed(round.seed) || round.done || ls('dailybreak:ladder:' + round.seed)) return;
+  if (!round.ranked || !isDailySeed(round.seed) || round.done || ls(isPar() ? parKey(round.seed) : 'dailybreak:ladder:' + round.seed)) return;
   const fresh = nextLevel != null;
+  if (isPar()) {
+    ls(runKey(), JSON.stringify({
+      par: true, level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
+      points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes,
+      cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
+    }));
+    return;
+  }
   ls(runKey(), JSON.stringify({
     level: fresh ? nextLevel : round.level, lives: round.lives, potted: round.potted, results: round.results,
     bestStreak: round.bestStreak, points: hs.points, streak: hs.streak, misses: fresh ? 0 : levelMisses,
@@ -942,18 +1214,20 @@ function saveRun(nextLevel) {
 function resumeRun() {
   if (!round.ranked || !isDailySeed(round.seed)) return false;
   let r; try { r = JSON.parse(ls(runKey())); } catch {}
-  if (!r || !Number.isInteger(r.level)) return false;
-  Object.assign(round, { lives: r.lives, potted: r.potted, results: r.results || [], bestStreak: r.bestStreak || 0 });
+  if (!r || !Number.isInteger(r.level) || !!r.par !== isPar()) return false;
+  if (isPar()) Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0 });
+  else Object.assign(round, { lives: r.lives, potted: r.potted, results: r.results || [], bestStreak: r.bestStreak || 0 });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
   startHole(r.level);
   if (r.balls && r.balls.length === table.balls.length) {
     r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));
     if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
     levelMisses = r.misses || 0;
+    if (isPar()) strokes = r.strokes || 0;
     lineUp();
     saveRun();   // startHole saved a fresh layout; put the real one back so a second reload can't reset the balls
   }
-  banner = { title: `Level ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${hearts(round.lives)}`, life: 1.8, max: 1.8 };
+  banner = { title: `${isPar() ? 'Hole' : 'Level'} ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${isPar() ? toPar(parTotal()) : hearts(round.lives)}`, life: 1.8, max: 1.8 };
   renderCard9(); updateUI();
   return true;
 }
@@ -1009,7 +1283,9 @@ function track(step) {
 }
 function sendResult() {
   if (location.hostname !== 'dailybreak.app' || !isDailySeed(round.seed)) return;
-  const body = JSON.stringify({ day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
+  const body = JSON.stringify(isPar()
+    ? { day: round.seed, mode: 'par', score: parTotal(), strokes: round.cards.reduce((a, c) => a + c.strokes, 0), points: Math.round(round.points || 0) }
+    : { day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
   const r = round;
   fetch('/api/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true })
     .then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
@@ -1019,6 +1295,14 @@ const tallyOn = () => location.hostname === 'dailybreak.app' && round.ranked && 
 function fillRank() {
   const el = $('rank'), t = round.tally;
   if (!el || !t || !t.players) return;
+  if (isPar() && t.scores) {
+    // lower is better: count the players who scored worse
+    const me = parTotal(), others = t.players - 1;
+    const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc > me ? n : 0), 0), same = (t.scores[me] || 0) - 1;
+    const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best round today so far 🏆') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
+    el.innerHTML = `<b>${line}</b>`; el.hidden = false;
+    return;
+  }
   const L = round.level + 1, others = t.players - 1;
   const lower = Object.entries(t.levels).reduce((a, [lv, n]) => a + (+lv < L ? n : 0), 0);
   const same = (t.levels[L] || 0) - 1, pct = others > 0 ? Math.round(100 * lower / others) : 100;
@@ -1032,7 +1316,7 @@ function loadRank() {
   if (!tallyOn()) return;
   if (round.tally) return fillRank();
   const r = round;
-  fetch('/api/day?day=' + r.seed).then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
+  fetch('/api/day?day=' + r.seed + (isPar() ? '&mode=par' : '')).then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
 }
 // The near miss: a new best, one ball short, or close to your best (from this device's history).
 function nearMiss() {
@@ -1062,6 +1346,7 @@ function confettiBurst(n) {
 const RESULT_EMOJI = { clean: '🟢', life: '🟡', fail: '❌' };
 // The header: the level you're on and your lives.
 function renderCard9() {
+  if (isPar()) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`; return; }
   $('card9').innerHTML = `<div class="c cur lvl"><b>Level ${round.level + 1}</b></div><div class="c lives">${hearts(round.lives)}</div>`;
 }
 function updateUI() {
@@ -1069,13 +1354,18 @@ function updateUI() {
   const left = table.remaining();
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
+  if (isPar()) {
+    const n = Math.min(strokes, capOf(round.level));
+    $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
+    $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
+  }
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold);
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
-    `Pot it<b>+${potGain()}</b>`;
+    isPar() ? (gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`) : `Pot it<b>+${potGain()}</b>`;
   updateMeter(); updateAimUI(); updateSpinBall();
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
@@ -1084,6 +1374,13 @@ function updateSpinBall() {
   $('spinDot').style.top = `${50 + aim.spotY * 50}%`;
   $('spinTxt').innerHTML = `<b>${name}</b><small>${name === 'Stun' ? 'stops dead' : `${a > 0.32 ? 'strong' : 'light'} · ${name === 'Follow' ? 'rolls on' : 'comes back'}`}</small>${spinTouched ? '' : '<small>drag the gold spot</small>'}`;
   $('spinBall').classList.toggle('drag', !!spinDrag);
+  spinPulse();
+}
+// The spin ball pulses on level 3 until spin has been used, and whenever the pull-back path shows a scratch.
+let scratchAhead = false, scratchSaid = '';
+function spinPulse() {
+  const on = phase === 'aim' && !spinDrag && (scratchAhead || (round?.level === 2 && !ls('dailybreak:usedSpin')));
+  $('spinFace').classList.toggle('pulse', on);
 }
 // The pull-back cue: the stick slides down the track as power loads.
 function updateMeter() {
@@ -1112,6 +1409,7 @@ function shareText() {
   if (!r) return '';
   return `Daily Break ${dayLabel(r.seed)} 🎱\nLevel ${r.level + 1} · ${r.potted} ball${r.potted === 1 ? '' : 's'}\n${(r.results || []).map(x => RESULT_EMOJI[x]).join('')}\n${gameUrl()}`;
 }
+const SITE_URL = 'https://dailybreak.app/';   // keep in step with the meta tags and HOST in src/worker.js
 function gameUrl() { return location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL; }
 const canNativeShare = () => !!navigator.share && matchMedia('(pointer: coarse)').matches;
 const shareLabel = () => `${canNativeShare() ? 'Share' : 'Copy'} ${round.ranked ? 'result' : "today's result"}`;
@@ -1125,6 +1423,7 @@ async function shareResult(b) {
   setTimeout(() => b.textContent = shareLabel(), 1400);
 }
 function showFinal(already) {
+  if (isPar()) return showParFinal(already);
   const practice = !round.ranked, today = shareText();
   $('card').innerHTML = `
     <div class="k mono">${practice ? 'Practice · not ranked' : courseName(round.seed)}</div>
@@ -1154,10 +1453,13 @@ function showFinal(already) {
 function showIntro() {
   $('card').innerHTML = `
     <div class="k mono">Daily Break · daily pool</div>
-    <h2>How far can you get?</h2>
+    ${parSeed(todayKey()) ? `<h2>Six holes. Fewest shots wins.</h2>
+    <div class="howto">
+      <p>⛳ Pool scored like golf. Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.</p>
+      <p>🎱 Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>` : `<h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
-      <p>❤️ You have 4 lives. A miss costs one (level 1 is a free warm-up).</p>
+      <p>❤️ You have 4 lives. A miss costs one (level 1 is a free warm-up).</p>`}
       <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
@@ -1166,10 +1468,11 @@ function showIntro() {
 function showHelp() {
   $('card').innerHTML = `
     <div class="k mono">How to play</div>
-    <h2>How far can you get?</h2>
+    <h2>${isPar() ? 'Six holes. Fewest shots wins.' : 'How far can you get?'}</h2>
     <div class="howto">
-      <p>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
-      <p>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
+      <p${isPar() ? ' hidden' : ''}>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
+      ${isPar() ? `<p>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3. Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>` : ''}
+      <p${isPar() ? ' hidden' : ''}>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. To go for a different ball, <b>tap it on the table</b>.</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dotted line shows where the object ball will go.</p>
@@ -1177,6 +1480,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
+      <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
     </div>
@@ -1190,6 +1494,7 @@ $('card').addEventListener('click', e => {
   ensureAudio(); sfx.click();
   if ('close' in b.dataset) { ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
   else if ('copy' in b.dataset) shareResult(b);
+  else if ('copyPar' in b.dataset) { const text = parShareText(); (canNativeShare() ? navigator.share({ text }).catch(() => {}) : navigator.clipboard.writeText(text).then(() => { b.textContent = 'Copied!'; }, () => { b.textContent = 'Select the text to copy'; })); }
   else if ('practice' in b.dataset) startPractice(todayKey());   // today's levels again, unranked
   else if ('random' in b.dataset) startPractice(Math.random().toString(36).slice(2, 8));   // a fresh random set of levels
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
@@ -1277,6 +1582,8 @@ stage.addEventListener('pointerup', e => {
   const p = toWorld(e);
   let bi = -1, bd = R * 3;   // generous, so a thumb can pick a ball
   table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; bi = k; } } });
+  const g = isPar() && gimmes.find(o => o.bi === bi);
+  if (g) { tapIn(g); return; }
   if (bi >= 0) { focusBall(bi); ls('dailybreak:tappedBall', '1'); }
 });
 stage.addEventListener('pointercancel', () => { drag = null; });
@@ -1658,25 +1965,63 @@ function drawCat(t) {
 
 /* ----- the table ----- */
 
-function drawTable(t, dt) {
-  ctx.save();
+const polyPath = (pts, move = true) => { pts.forEach(([x, y], k) => k || !move ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
+// the felt of a shaped table: its outline, minus any islands (fill or clip with 'evenodd')
+function feltPath(sh) { ctx.beginPath(); polyPath(sh.outer); for (const isl of sh.islands) polyPath(isl); }
+// A shaped table: a walnut rail, the green cushion and the felt follow its outline; islands are walnut blocks
+// edged with cushion.
+function drawShapedTable(sh) {
+  ctx.save(); ctx.lineJoin = 'round';
   ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
-  ctx.fillStyle = '#6e4a30'; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+  ctx.beginPath(); polyPath(sh.outer); ctx.fillStyle = '#6e4a30'; ctx.fill(); ctx.strokeStyle = '#6e4a30'; ctx.lineWidth = RAIL * 2; ctx.stroke();
   ctx.restore();
   const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
   wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
-  ctx.fillStyle = wood; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
-  ctx.fillStyle = '#efe4ca';
-  const dia = (x, y) => { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 3, y); ctx.fill(); };
-  for (let i = 1; i < 8; i++) if (i !== 4) for (const x of [-RAIL / 2 - 2, W + RAIL / 2 + 2]) dia(x, H * i / 8);
-  for (let i = 1; i < 4; i++) for (const y of [-RAIL / 2 - 2, H + RAIL / 2 + 2]) dia(W * i / 4, y);
-  ctx.fillStyle = '#4f7f68'; ctx.fillRect(-12, -12, W + 24, H + 24);
+  ctx.save(); ctx.lineJoin = 'round';
+  ctx.beginPath(); polyPath(sh.outer);
+  ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = RAIL * 2 - 4; ctx.stroke();
+  ctx.strokeStyle = wood; ctx.lineWidth = RAIL * 2 - 9; ctx.stroke();
+  ctx.strokeStyle = '#4f7f68'; ctx.lineWidth = 24; ctx.stroke();   // the cushion
+  feltPath(sh);
   const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
   felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
-  ctx.fillStyle = felt; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+  ctx.fillStyle = felt; ctx.fill('evenodd');
+  ctx.fillStyle = FELT_NOISE; ctx.fill('evenodd');
+  ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.stroke();
+  for (const isl of sh.islands) {
+    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = '#4f7f68'; ctx.lineWidth = 24; ctx.stroke();   // its cushion, on the felt side
+    ctx.fillStyle = wood; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTable(t, dt) {
+  const sh = hole.shape;
+  if (sh) drawShapedTable(sh);
+  else {
+    ctx.save();
+    ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
+    ctx.fillStyle = '#6e4a30'; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+    ctx.restore();
+    const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
+    wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
+    ctx.fillStyle = wood; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
+    ctx.fillStyle = '#efe4ca';
+    const dia = (x, y) => { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 3, y); ctx.fill(); };
+    for (let i = 1; i < 8; i++) if (i !== 4) for (const x of [-RAIL / 2 - 2, W + RAIL / 2 + 2]) dia(x, H * i / 8);
+    for (let i = 1; i < 4; i++) for (const y of [-RAIL / 2 - 2, H + RAIL / 2 + 2]) dia(W * i / 4, y);
+    ctx.fillStyle = '#4f7f68'; ctx.fillRect(-12, -12, W + 24, H + 24);
+    const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
+    felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
+    ctx.fillStyle = felt; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+  }
+  // everything on the felt is clipped to the table's shape
+  ctx.save();
+  if (sh) { feltPath(sh); ctx.clip('evenodd'); }
   for (const p of hole.patches) {
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
     ctx.beginPath(); ctx.ellipse(0, 0, p.rx, p.ry, 0, 0, TAU);
@@ -1705,10 +2050,10 @@ function drawTable(t, dt) {
     }
     ctx.restore();
   }
-  ctx.strokeStyle = 'rgba(255,255,240,.18)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke();
-  POCKETS.forEach((p, i) => {
-    const pr = p.cap * 0.95;
+  if (!sh) { ctx.strokeStyle = 'rgba(255,255,240,.18)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke(); }
+  ctx.restore();   // end of the felt clip
+  table.pk.forEach((p, i) => {
+    const pr = Math.min(p.cap, R * 1.75) * 0.95;
     ctx.fillStyle = '#3a2618'; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.fill();
     if (!table.openPocket(i)) {
       ctx.fillStyle = '#9a6c48'; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
@@ -1770,8 +2115,17 @@ function spinPaths() {
 }
 // Shown only while you're pulling back or dragging the spin spot: a dotted line that fades out.
 function drawSpinPaths() {
-  if (!(hold && power >= MIN_PULL) && !spinDrag) return;
-  const p = spinPaths()[0];
+  const pulling = hold && power >= MIN_PULL;
+  const p = pulling || spinDrag ? spinPaths()[0] : null;
+  // a scratch ahead while pulling back: the spin ball pulses (and, the first three times, the table says so)
+  const sc = !!(pulling && p?.scratch);
+  if (sc !== scratchAhead) { scratchAhead = sc; spinPulse(); }
+  const key = `${hole.i}|${strokes}`;
+  if (sc && scratchSaid !== key) {
+    scratchSaid = key;
+    const n = +(ls('dailybreak:scratchTips') || 0);
+    if (n < 3) { ls('dailybreak:scratchTips', String(n + 1)); const c = table.cue; float(clamp(c.x, 110, W - 110), clamp(c.y + 50, 40, H - 40), 'Scratch ahead: try spin', '#b8553f', 18, 2.2); }
+  }
   if (!p || p.pts.length < 2) return;
   ctx.save(); ctx.lineCap = 'round';
   const n = p.pts.length;
@@ -1833,6 +2187,20 @@ function drawAim(t) {
     g.addColorStop(0, 'rgba(251,248,240,.9)'); g.addColorStop(1, 'rgba(251,248,240,0)');
     ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(b.x + nx * (R + 3), b.y + ny * (R + 3)); ctx.lineTo(b.x + nx * len, b.y + ny * len); ctx.stroke();
+  }
+}
+// Gimmes glow green with a "Tap in" label; tapping one pots it for a stroke.
+function drawGimmes(t) {
+  for (const g of gimmes) {
+    const b = table.balls[g.bi];
+    if (!b || b.potted) continue;
+    const k = (t * 1.2) % 1;
+    ctx.strokeStyle = `rgba(120,210,140,${0.9 * (1 - k)})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(b.x, b.y, R + 4 + k * 14, 0, TAU); ctx.stroke();
+    ctx.font = "700 16px 'DM Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const txt = 'Tap in ⛳', tw = ctx.measureText(txt).width + 18, lx = clamp(b.x, tw / 2 + 4, W - tw / 2 - 4), ly = b.y - R - 22 < 16 ? b.y + R + 22 : b.y - R - 22;
+    ctx.fillStyle = 'rgba(47,107,79,.94)'; ctx.beginPath(); ctx.roundRect(lx - tw / 2, ly - 13, tw, 26, 13); ctx.fill();
+    ctx.fillStyle = '#f4efe2'; ctx.fillText(txt, lx, ly + 0.5);
   }
 }
 // Labels drawn above the balls (none at the moment; kept for the placement pass).
@@ -1991,7 +2359,7 @@ function draw(t, dt) {
     const k = Math.min(1, sk.t) ** 1.6, a = k * 2.6, dx = (sk.x - sk.tx) * (1 - k), dy = (sk.y - sk.ty) * (1 - k);
     drawBall(sk.b, sk.tx + dx * Math.cos(a) - dy * Math.sin(a), sk.ty + dx * Math.sin(a) + dy * Math.cos(a), 1 - 0.6 * k, 1 - k * k);
   }
-  for (const p of POCKETS) if (p.glow > 0) {
+  for (const p of table.pk) if (p.glow > 0) {
     p.glow = Math.max(0, p.glow - dt * 1.8);
     const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.cap * 2.4);
     g.addColorStop(0, `rgba(255,214,120,${0.55 * p.glow})`); g.addColorStop(1, 'rgba(255,214,120,0)');
@@ -2014,6 +2382,7 @@ function draw(t, dt) {
   if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
   if (phase === 'aim') drawCue(aim.angle, power, 0);
   drawAimLabels();
+  if (phase === 'aim' && !hold) drawGimmes(t);
   if (phase === 'strike') drawCue(strike.angle, strike.power, clamp((strike.t - (SHOOT_T - 0.1)) / 0.1, 0, 1));
 
   for (const g of fx.rings) {
@@ -2080,7 +2449,7 @@ function draw(t, dt) {
     ctx.fillStyle = gg; ctx.fillRect(0, 0, cw, ch);
   }
   const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
-  vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + (1 - timeScale) * 0.45})`);
+  vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + clamp((PLAY - timeScale) / PLAY, 0, 1) * 0.45})`);
   ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
   // film grain: hop the noise tile to a new random offset ~12 times a second, so it shimmers in place
   // (sliding it steadily made it read as diagonal rain)
@@ -2123,16 +2492,16 @@ function frame(now) {
   // Slow motion and a push-in as the rack's last ball heads for the pocket.
   let slow = false, tk = 1, tx = W / 2, ty = H / 2;
   if (cine) {
-    const b = table.balls.find(o => o.n === cine.n), p = POCKETS[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
+    const b = table.balls.find(o => o.n === cine.n), p = table.pk[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
     else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
   }
   // Fast-forward the dead time: a tap on the table (once the shot has rolled for 0.8 s) plays the rest at
-  // 4×, and once everything is just creeping (under 70, after 1.2 s) it runs at 2× by itself.
-  // Never during the slow-motion finish.
+  // 3×, and once everything is just creeping (under 35, after 2 s) it runs at 1.6× by itself. Otherwise the
+  // table plays at PLAY (0.75×). Never during the slow-motion finish.
   if (phase === 'moving') movingT += dt;
-  const creeping = phase === 'moving' && movingT > 1.2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 70);
-  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 4 : creeping ? 2 : 1;
+  const creeping = phase === 'moving' && movingT > 2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 35);
+  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);

@@ -1,5 +1,7 @@
 # Daily Break - handoff
 
+**From 12 Nov 2026 the daily game is par (golf) scoring on shaped tables: see "Par scoring" and "Table shapes" near the end. The ladder with lives described first still runs for earlier days.**
+
 A daily pool game for the browser: a ladder of levels, the same for everyone
 each day. Level 1 has one ball, level 2 two, and so on; you have four lives,
 and your score is how far you get. One ranked run a day of about two to four
@@ -151,3 +153,81 @@ cue and ball positions; after a clear it saves the start of the next level). `re
 on load ("Carrying on · N balls left"), so reloading can't restart a bad run and an interrupted player
 keeps their progress. The save is removed when the run ends and never written for practice or once
 today's result exists.
+
+## Pace (11 Nov 2026)
+
+- The table plays at 0.75× (`PLAY`) so there's time to watch the balls; outcomes are unchanged. The
+  automatic speed-up waits until everything is under 35 after 2 s and runs at 1.6×, and a tap fast-forwards
+  at 3× (was 1×, then 2× after 1.2 s under 70, and 4× on a tap).
+- The cue-ball close-up (the timing challenge) stays in the bottom-left corner while you pull back. Putting
+  it in the middle of the screen, then at whichever height was clearest of the shot lines, was tried on this
+  branch and held back for now (it's in the history).
+- A daily weather system (damp, sunny, draughty, stormy, cold) was built and tried on this branch on 11 Nov
+  2026 and taken out again: it changed how balls rolled but not what you were trying to do on each level.
+  It's in the branch history (commits "Daily weather…" and "Stronger weather…") if it's ever wanted.
+
+## Teaching spin (11 Nov 2026)
+
+Playtest feedback: a player got the hang of the pull but didn't notice spin. Two nudges, both at the moment
+spin helps (`spinPulse`):
+
+- Level 3, until the player has used spin (any spot off centre, remembered as `dailybreak:usedSpin`): the spin
+  ball pulses gold and the table shows "Spin: drag the gold spot / Down brings the cue ball back · up follows
+  through" 1.7 s in.
+- Whenever the pull-back path hint shows a scratch (the red X), the spin ball pulses while it's shown; the
+  first three times ever (`dailybreak:scratchTips`) the table also says "Scratch ahead: try spin".
+
+## Table shapes (from 12 Nov 2026)
+
+`SHAPES_ON` switches them on (set it false to go back to the classic table only). Levels 3 and
+up are played on a table shape dealt for the day like a shuffled deck (`shapeFor`: classic plus six shapes, all
+seven before any repeat, never the same twice running), the same for everyone, from `SHAPES_FROM`. Levels
+1–2, older days and classic levels run exactly the old rectangle code (layouts checked identical).
+
+Shapes (`SHAPES`, built by `mkShape`; each fits the 500 × 1000 box and has six pockets): ⬡ Hexagon (a
+pocket at each corner), ⯃ Octagon (pockets on the four diagonals plus two sides), ⌐ L-shape, ⧗ Hourglass
+(two chambers joined by a waist half the table's width; pockets on the two waist points), ⬭ Oval (pockets round the rim) and ⊡ Island (a classic
+table with a walnut block in the middle).
+
+- Physics: a shaped table's cushions are segments (`sh.segs`, with normals into the felt). A ball overlapping
+  one is pushed off its nearest point and bounces off that normal (`Table.step`), which also rounds corners.
+- Aiming: `trace` casts against the cushions (`rayCushion`), so the aim line, ghost ball and path hint follow
+  them; `pocketAim` uses a point just inside each pocket's mouth; `pathBlocked` also counts inward corners
+  and islands.
+- Generation: balls are placed only where they fit on the felt (`freeIn`), rail balls go along any cushion,
+  and the usual opening-pot and clearable checks apply. In testing (40 levels per shape, levels 3–10) every
+  level had a real opening pot and was clearable; no ball left the felt in 1,440 random shots.
+  Generation averages 11–31 ms per level except the hourglass (~70 ms, worst ~430 ms; its waist was widened
+  from 160 to 250 px because the narrow one rejected about 14 layouts per level, now about 5).
+- Drawing: `drawShapedTable` draws the walnut rail, cushion and felt round the outline; everything on the
+  felt is clipped to it (`feltPath`). The level banner names the table, and the help explains it. Not on the share card (by choice).
+
+Ideas next: portals or bridges linking two parts of a table (the aim line would need to follow the ball
+through), and tuning which shapes appear at which levels.
+
+## Par scoring (the daily game from 12 Nov 2026)
+
+From `PAR_FROM` (2026-11-12) the daily game is six holes scored like golf, with no lives (`PAR_ON`,
+`parSeed`: days before that, and practice on them, keep the lives ladder above, so saved runs and results
+from those days still work; random practice courses are par). Hole i has i + 1 balls. Every shot is a
+stroke; a foul (scratch, no contact) adds a penalty stroke and balls that drop on it stay down. Par is the
+number of balls, +1 from hole 3 (`parOf`: 1, 2, 4, 5, 6, 7 = 25). A hole ends when it's cleared, or you pick
+up at par + 3 (`capOf`), which scores par + 3. Table shapes apply from hole 3.
+
+- Gimmes (`findGimmes`, `tapIn`): a ball within two ball widths of an open pocket with a clear, nearly
+  straight line from the cue ball (cut cos > 0.9) glows green with a "Tap in ⛳" label. Tapping it pots it for
+  one stroke; the cue ball doesn't move. Tapping any other ball still targets it.
+- Flow: `resolveParShot`, `finishParHole` (stamp: Eagle / Birdie / Par / Bogey / Double bogey / Picked up),
+  `endParRound`, `showParFinal` (scorecard, 🟦🟩🟨🟥 per hole, share text "Daily Break 12 Nov ⛳ +2", rank
+  line, practice button, countdown). Points and the streak still count, as a tiebreak.
+- Header: hole n/6, par, score to par; info bar: strokes on this hole and score. Intro and help explain par.
+- Saving: a ranked round in progress is saved to `dailybreak:run:<date>` (with `par: true`, the cards so far,
+  strokes on the current hole and ball positions) after every shot and between holes; reloading carries on.
+  The finished round is stored as `dailybreak:par:<date>` (cards, potted, points, best streak), so it can't be
+  replayed and reopening shows "Today's round is in".
+- Server: `sendResult` posts `{day, mode: 'par', score, strokes, points}`; the worker validates it (score
+  −30..60, strokes 0..200), writes it to Analytics Engine with blob2 = 'par' (double1 score, double2 strokes,
+  double3 points) and counts players per score in `DayCounts` (`p:<day>`); `GET /api/day?day=&mode=par`
+  returns `{players, scores}` and the card says "Better than X% of today's players" (lower is better). The
+  Results report has a par table (`par_report`) and keeps the level table for lives days.
+- Not done: the device stats (days played, streak, best) and the near-miss line aren't on the par card yet.
