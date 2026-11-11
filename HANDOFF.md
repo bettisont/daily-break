@@ -116,7 +116,7 @@ post to the endpoint, so treat the numbers as a guide, not a leaderboard.
 - `src/worker.js` keeps a per-day count of players at each level in the `DayCounts` Durable Object
   (SQLite-backed, one instance named "all"; key `d:<day>` → `{ level: count }`, nothing else).
   `POST /api/result` adds to it and replies with the tally; `GET /api/day?day=` returns it.
-- The result card shows "Better than X% of today's players · N played so far" (`fillRank`,
+- The result card shows "Better than X% of today's players" (no player count on purpose) (`fillRank`,
   `loadRank`: X = players on a lower level ÷ everyone else), or "Best run today so far 🏆" /
   "You're the first to finish today's ladder". Only on dailybreak.app, ranked daily runs.
 - Near miss (`nearMiss`, from this device's history; the run end stores `left`, balls left on the

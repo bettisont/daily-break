@@ -975,7 +975,7 @@ function fillRank() {
   const line = others <= 0 ? "You're the first to finish today's ladder" :
     lower === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best run today so far 🏆') :
     `Better than ${pct}% of today's players`;
-  el.innerHTML = `<b>${line}</b><small>${t.players.toLocaleString()} played so far</small>`;
+  el.innerHTML = `<b>${line}</b>`;   // no player count shown (Tim, 11 Nov)
   el.hidden = false;
 }
 function loadRank() {
