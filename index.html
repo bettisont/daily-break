@@ -2590,8 +2590,8 @@ function drawContact(dt) {
     ctx.font = `800 ${Math.round(Rb * big2)}px 'DM Sans', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = txt.startsWith('AIM') ? '#e2b13c' : q === 'clean' ? '#e2b13c' : q === 'miscue' ? '#e0573d' : '#fbf8f0';
     ctx.fillText(txt, x, y + Rb + Rb * 0.28);
-    if (L) {
-      const sub = glide < 1 ? (since < TEACH_REST ? 'Your tip landed here' : 'Let go when the tip is on it') : "Your first one's on us";
+    if (L && glide < 1) {
+      const sub = since < TEACH_REST ? 'Your tip landed here' : 'Let go when the tip is on it';
       ctx.font = `600 ${Math.round(Rb * 0.13)}px 'DM Sans', sans-serif`; ctx.fillStyle = '#fbf8f0';
       ctx.fillText(sub, x, y + Rb + Rb * 0.56);
     }
