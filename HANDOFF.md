@@ -253,3 +253,18 @@ work with every table shape.
 - Testing: 48 holes per obstacle (holes 3–6 on classic, hexagon, L-shape and oval) all had the obstacle,
   a real opening pot and were clearable; in 1,152 random shots no ball left the table, rested in water or
   stuck in a bar. Generation averages 11–21 ms per hole (worst ~160 ms).
+
+## First shot (12 Nov 2026)
+
+About half the phones that open the game never take a shot. Three changes aimed at the first shot:
+
+- Funnel: two new steps, `intro` (closed the intro card, first visit only) and `pull` (touched the pull cue),
+  between `open` and `shot`; the worker accepts them and the Results report shows them, so it's clear whether
+  people leave at the card or at the gesture.
+- Demo (`demoHand`, `tickDemo`, `demoPull`): until the player has ever touched the pull cue
+  (`dailybreak:pulled`), on hole/level 1 a hand drags the cue control down and lets go on a 2.2 s loop, the
+  control's stick and the cue on the table pulling back in step, with a tip "Drag the cue down, then let go".
+  It stops the moment they touch the cue.
+- First shot ever (`dailybreak:firstShot`, in `release`): a clean strike whatever the timing, and if the
+  player's aim and pace wouldn't pot the ball they're aimed at, the nearest pot line within 10° and the nearest
+  pace that does are used. In testing, pulls of 13%, 20%, 40% and 87% all dropped the ball.
