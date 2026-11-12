@@ -292,3 +292,16 @@ About half the phones that open the game never take a shot. Three changes aimed 
 - Who sees it: it's per browser (localStorage), so everyone who has played before also sees it once after it
   launches (decided on 12 Nov: existing players should get the tutorial too). A new device, browser, private
   window or cleared site data shows it again.
+
+## Teaching spin (12 Nov 2026, replaces the hole 3 spin tip)
+
+- Hole 2 demo (`spinDemo`, `tickSpinDemo`): on the first shot of hole/level 2, until the player first touches the
+  spin ball (`dailybreak:spinDemo`), the cue ball's path after contact is drawn in gold while a hand drags the
+  gold spot down (draw: "Down is draw: the white ball comes back"), up (follow: "Up is follow: the white ball
+  rolls on") and back, on a 6.4 s loop. Pulling back pauses it and restores the player's own spin.
+- Scratch rescue (`scratchRescue`, `spinLesson`, `SPIN_*`): the first time ever a real shot (one that hits a
+  ball) would scratch, after the first shot, the strike waits: "The white ball goes in", a hand drags the spot
+  to a spin that keeps the cue ball out without changing what gets potted ("Draw it back with spin"), then
+  "Spin keeps it out!", and the shot plays with that spin. Once ever (`dailybreak:scratchSaved`).
+- The level/hole 3 spin tip and its pulse are gone; the spin ball still pulses when the pull-back path shows a
+  scratch. The "Tap a ball to target it" tip moved from level/hole 2 to 3 so it doesn't clash with the demo.
