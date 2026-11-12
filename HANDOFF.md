@@ -266,7 +266,7 @@ About half the phones that open the game never take a shot. Three changes aimed 
   control's stick and the cue on the table pulling back in step, with a tip "Drag the cue down, then let go".
   It stops the moment they touch the cue.
 - First shot ever (`dailybreak:firstShot`, in `release`): a clean strike whatever the timing, and if the
-  player's aim and pace wouldn't pot the ball they're aimed at, the nearest pot line within 10° and the nearest
+  player's aim and pace wouldn't pot the ball they're aimed at, the nearest pot line (however far off they were) and the nearest
   pace that does are used. In testing, pulls of 13%, 20%, 40% and 87% all dropped the ball.
 - The first shot also teaches the timing: if their real contact wasn't clean, the close-up shows the tip where it
   really landed with that grade ("Off-centre · Your tip landed here"), leaves a dashed red ring there, glides

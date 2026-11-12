@@ -1214,14 +1214,16 @@ function release() {
   const own = angle;
   if (first) {
     // the player's first shot ever drops: if their aim and pace wouldn't pot the ball they're aimed at, use the
-    // nearest pot line (within 10°) and the nearest pace that does
+    // nearest pot line for it (however far off they were; then any other ball's) and the nearest pace that does
     ls('dailybreak:firstShot', '1');
     const target = table.balls[aim.bi], pots = (a, pw) => { const s = simulate(table, a, pw, ct.spin); return !s.shot.scratch && s.balls[aim.bi].potted; };
     if (target && !target.potted && !pots(angle, ct.power)) {
       const turn = a => Math.abs(Math.atan2(Math.sin(a - angle), Math.cos(a - angle)));
-      const angles = [angle, ...allLines(table).filter(l => l.bi === aim.bi && !l.blocked && turn(l.angle) < 10 * Math.PI / 180).sort((x, y) => turn(x.angle) - turn(y.angle)).map(l => l.angle)];
+      const lines = allLines(table).filter(l => !l.blocked).sort((x, y) => (x.bi !== aim.bi) - (y.bi !== aim.bi) || turn(x.angle) - turn(y.angle));
       const paces = [ct.power, 0.3, 0.34, 0.26, 0.38, 0.22, 0.42, 0.18].sort((x, y) => Math.abs(x - ct.power) - Math.abs(y - ct.power));
-      found: for (const a of angles) for (const pw of paces) if (pots(a, pw)) { angle = a; ct.power = pw; break found; }
+      const potsAny = (a, pw, bi) => { const s = simulate(table, a, pw, ct.spin); return !s.shot.scratch && s.balls[bi].potted; };
+      found: for (const pw of paces) if (pots(angle, pw)) { ct.power = pw; break found; }
+      else if (pw === paces[paces.length - 1]) for (const l of lines) for (const p2 of paces) if (potsAny(l.angle, p2, l.bi)) { angle = l.angle; ct.power = p2; aim.bi = l.bi; break found; }
     }
   }
   lastPower = power;
@@ -1573,13 +1575,14 @@ function spinPulse() {
 // The first shot's aim lesson (strike.t runs from -AIM_T up to 0): the guide line shows where they aimed, a
 // hand swipes the aim strip and the line turns onto the pocket, then the strike carries on as usual.
 function aimLesson(was, now) {
-  const L = strike.lesson, k = now + AIM_T, g = clamp((k - AIM_REST) / AIM_GLIDE, 0, 1), e = g * g * (3 - 2 * g), dir = Math.sign(L.to - L.from) || 1;
+  const L = strike.lesson, k = now + AIM_T, g = clamp((k - AIM_REST) / AIM_GLIDE, 0, 1), e = g * g * (3 - 2 * g);
+  const turn = Math.atan2(Math.sin(L.to - L.from), Math.cos(L.to - L.from)), dir = Math.sign(turn) || 1;   // the short way round
   const at = (t0) => was + AIM_T < t0 && k >= t0;
   if (at(0.05)) { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(L.from), Math.sin(L.from)); const b = hit.ball || table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'This line misses', '#b8553f', 18, 2.2); }
   if (at(AIM_REST)) float(W / 2, clamp(table.cue.y + 60, 60, H - 60), 'Swipe the aim strip to line it up', '#2f6b4f', 18, 3.4);
   if (at(AIM_REST + AIM_GLIDE)) { const b = table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'Lined up!', '#2f6b4f', 20, 2.0); sfx.chime(); }
   if (now < 0) {
-    aim.angle = lerp(L.from, L.to, e);
+    aim.angle = L.from + turn * e;
     stripOff = L.strip + dir * e * 140;
     const hand = $('aimHand'), w = $('strip').clientWidth || 300;
     if (hand) { hand.style.transform = `translateX(${w / 2 - 22 + dir * (e - 0.5) * w * 0.5}px)`; hand.style.opacity = g > 0 && g < 1 ? 1 : k < AIM_REST ? Math.min(1, k / 0.3) * 0.6 : Math.max(0, 1 - (k - AIM_REST - AIM_GLIDE) / 0.3); }
