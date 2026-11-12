@@ -231,3 +231,77 @@ up at par + 3 (`capOf`), which scores par + 3. Table shapes apply from hole 3.
   returns `{players, scores}` and the card says "Better than X% of today's players" (lower is better). The
   Results report has a par table (`par_report`) and keeps the level table for lives days.
 - Not done: the device stats (days played, streak, best) and the near-miss line aren't on the par card yet.
+
+## Obstacles (prototype, 11 Nov 2026; off in the live game)
+
+`OBSTACLES_ON` is false; the test build turns it on. On par days, holes 3–6 each get at most one obstacle,
+dealt for the day like the shapes (`obstFor`: water, windmill, gate and one hole with none, shuffled), placed
+before the balls from their own random stream (`seed:obstacle:i`), so holes without one are unchanged. They
+work with every table shape.
+
+- 💧 Water hazard (`inPond`): a pond with a stony edge. A ball whose centre reaches the water splashes, is put
+  back just outside where it went in, and costs a penalty stroke (`shot.splashes`); pots in the same shot
+  still count, and it doesn't stack with a foul's penalty. Pot lines across the pond count as blocked.
+- ✣ Windmill: two crossed bars (`BAR_T` half-thickness) that turn at `WM_W` (1.5 rad/s) only while balls are
+  rolling, so it's still while you aim and the path hint stays exact. It sweeps balls it meets, resting ones
+  included. A dashed circle shows its reach and an arrow its direction.
+- ⇥ One-way gate: a hinged flap (`Table.gp`, how far open, up to `GATE_MAX`). A ball pushing from the open side
+  swings it open and carries on (a small knock, then a gentle drag); from the other side it's a wall. It swings
+  shut behind (`GATE_BACK`), never into a ball. Painted arrows show the way through; the aim line passes
+  through it from the open side and stops at it from the solid side (`rayBar`).
+- `obstBars` gives the bars' current positions to the physics, `trace`, `pathBlocked` and `respot`.
+- Testing: 48 holes per obstacle (holes 3–6 on classic, hexagon, L-shape and oval) all had the obstacle,
+  a real opening pot and were clearable; in 1,152 random shots no ball left the table, rested in water or
+  stuck in a bar. Generation averages 11–21 ms per hole (worst ~160 ms).
+
+## First shot (12 Nov 2026)
+
+About half the phones that open the game never take a shot. Three changes aimed at the first shot:
+
+- Funnel: two new steps, `intro` (closed the intro card, first visit only) and `pull` (touched the pull cue),
+  between `open` and `shot`; the worker accepts them and the Results report shows them, so it's clear whether
+  people leave at the card or at the gesture.
+- Demo (`demoHand`, `tickDemo`, `demoPull`): until the player has ever touched the pull cue
+  (`dailybreak:pulled`), on hole/level 1 a hand drags the cue control down and lets go on a 3.3 s loop, the
+  control's stick and the cue on the table pulling back in step, with a tip "Drag the cue down, then let go".
+  It stops the moment they touch the cue.
+- First shot ever (`dailybreak:firstShot`, in `release`): a clean strike whatever the timing, and if the
+  player's aim and pace wouldn't pot the ball they're aimed at, the nearest pot line (however far off they were) and the nearest
+  pace that does are used. In testing, pulls of 13%, 20%, 40% and 87% all dropped the ball.
+- The first shot also teaches the timing: if their real contact wasn't clean, the close-up shows the tip where it
+  really landed with that grade ("Off-centre · Your tip landed here"), leaves a dashed red ring there, glides
+  the tip onto the gold spot ("Aim for the gold spot · Let go when the tip is on it"), then flashes "Clean" before
+  the shot plays (`zoom.teach`, `TEACH_*`; the strike waits `strike.end`). A
+  clean first strike just says "Clean".
+- And the aim: a new player's first shot starts 3.5° off the best pot line, still on the ball (`startOffTarget`).
+  If they shoot without lining it up, an aim lesson plays before the timing one (`strike.lesson`, `aimLesson`,
+  `AIM_*`; `strike.t` runs from −`AIM_T` to 0; the aim lesson takes about 5.3 s and the timing lesson about 5.1 s, slowed twice on 12 Nov so there is time to read them; the pull-cue hand demo loops every 3.3 s, `DEMO_T`): "This line misses", then a hand swipes the aim strip while the
+  guide line turns onto the pot ("Swipe the aim strip to line it up"), then "Lined up!". Players who line it up
+  themselves skip it.
+
+## Spread-out racks and the aim reading (12 Nov 2026)
+
+- From `SPREAD_FROM` (2026-11-13), and on practice courses, `buildHole` no longer places balls in touching
+  clusters: every ball keeps a gap of 1.6 R (about a ball's width) from the others (rail balls still sit on
+  cushions). Days before keep their clusters, so their layouts and saved rounds are unchanged. In testing (40
+  holes, 13–20 Nov) the smallest gap was 28 px (was 2 px), every hole kept a real opening pot and was
+  clearable, and generation got faster (9 ms average). A "bomb" to break up a cluster was suggested as an
+  alternative; it could be an obstacle later.
+- `aimOffset` (the aim strip's reading) is measured from the ball the line actually hits, not the ball first
+  targeted, so it no longer shows readings like "115.2° right" when the line has swung onto another ball.
+- Who sees it: it's per browser (localStorage), so everyone who has played before also sees it once after it
+  launches (decided on 12 Nov: existing players should get the tutorial too). A new device, browser, private
+  window or cleared site data shows it again.
+
+## Teaching spin (12 Nov 2026, replaces the hole 3 spin tip)
+
+- Hole 2 demo (`spinDemo`, `tickSpinDemo`): on the first shot of hole/level 2, until the player first touches the
+  spin ball (`dailybreak:spinDemo`), the cue ball's path after contact is drawn in gold while a hand drags the
+  gold spot down (draw: "Down is draw: the white ball comes back"), up (follow: "Up is follow: the white ball
+  rolls on") and back, on a 6.4 s loop. Pulling back pauses it and restores the player's own spin.
+- Scratch rescue (`scratchRescue`, `spinLesson`, `SPIN_*`): the first time ever a real shot (one that hits a
+  ball) would scratch, after the first shot, the strike waits: "The white ball goes in", a hand drags the spot
+  to a spin that keeps the cue ball out without changing what gets potted ("Draw it back with spin"), then
+  "Spin keeps it out!", and the shot plays with that spin. Once ever (`dailybreak:scratchSaved`).
+- The level/hole 3 spin tip and its pulse are gone; the spin ball still pulses when the pull-back path shows a
+  scratch. The "Tap a ball to target it" tip moved from level/hole 2 to 3 so it doesn't clash with the demo.

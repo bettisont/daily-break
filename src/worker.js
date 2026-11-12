@@ -5,7 +5,7 @@
 //                   {day, mode: 'par', score, strokes, points} for a par (golf) day. It goes to Workers
 //                   Analytics Engine (dataset daily_break_results, read by .github/workflows/results.yml)
 //                   and is counted in the DayCounts Durable Object. Replies with that day's tally.
-// POST /api/event   one anonymous funnel step {day, step} (open, shot, clear1, level3, finish), sent at
+// POST /api/event   one anonymous funnel step {day, step} (open, intro, pull, shot, clear1, level3, finish), sent at
 //                   most once per device per day; Analytics Engine dataset daily_break_events.
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
 //                   so the result card can say "better than X% of today's players". With &mode=par:
@@ -43,7 +43,7 @@ export class DayCounts extends DurableObject {
     return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
   }
 }
-const STEPS = new Set(['open', 'shot', 'clear1', 'level3', 'finish']);
+const STEPS = new Set(['open', 'intro', 'pull', 'shot', 'clear1', 'level3', 'finish']);
 async function recordEvent(request, env) {
   let e;
   try { e = await request.json(); } catch { return new Response('bad json', { status: 400 }); }

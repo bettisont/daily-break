@@ -20,7 +20,7 @@ def account():
     return call(API + '/accounts')['result'][0]['id']
 
 
-STEPS = [('open', 'Opened'), ('shot', 'Took a shot'), ('clear1', 'Cleared level/hole 1'), ('level3', 'Reached level/hole 3'), ('finish', 'Finished')]
+STEPS = [('open', 'Opened'), ('intro', 'Closed the intro (first visit)'), ('pull', 'Touched the cue'), ('shot', 'Took a shot'), ('clear1', 'Cleared level/hole 1'), ('level3', 'Reached level/hole 3'), ('finish', 'Finished')]
 
 
 def fetch_funnel(acc, days):
