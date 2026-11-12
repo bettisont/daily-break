@@ -268,3 +268,8 @@ About half the phones that open the game never take a shot. Three changes aimed 
 - First shot ever (`dailybreak:firstShot`, in `release`): a clean strike whatever the timing, and if the
   player's aim and pace wouldn't pot the ball they're aimed at, the nearest pot line within 10° and the nearest
   pace that does are used. In testing, pulls of 13%, 20%, 40% and 87% all dropped the ball.
+- The first shot also teaches the timing: if their real contact wasn't clean, the close-up shows the tip where it
+  really landed with that grade ("Off-centre · Your tip landed here"), leaves a dashed red ring there, glides
+  the tip onto the gold spot ("Aim for the gold spot · Let go when the tip is on it"), then flashes "Clean ·
+  Your first one's on us" before the shot plays (`zoom.teach`, `TEACH_*`; the strike waits `strike.end`). A
+  clean first strike just says "Clean".
