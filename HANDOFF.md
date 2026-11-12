@@ -273,3 +273,8 @@ About half the phones that open the game never take a shot. Three changes aimed 
   the tip onto the gold spot ("Aim for the gold spot · Let go when the tip is on it"), then flashes "Clean ·
   Your first one's on us" before the shot plays (`zoom.teach`, `TEACH_*`; the strike waits `strike.end`). A
   clean first strike just says "Clean".
+- And the aim: a new player's first shot starts 3.5° off the best pot line, still on the ball (`startOffTarget`).
+  If they shoot without lining it up, an aim lesson plays before the timing one (`strike.lesson`, `aimLesson`,
+  `AIM_*`; `strike.t` runs from −`AIM_T` to 0): "This line misses", then a hand swipes the aim strip while the
+  guide line turns onto the pot ("Swipe the aim strip to line it up"), then "Lined up!". Players who line it up
+  themselves skip it.

@@ -115,6 +115,7 @@
   #demoTip{position:absolute;right:calc(100% + 10px);top:22%;width:max-content;max-width:150px;padding:7px 10px;border-radius:12px;background:#2f6b4f;color:#fbf8f0;font:700 13px/1.25 'DM Sans',sans-serif;text-align:right;pointer-events:none;box-shadow:0 4px 10px rgba(30,40,30,.25);z-index:3}
   #demoTip::after{content:'';position:absolute;right:-6px;top:14px;border:6px solid transparent;border-right:0;border-left-color:#2f6b4f}
   #pull.demo{overflow:visible}
+  #aimHand{position:absolute;left:0;top:2px;width:44px;height:44px;font-size:32px;line-height:44px;text-align:center;pointer-events:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.4));z-index:3;opacity:0}
   #pull.pulse{animation:pulse 1.4s ease-out infinite}
   @keyframes pulse{0%{box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 0 0 0 rgba(226,177,60,.7)}100%{box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 0 0 14px rgba(226,177,60,0)}}
   #act{position:absolute;inset:10px 16px max(10px,env(safe-area-inset-bottom));display:none;touch-action:none;border:0;border-radius:14px;background:var(--green);color:#f4f6ef;font:800 22px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 0 var(--green-dark);z-index:2}
@@ -790,6 +791,9 @@ function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 const PLAY = 0.75;
 // The first shot's lesson in the close-up: how long the tip rests where they hit, glides to the gold spot, and holds.
 const TEACH_REST = 0.6, TEACH_GLIDE = 0.55, TEACH_HOLD = 0.55, TEACH_T = TEACH_REST + TEACH_GLIDE + TEACH_HOLD;
+// ...and the aim lesson before it: the line that would miss, then the aim strip swiping it onto the pocket.
+const AIM_REST = 0.6, AIM_GLIDE = 0.85, AIM_HOLD = 0.5, AIM_T = AIM_REST + AIM_GLIDE + AIM_HOLD;
+const firstShotEver = () => !ls('dailybreak:firstShot') && round?.level === 0;
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
 // Scoring (the tiebreak under "level reached"): every pot is 100, banks and combos add 50, extra balls
@@ -1051,7 +1055,21 @@ function startHole(i) {
 }
 
 // Each shot starts lined up dead centre on the ball with the easiest pot.
-function lineUp() { phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true); updateUI(); }
+function lineUp() {
+  phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
+  if (firstShotEver() && strokes === 0) startOffTarget();
+  updateUI();
+}
+// A new player's first shot starts 3.5° off the best pot line (still on the ball), so the aim lesson has a miss to fix.
+function startOffTarget() {
+  const l = allLines(table).filter(x => x.bi === aim.bi && !x.blocked).sort((a, b) => b.q - a.q)[0];
+  if (!l) return;
+  const side = Math.sign(Math.atan2(Math.sin(aim.angle - l.angle), Math.cos(aim.angle - l.angle))) || 1;
+  for (const deg of [3.5, 2.5, 1.8]) {
+    const a = l.angle + side * deg * Math.PI / 180, hit = trace(table, table.cue.x, table.cue.y, Math.cos(a), Math.sin(a));
+    if (hit.ball === table.balls[aim.bi]) { aim.angle = a; return; }
+  }
+}
 // Gimmes: a ball within two ball widths of an open pocket, with a clear, nearly straight line from the cue ball.
 function findGimmes() {
   const out = [];
@@ -1188,6 +1206,7 @@ function release() {
   const real = contact(d), ct = first ? { tip: { x: 0, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, power } : real;
   const teach = first && real.quality !== 'clean' ? { tip: real.tip, quality: real.quality } : null;
   let angle = aim.angle + ct.off;
+  const own = angle;
   if (first) {
     // the player's first shot ever drops: if their aim and pace wouldn't pot the ball they're aimed at, use the
     // nearest pot line (within 10°) and the nearest pace that does
@@ -1206,6 +1225,13 @@ function release() {
   cine = round.level >= 2 && !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
   strike = { angle, power: ct.power, spin: ct.spin, t: 0, end: teach ? SHOOT_T + TEACH_T : SHOOT_T };
   zoom = { t: 0, ct, d, from: contactPanel(), teach, end: strike.end };
+  // first shot, and their line wouldn't have potted it: show the aim strip putting it right before the strike
+  if (first && Math.abs(Math.atan2(Math.sin(angle - own), Math.cos(angle - own))) > 0.2 * Math.PI / 180) {
+    strike.lesson = { from: own, to: angle, strip: stripOff };
+    strike.t = zoom.t = -AIM_T;
+    aim.angle = own;
+    $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand">👆</div>');
+  }
   shotLog = [];
   strokes++;
   strokeStart = { x: c.x, y: c.y };
@@ -1539,6 +1565,24 @@ function spinPulse() {
   const on = phase === 'aim' && !spinDrag && (scratchAhead || (round?.level === 2 && !ls('dailybreak:usedSpin')));
   $('spinFace').classList.toggle('pulse', on);
 }
+// The first shot's aim lesson (strike.t runs from -AIM_T up to 0): the guide line shows where they aimed, a
+// hand swipes the aim strip and the line turns onto the pocket, then the strike carries on as usual.
+function aimLesson(was, now) {
+  const L = strike.lesson, k = now + AIM_T, g = clamp((k - AIM_REST) / AIM_GLIDE, 0, 1), e = g * g * (3 - 2 * g), dir = Math.sign(L.to - L.from) || 1;
+  const at = (t0) => was + AIM_T < t0 && k >= t0;
+  if (at(0.05)) { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(L.from), Math.sin(L.from)); const b = hit.ball || table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'This line misses', '#b8553f', 18, 1.2); }
+  if (at(AIM_REST)) float(W / 2, clamp(table.cue.y + 60, 60, H - 60), 'Swipe the aim strip to line it up', '#2f6b4f', 18, 1.6);
+  if (at(AIM_REST + AIM_GLIDE)) { const b = table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'Lined up!', '#2f6b4f', 20, 1.2); sfx.chime(); }
+  if (now < 0) {
+    aim.angle = lerp(L.from, L.to, e);
+    stripOff = L.strip + dir * e * 140;
+    const hand = $('aimHand'), w = $('strip').clientWidth || 300;
+    if (hand) { hand.style.transform = `translateX(${w / 2 - 22 + dir * (e - 0.5) * w * 0.5}px)`; hand.style.opacity = g > 0 && g < 1 ? 1 : k < AIM_REST ? Math.min(1, k / 0.3) * 0.6 : Math.max(0, 1 - (k - AIM_REST - AIM_GLIDE) / 0.3); }
+    if (Math.floor(e * 20) !== Math.floor(clamp((was + AIM_T - AIM_REST) / AIM_GLIDE, 0, 1) * 20)) sfx.notch?.(900 + e * 300);
+    $('strip').classList.remove('off');   // keep the strip lit while it's being shown
+    updateAimUI();
+  } else if (was < 0) { aim.angle = L.to; $('aimHand')?.remove(); $('strip').classList.add('off'); updateAimUI(); }
+}
 // First shot ever: a hand drags the pull cue down and lets go, on a loop, with the cue on the table pulling
 // back in step, until the player touches the pull cue themselves.
 const DEMO_T = 2.2;
@@ -1584,8 +1628,8 @@ function updateMeter() {
 let stripOff = 0;
 function updateAimUI() {
   $('stripFace').style.backgroundPosition = `${stripOff}px 0`;
-  const o = phase === 'aim' ? aimOffset() : 0, a = Math.abs(o);
-  $('stripVal').innerHTML = phase !== 'aim' ? 'Aim' : `${a < 0.05 ? 'Centre' : `${a.toFixed(1)}° ${o > 0 ? 'right' : 'left'}`}<small>swipe to aim</small>`;
+  const lesson = phase === 'strike' && strike?.t < 0, o = phase === 'aim' || lesson ? aimOffset() : 0, a = Math.abs(o);
+  $('stripVal').innerHTML = phase !== 'aim' && !lesson ? 'Aim' : `${a < 0.05 ? 'Centre' : `${a.toFixed(1)}° ${o > 0 ? 'right' : 'left'}`}<small>swipe to aim</small>`;
 }
 
 // What gets shared is always today's ranked result, never a practice run, and the link is always
@@ -2421,7 +2465,7 @@ function tag(x, y, text, bg, fg, size = 11, below = false) {
 // Aiming: the line to the first thing the cue ball meets and a ghost ball where it touches, the object
 // ball's direction (long, then short, then none as the round goes on) and the cue ball's path for each spin.
 function drawAim(t) {
-  if (phase !== 'aim') return;
+  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) return;
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), lvl = aidLevel(hole);
   const fb = table.balls[aim.bi];
   drawSpinPaths();
@@ -2509,6 +2553,7 @@ function drawContact(dt) {
   }
   if (!zoom) return;
   zoom.t += dt;
+  if (zoom.t < 0) return;   // the aim lesson plays first
   const z = zoom, { cw, ch } = view, T = z.t, END = z.end || SHOOT_T;
   if (T > END) { zoom = null; return; }
   const k = 1 - (1 - Math.min(1, T / 0.16)) ** 3, out = clamp((T - (END - 0.2)) / 0.2, 0, 1);
@@ -2652,7 +2697,7 @@ function draw(t, dt) {
   if (phase === 'aim') drawCue(aim.angle, demo ? demoPull(demo.t).p : power, 0);
   drawAimLabels();
   if (phase === 'aim' && !hold) drawGimmes(t);
-  if (phase === 'strike') drawCue(strike.angle, strike.power, clamp((strike.t - (strike.end - 0.1)) / 0.1, 0, 1));
+  if (phase === 'strike') drawCue(strike.t < 0 ? aim.angle : strike.angle, strike.power, clamp((strike.t - (strike.end - 0.1)) / 0.1, 0, 1));
 
   for (const g of fx.rings) {
     g.life -= dt;
@@ -2739,6 +2784,7 @@ function frame(now) {
   if (phase === 'strike') {
     const was = strike.t;
     strike.t += dt;
+    if (strike.lesson) aimLesson(was, strike.t);
     // the close-up's tip lands: the click and buzz go with it
     if (was < STRIKE_T && strike.t >= STRIKE_T) {
       const q = zoom?.teach?.quality || zoom?.ct.quality;   // the first shot's lesson sounds like where they really hit
