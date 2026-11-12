@@ -278,3 +278,14 @@ About half the phones that open the game never take a shot. Three changes aimed 
   `AIM_*`; `strike.t` runs from −`AIM_T` to 0): "This line misses", then a hand swipes the aim strip while the
   guide line turns onto the pot ("Swipe the aim strip to line it up"), then "Lined up!". Players who line it up
   themselves skip it.
+
+## Spread-out racks and the aim reading (12 Nov 2026)
+
+- From `SPREAD_FROM` (2026-11-13), and on practice courses, `buildHole` no longer places balls in touching
+  clusters: every ball keeps a gap of 1.6 R (about a ball's width) from the others (rail balls still sit on
+  cushions). Days before keep their clusters, so their layouts and saved rounds are unchanged. In testing (40
+  holes, 13–20 Nov) the smallest gap was 28 px (was 2 px), every hole kept a real opening pot and was
+  clearable, and generation got faster (9 ms average). A "bomb" to break up a cluster was suggested as an
+  alternative; it could be an obstacle later.
+- `aimOffset` (the aim strip's reading) is measured from the ball the line actually hits, not the ball first
+  targeted, so it no longer shows readings like "115.2° right" when the line has swung onto another ball.

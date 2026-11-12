@@ -240,6 +240,7 @@ function pocketAim(i, h) {
 // rectangle or one of these. Every shape fits the same 500 x 1000 box and has six pockets. Levels 1-2, days
 // before SHAPES_FROM and classic levels run exactly the old rectangle code, so their layouts never change.
 const SHAPES_FROM = '2026-11-12';
+const SPREAD_FROM = '2026-11-13';   // balls no longer start in touching clusters (see buildHole)
 const SHAPES_ON = true;   // set false to go back to the classic table only
 const segDist0 = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, u = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)); return Math.hypot(ax + dx * u - px, ay + dy * u - py); };
 function inPoly(pts, x, y) {
@@ -443,14 +444,17 @@ function buildHole(seed, i, attempt) {
     if (o) bumpers.push({ x: o.x, y: o.y, r: o.r });
   }
   const n = Math.min(i + 1, MAX_BALLS), nums = shuffle(rnd, Array.from({ length: 15 }, (_, k) => k + 1)), balls = [];
+  const spread = !isDailySeed(seed) || seed >= SPREAD_FROM;
   for (let k = 0; k < n; k++) {
-    const mode = balls.length && rnd() < 0.35 ? 'cluster' : rnd() < 0.22 ? 'rail' : 'open';
+    // From SPREAD_FROM (and on practice courses) no ball starts touching or crowding another: a ball-width-ish gap
+    // between them all. Earlier days keep their clusters so their layouts and saved rounds don't change.
+    const mode = spread ? (rnd() < 0.22 ? 'rail' : 'open') : balls.length && rnd() < 0.35 ? 'cluster' : rnd() < 0.22 ? 'rail' : 'open';
     const o = place(() => {
       if (mode === 'cluster') { const b = balls[Math.floor(rnd() * balls.length)], a = rnd() * TAU, d = 2 * R + 3 + rnd() * R * 1.5; return [b.x + Math.cos(a) * d, b.y + Math.sin(a) * d]; }
       if (mode === 'rail' && shape) { const g = shape.segs[Math.floor(rnd() * shape.segs.length)], u = 0.15 + rnd() * 0.7; return [g.ax + (g.bx - g.ax) * u + g.nx * (R + 8), g.ay + (g.by - g.ay) * u + g.ny * (R + 8)]; }
       if (mode === 'rail') { const side = Math.floor(rnd() * 3), u = rnd(); return side === 0 ? [R + 8, 60 + u * (H * 0.7)] : side === 1 ? [W - R - 8, 60 + u * (H * 0.7)] : [60 + u * (W - 120), R + 8]; }
       return [40 + rnd() * (W - 80), 40 + rnd() * (H * 0.72 - 40)];
-    }, R, mode === 'cluster' ? 1 : R * 0.8);
+    }, R, mode === 'cluster' ? 1 : spread ? R * 1.6 : R * 0.8);
     if (o) balls.push({ x: o.x, y: o.y, n: nums[k] });
   }
   const patches = [];
@@ -1126,7 +1130,8 @@ function setAngle(a) {
 const turnAim = da => setAngle(aim.angle + da);
 // The aim offset from dead centre on the focused ball, in degrees (+ is right of centre, from behind the cue ball).
 function aimOffset() {
-  const b = table.balls[aim.bi], c = table.cue;
+  // measured from the ball the line actually hits (not the one first targeted), so it never reads 115°
+  const c = table.cue, hit = trace(table, c.x, c.y, Math.cos(aim.angle), Math.sin(aim.angle)), b = hit.ball || table.balls[aim.bi];
   if (!b || b.potted) return 0;
   const d = aim.angle - Math.atan2(b.y - c.y, b.x - c.x);
   return Math.atan2(Math.sin(d), Math.cos(d)) * 180 / Math.PI;
