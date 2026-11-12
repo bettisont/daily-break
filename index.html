@@ -794,9 +794,9 @@ function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 // The table plays at 0.75x so there's time to watch the balls; outcomes are unchanged.
 const PLAY = 0.75;
 // The first shot's lesson in the close-up: how long the tip rests where they hit, glides to the gold spot, and holds.
-const TEACH_REST = 0.6, TEACH_GLIDE = 0.55, TEACH_HOLD = 0.55, TEACH_T = TEACH_REST + TEACH_GLIDE + TEACH_HOLD;
+const TEACH_REST = 1.4, TEACH_GLIDE = 0.9, TEACH_HOLD = 1.3, TEACH_T = TEACH_REST + TEACH_GLIDE + TEACH_HOLD;
 // ...and the aim lesson before it: the line that would miss, then the aim strip swiping it onto the pocket.
-const AIM_REST = 0.6, AIM_GLIDE = 0.85, AIM_HOLD = 0.5, AIM_T = AIM_REST + AIM_GLIDE + AIM_HOLD;
+const AIM_REST = 1.4, AIM_GLIDE = 1.3, AIM_HOLD = 1.1, AIM_T = AIM_REST + AIM_GLIDE + AIM_HOLD;
 const firstShotEver = () => !ls('dailybreak:firstShot') && round?.level === 0;
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
@@ -1575,9 +1575,9 @@ function spinPulse() {
 function aimLesson(was, now) {
   const L = strike.lesson, k = now + AIM_T, g = clamp((k - AIM_REST) / AIM_GLIDE, 0, 1), e = g * g * (3 - 2 * g), dir = Math.sign(L.to - L.from) || 1;
   const at = (t0) => was + AIM_T < t0 && k >= t0;
-  if (at(0.05)) { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(L.from), Math.sin(L.from)); const b = hit.ball || table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'This line misses', '#b8553f', 18, 1.2); }
-  if (at(AIM_REST)) float(W / 2, clamp(table.cue.y + 60, 60, H - 60), 'Swipe the aim strip to line it up', '#2f6b4f', 18, 1.6);
-  if (at(AIM_REST + AIM_GLIDE)) { const b = table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'Lined up!', '#2f6b4f', 20, 1.2); sfx.chime(); }
+  if (at(0.05)) { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(L.from), Math.sin(L.from)); const b = hit.ball || table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'This line misses', '#b8553f', 18, 1.6); }
+  if (at(AIM_REST)) float(W / 2, clamp(table.cue.y + 60, 60, H - 60), 'Swipe the aim strip to line it up', '#2f6b4f', 18, 2.6);
+  if (at(AIM_REST + AIM_GLIDE)) { const b = table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'Lined up!', '#2f6b4f', 20, 1.4); sfx.chime(); }
   if (now < 0) {
     aim.angle = lerp(L.from, L.to, e);
     stripOff = L.strip + dir * e * 140;
