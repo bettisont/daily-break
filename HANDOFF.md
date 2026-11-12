@@ -262,7 +262,7 @@ About half the phones that open the game never take a shot. Three changes aimed 
   between `open` and `shot`; the worker accepts them and the Results report shows them, so it's clear whether
   people leave at the card or at the gesture.
 - Demo (`demoHand`, `tickDemo`, `demoPull`): until the player has ever touched the pull cue
-  (`dailybreak:pulled`), on hole/level 1 a hand drags the cue control down and lets go on a 2.2 s loop, the
+  (`dailybreak:pulled`), on hole/level 1 a hand drags the cue control down and lets go on a 3.3 s loop, the
   control's stick and the cue on the table pulling back in step, with a tip "Drag the cue down, then let go".
   It stops the moment they touch the cue.
 - First shot ever (`dailybreak:firstShot`, in `release`): a clean strike whatever the timing, and if the
@@ -275,7 +275,7 @@ About half the phones that open the game never take a shot. Three changes aimed 
   clean first strike just says "Clean".
 - And the aim: a new player's first shot starts 3.5° off the best pot line, still on the ball (`startOffTarget`).
   If they shoot without lining it up, an aim lesson plays before the timing one (`strike.lesson`, `aimLesson`,
-  `AIM_*`; `strike.t` runs from −`AIM_T` to 0; the aim lesson takes about 3.8 s and the timing lesson about 3.6 s, slowed on 12 Nov so there is time to read them): "This line misses", then a hand swipes the aim strip while the
+  `AIM_*`; `strike.t` runs from −`AIM_T` to 0; the aim lesson takes about 5.3 s and the timing lesson about 5.1 s, slowed twice on 12 Nov so there is time to read them; the pull-cue hand demo loops every 3.3 s, `DEMO_T`): "This line misses", then a hand swipes the aim strip while the
   guide line turns onto the pot ("Swipe the aim strip to line it up"), then "Lined up!". Players who line it up
   themselves skip it.
 
@@ -289,3 +289,6 @@ About half the phones that open the game never take a shot. Three changes aimed 
   alternative; it could be an obstacle later.
 - `aimOffset` (the aim strip's reading) is measured from the ball the line actually hits, not the ball first
   targeted, so it no longer shows readings like "115.2° right" when the line has swung onto another ball.
+- Who sees it: it's per browser (localStorage), so everyone who has played before also sees it once after it
+  launches (decided on 12 Nov: existing players should get the tutorial too). A new device, browser, private
+  window or cleared site data shows it again.

@@ -794,9 +794,9 @@ function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 // The table plays at 0.75x so there's time to watch the balls; outcomes are unchanged.
 const PLAY = 0.75;
 // The first shot's lesson in the close-up: how long the tip rests where they hit, glides to the gold spot, and holds.
-const TEACH_REST = 1.4, TEACH_GLIDE = 0.9, TEACH_HOLD = 1.3, TEACH_T = TEACH_REST + TEACH_GLIDE + TEACH_HOLD;
+const TEACH_REST = 2.0, TEACH_GLIDE = 1.3, TEACH_HOLD = 1.8, TEACH_T = TEACH_REST + TEACH_GLIDE + TEACH_HOLD;
 // ...and the aim lesson before it: the line that would miss, then the aim strip swiping it onto the pocket.
-const AIM_REST = 1.4, AIM_GLIDE = 1.3, AIM_HOLD = 1.1, AIM_T = AIM_REST + AIM_GLIDE + AIM_HOLD;
+const AIM_REST = 2.0, AIM_GLIDE = 1.8, AIM_HOLD = 1.5, AIM_T = AIM_REST + AIM_GLIDE + AIM_HOLD;
 const firstShotEver = () => !ls('dailybreak:firstShot') && round?.level === 0;
 const STRIKE_T = 0.34, SHOOT_T = 0.66, TICK = 0.25 * Math.PI / 180;
 const TILT_ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
@@ -1575,9 +1575,9 @@ function spinPulse() {
 function aimLesson(was, now) {
   const L = strike.lesson, k = now + AIM_T, g = clamp((k - AIM_REST) / AIM_GLIDE, 0, 1), e = g * g * (3 - 2 * g), dir = Math.sign(L.to - L.from) || 1;
   const at = (t0) => was + AIM_T < t0 && k >= t0;
-  if (at(0.05)) { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(L.from), Math.sin(L.from)); const b = hit.ball || table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'This line misses', '#b8553f', 18, 1.6); }
-  if (at(AIM_REST)) float(W / 2, clamp(table.cue.y + 60, 60, H - 60), 'Swipe the aim strip to line it up', '#2f6b4f', 18, 2.6);
-  if (at(AIM_REST + AIM_GLIDE)) { const b = table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'Lined up!', '#2f6b4f', 20, 1.4); sfx.chime(); }
+  if (at(0.05)) { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(L.from), Math.sin(L.from)); const b = hit.ball || table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'This line misses', '#b8553f', 18, 2.2); }
+  if (at(AIM_REST)) float(W / 2, clamp(table.cue.y + 60, 60, H - 60), 'Swipe the aim strip to line it up', '#2f6b4f', 18, 3.4);
+  if (at(AIM_REST + AIM_GLIDE)) { const b = table.balls[aim.bi]; float(clamp(b.x, 90, W - 90), clamp(b.y - 46, 40, H - 40), 'Lined up!', '#2f6b4f', 20, 2.0); sfx.chime(); }
   if (now < 0) {
     aim.angle = lerp(L.from, L.to, e);
     stripOff = L.strip + dir * e * 140;
@@ -1590,7 +1590,7 @@ function aimLesson(was, now) {
 }
 // First shot ever: a hand drags the pull cue down and lets go, on a loop, with the cue on the table pulling
 // back in step, until the player touches the pull cue themselves.
-const DEMO_T = 2.2;
+const DEMO_T = 3.3, DK = DEMO_T / 2.2;   // DK stretches the loop's steps
 let demo = null;
 function demoHand(on) {
   const el = $('pull');
@@ -1604,9 +1604,9 @@ function demoHand(on) {
 // how far the demo has pulled (0-1) at time t into its loop, and whether the hand is pressing
 function demoPull(t) {
   const k = t % DEMO_T;
-  if (k < 0.35) return { p: 0, down: k > 0.2 };
-  if (k < 1.25) return { p: 0.55 * (1 - (1 - (k - 0.35) / 0.9) ** 2), down: true };
-  if (k < 1.55) return { p: 0.55, down: true };
+  if (k < 0.35 * DK) return { p: 0, down: k > 0.2 * DK };
+  if (k < 1.25 * DK) return { p: 0.55 * (1 - (1 - (k - 0.35 * DK) / (0.9 * DK)) ** 2), down: true };
+  if (k < 1.55 * DK) return { p: 0.55, down: true };
   return { p: 0, down: false };
 }
 function tickDemo(dt) {
@@ -1615,7 +1615,7 @@ function tickDemo(dt) {
   if (!demo) return;
   demo.t += dt;
   const { p, down } = demoPull(demo.t), h = $('pull').clientHeight || 120, k = demo.t % DEMO_T;
-  const fade = k > 1.55 ? Math.max(0, 1 - (k - 1.55) / 0.3) : k < 0.2 ? k / 0.2 : 1;
+  const fade = k > 1.55 * DK ? Math.max(0, 1 - (k - 1.55 * DK) / (0.3 * DK)) : k < 0.2 * DK ? k / (0.2 * DK) : 1;
   const hand = $('demoHand');
   if (hand) { hand.style.transform = `translateY(${8 + p * (h - 60)}px) scale(${down ? 0.92 : 1.05})`; hand.style.opacity = fade; }
   // the stick and fill in the control move with the hand, as they do on a real pull
