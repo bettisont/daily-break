@@ -5,8 +5,9 @@
 //                   {day, mode: 'par', score, strokes, points} for a par (golf) day. It goes to Workers
 //                   Analytics Engine (dataset daily_break_results, read by .github/workflows/results.yml)
 //                   and is counted in the DayCounts Durable Object. Replies with that day's tally.
-// POST /api/event   one anonymous funnel step {day, step} (open, intro, pull, shot, clear1, level3, finish), sent at
-//                   most once per device per day; Analytics Engine dataset daily_break_events.
+// POST /api/event   one anonymous funnel step {day, step} (open, opennew/openback, intro, pull, shot, clear1, level3,
+//                   finish), sent at most once per device per day; Analytics Engine dataset daily_break_events.
+//                   'left' (page hidden before the first shot) adds {secs, where: intro|table|pulled}.
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
 //                   so the result card can say "better than X% of today's players". With &mode=par:
 //                   { players, scores: { "<score to par>": count } }.
@@ -43,11 +44,18 @@ export class DayCounts extends DurableObject {
     return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
   }
 }
-const STEPS = new Set(['open', 'intro', 'pull', 'shot', 'clear1', 'level3', 'finish']);
+const STEPS = new Set(['open', 'opennew', 'openback', 'intro', 'pull', 'shot', 'clear1', 'level3', 'finish', 'left']);
+const WHERE = new Set(['intro', 'table', 'pulled']);
 async function recordEvent(request, env) {
   let e;
   try { e = await request.json(); } catch { return new Response('bad json', { status: 400 }); }
   if (!e || !DAY.test(e.day) || !STEPS.has(e.step) || !dayIsCurrent(e.day)) return new Response('bad event', { status: 400 });
+  // 'left' (page hidden before the first shot) also carries seconds on the page and the screen they were on
+  if (e.step === 'left') {
+    if (!int(e.secs, 0, 86400) || !WHERE.has(e.where)) return new Response('bad event', { status: 400 });
+    env.EVENTS?.writeDataPoint({ indexes: [e.day], blobs: [e.day, e.step, e.where], doubles: [1, e.secs] });
+    return new Response(null, { status: 204 });
+  }
   env.EVENTS?.writeDataPoint({ indexes: [e.day], blobs: [e.day, e.step], doubles: [1] });
   return new Response(null, { status: 204 });
 }
