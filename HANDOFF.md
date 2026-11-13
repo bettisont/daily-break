@@ -318,16 +318,21 @@ About half the phones that open the game never take a shot. Three changes aimed 
 ## Quick-shot prototype (13 Nov 2026; only at `?quick`)
 
 A test of a lower-effort shot, after comparing with daily games where a shot is one or two simple inputs.
-`dailybreak.app/?quick` plays today's tables unranked with no control panel (`body.quick #controls`):
-- One move per shot (`quickAim`, `quickLetGo`): put a thumb anywhere on the table and drag back like a
-  slingshot. The shot goes the opposite way to the drag, and the drag's length is the power (`QUICK_PULL` =
-  170 px for full, after a 14 px dead zone). Drag back to the start and let go to cancel.
-- Aim assist: within 2.5° of an open pot line (`allLines`, worked out once when the thumb goes down) the aim
-  locks onto it with a click, and lets go past 4° (`SNAP_IN`, `SNAP_OUT`). The hint says "lined up ✓".
+`dailybreak.app/?quick` plays today's tables unranked with the control panel swapped for a power meter and
+one button (`#quickBar`). A first version (drag back anywhere like a slingshot) was dropped the same day:
+the backwards direction, precise aiming, judging power and the thumb over the table were all hard.
+- Aim: every shot starts lined up on the best pot (`lineUp` → `quickTarget`). Tap a ball to line up its best
+  pot; tap it again for its next pocket (cycles). A ball with no open pot gets a dead-centre hit. Dragging on
+  the felt still nudges the line (the normal relative drag).
+- Power: Shoot starts a marker sweeping soft → hard → soft (`SWEEP_T` = 1.7 s a cycle, `tickQuick`); Stop (or
+  Space) shoots at that pace. The green zone (`quickZone`) is the longest run of paces, in 0.025 steps, that
+  pot the targeted ball on this line without a scratch (about 15 ms of `simulate`, run 120 ms after the aim
+  settles). With no pot on the line the hint says to tap another ball.
 - No spin, no timing wobble or close-up: every strike is clean (`release` with `QUICK`), and the cue strikes
   after `QUICK_T` (0.42 s). The first-shot, aim, spin and tap-a-ball tutorials are off.
 - Its own intro card every load (`showQuickIntro`) and a hint pill on the table (`#quickHint`). The result
   card offers "Play again" and "Normal game" (`quickFinal`).
 - Nothing is saved, tracked or sent (the round is unranked), and practice runs aren't used up.
-- Open question: with the snap and the free power it may be too easy (a bot that drags roughly at the
-  best pot at medium pace potted 6 of 6). Tune `SNAP_IN` and the round's par before going further.
+- Open questions: it may be too easy (the zone is often a quarter of the meter); narrow it, speed up the
+  sweep, or hide the zone after hole 3. Ball and pocket choice and where the cue ball ends up still matter.
+- Test copy for phones: a claude.ai artifact built from index.html with `QUICK = true` (not in the repo).
