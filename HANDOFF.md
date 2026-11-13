@@ -314,3 +314,20 @@ About half the phones that open the game never take a shot. Three changes aimed 
   "Spin keeps it out!", and the shot plays with that spin. Once ever (`dailybreak:scratchSaved`).
 - The level/hole 3 spin tip and its pulse are gone; the spin ball still pulses when the pull-back path shows a
   scratch. The "Tap a ball to target it" tip moved from level/hole 2 to 3 so it doesn't clash with the demo.
+
+## Quick-shot prototype (13 Nov 2026; only at `?quick`)
+
+A test of a lower-effort shot, after comparing with daily games where a shot is one or two simple inputs.
+`dailybreak.app/?quick` plays today's tables unranked with no control panel (`body.quick #controls`):
+- One move per shot (`quickAim`, `quickLetGo`): put a thumb anywhere on the table and drag back like a
+  slingshot. The shot goes the opposite way to the drag, and the drag's length is the power (`QUICK_PULL` =
+  170 px for full, after a 14 px dead zone). Drag back to the start and let go to cancel.
+- Aim assist: within 2.5° of an open pot line (`allLines`, worked out once when the thumb goes down) the aim
+  locks onto it with a click, and lets go past 4° (`SNAP_IN`, `SNAP_OUT`). The hint says "lined up ✓".
+- No spin, no timing wobble or close-up: every strike is clean (`release` with `QUICK`), and the cue strikes
+  after `QUICK_T` (0.42 s). The first-shot, aim, spin and tap-a-ball tutorials are off.
+- Its own intro card every load (`showQuickIntro`) and a hint pill on the table (`#quickHint`). The result
+  card offers "Play again" and "Normal game" (`quickFinal`).
+- Nothing is saved, tracked or sent (the round is unranked), and practice runs aren't used up.
+- Open question: with the snap and the free power it may be too easy (a bot that drags roughly at the
+  best pot at medium pace potted 6 of 6). Tune `SNAP_IN` and the round's par before going further.

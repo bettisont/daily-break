@@ -64,6 +64,12 @@
   #card9 .c.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #card9 .c.b1 .v{color:#2f6b4f} #card9 .c.b2 .v{color:var(--gold)} #card9 .c.o1 .v{color:var(--red)}
   #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:crosshair}
+  /* quick-shot prototype (?quick): no control panel, one drag on the table does it all */
+  body.quick #controls{display:none}
+  #quickHint{display:none;position:absolute;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);pointer-events:none;
+    background:rgba(29,37,31,.6);color:#fbf8f0;font:600 12.5px 'DM Sans',sans-serif;padding:6px 13px;border-radius:999px;white-space:nowrap;transition:opacity .2s}
+  body.quick #quickHint{display:block}
+  #quickHint:empty{opacity:0}
   canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block}
   #info{display:grid;grid-template-columns:1.6fr 1fr 1fr;border-bottom:1px solid var(--line);background:var(--paper)}
   #info > div{padding:6px 12px 7px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.12em;font-size:10.5px;color:#5a6556;white-space:nowrap;overflow:hidden}
@@ -166,7 +172,7 @@
     </div>
   </header>
   <div id="info"><div id="iHole"></div><div id="iLie"></div><div id="iTilt"></div></div>
-  <div id="stage"><canvas id="c"></canvas></div>
+  <div id="stage"><canvas id="c"></canvas><div id="quickHint"></div></div>
   <div id="controls">
     <div id="rowA">
       <div id="strip" title="Swipe to aim (← →)"><div id="stripFace"></div><div id="stripVal"></div></div>
@@ -791,6 +797,12 @@ const $ = id => document.getElementById(id);
 const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
+// Quick-shot prototype (?quick): drag back anywhere on the table to aim and set power together, let go to
+// shoot. No spin, no timing wobble, and the aim snaps onto a pot line when it's close. Plays today's tables
+// unranked: nothing is saved, tracked or sent.
+const QUICK = new URLSearchParams(location.search).has('quick');
+const QUICK_PULL = 170, QUICK_DEAD = 14, SNAP_IN = 2.5 * Math.PI / 180, SNAP_OUT = 4 * Math.PI / 180, QUICK_T = 0.42;
+const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 // The table plays at 0.75x so there's time to watch the balls; outcomes are unchanged.
 const PLAY = 0.75;
@@ -1056,14 +1068,14 @@ function startHole(i) {
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
-  if (i === 2 && !ls('dailybreak:tappedBall')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') float(W / 2, H * 0.62, 'Tap a ball to target it', '#2f6b4f', 20, 2.6); }, 1700); }
+  if (!QUICK && i === 2 && !ls('dailybreak:tappedBall')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') float(W / 2, H * 0.62, 'Tap a ball to target it', '#2f6b4f', 20, 2.6); }, 1700); }
   renderCard9(); updateUI();
 }
 
 // Each shot starts lined up dead centre on the ball with the easiest pot.
 function lineUp() {
   phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
-  if (firstShotEver() && strokes === 0) startOffTarget();
+  if (!QUICK && firstShotEver() && strokes === 0) startOffTarget();
   updateUI();
 }
 // A new player's first shot starts 3.5° off the best pot line (still on the ball), so the aim lesson has a miss to fix.
@@ -1209,8 +1221,8 @@ function contact(d) {
 }
 
 function release() {
-  const c = table.cue, d = contactDiff(), first = !ls('dailybreak:firstShot');
-  const real = contact(d), ct = first ? { tip: { x: 0, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, power } : real;
+  const c = table.cue, d = contactDiff(), first = !QUICK && !ls('dailybreak:firstShot');
+  const real = QUICK ? { tip: { x: 0, y: 0 }, quality: 'clean', off: 0, spin: aim.spin, power } : contact(d), ct = first ? { tip: { x: 0, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, power } : real;
   const teach = first && real.quality !== 'clean' ? { tip: real.tip, quality: real.quality } : null;
   let angle = aim.angle + ct.off;
   const own = angle;
@@ -1229,13 +1241,14 @@ function release() {
     }
   }
   lastPower = power;
-  const rescue = first ? null : scratchRescue(angle, ct);
+  const rescue = first || QUICK ? null : scratchRescue(angle, ct);
   if (rescue) { ls('dailybreak:scratchSaved', '1'); ct.spin = spinFor(rescue.toY); }
   // Will this shot clear the rack? Then the last ball gets the slow-motion treatment.
   const sim = simulate(table, angle, ct.power, ct.spin), sp = sim.shot.pots;
   cine = round.level >= 2 && !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
   strike = { angle, power: ct.power, spin: ct.spin, t: 0, end: teach ? SHOOT_T + TEACH_T : SHOOT_T };
   zoom = { t: 0, ct, d, from: contactPanel(), teach, end: strike.end };
+  if (QUICK) { zoom = null; strike.end = QUICK_T; }
   if (rescue) {
     strike.spinLesson = rescue;
     strike.t = zoom.t = -SPIN_T;
@@ -1388,7 +1401,7 @@ function showParFinal(already) {
   tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
   if (round.ranked) loadRank();
   $('overlay').classList.add('show');
-  phase = 'over'; updateUI();
+  phase = 'over'; updateUI(); quickFinal();
 }
 
 // A ranked run in progress is saved after every shot (level, lives, score and where every ball is),
@@ -1572,7 +1585,7 @@ function updateUI() {
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold);
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
     isPar() ? (gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`) : `Pot it<b>+${potGain()}</b>`;
-  updateMeter(); updateAimUI(); updateSpinBall();
+  updateMeter(); updateAimUI(); updateSpinBall(); quickHint();
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
 function updateSpinBall() {
@@ -1611,7 +1624,7 @@ function aimLesson(was, now) {
 // while a hand drags the gold spot down (draw: the path comes back) and up (follow: it rolls on), on a loop.
 let spinDemo = null;
 function spinDemoWanted() {
-  return phase === 'aim' && !hold && !spinDrag && round?.level === 1 && strokes === 0 && !ls('dailybreak:spinDemo') && !$('overlay').classList.contains('show') && !banner;
+  return !QUICK && phase === 'aim' && !hold && !spinDrag && round?.level === 1 && strokes === 0 && !ls('dailybreak:spinDemo') && !$('overlay').classList.contains('show') && !banner;
 }
 function startSpinDemo() {
   spinDemo = { t: 0, y0: aim.spotY };
@@ -1685,7 +1698,7 @@ function demoPull(t) {
   return { p: 0, down: false };
 }
 function tickDemo(dt) {
-  const want = phase === 'aim' && !hold && round?.level === 0 && !ls('dailybreak:pulled') && !$('overlay').classList.contains('show');
+  const want = !QUICK && phase === 'aim' && !hold && round?.level === 0 && !ls('dailybreak:pulled') && !$('overlay').classList.contains('show');
   if (want !== !!demo) demoHand(want);
   if (!demo) return;
   demo.t += dt;
@@ -1763,7 +1776,28 @@ function showFinal(already) {
   tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
   loadRank();
   $('overlay').classList.add('show');
-  phase = 'over'; updateUI();
+  phase = 'over'; updateUI(); quickFinal();
+}
+function showQuickIntro() {
+  $('card').innerHTML = `
+    <div class="k mono">Daily Break · quick shot (test)</div>
+    <h2>One move per shot.</h2>
+    <div class="howto">
+      <p>👆 Put your thumb anywhere on the table and drag <b>back</b>, away from where you want the ball to go.</p>
+      <p>💪 The further you drag, the harder the shot. Let go to shoot.</p>
+      <p>✨ Get close to a pot and the aim locks on. Drag back to where you started to cancel.</p>
+      <p>🧪 Today's tables, just for testing: this doesn't count towards your daily result.</p>
+    </div>
+    <div class="row"><button class="btn primary" data-qclose>Let's play</button></div>`;
+  $('overlay').classList.add('show');
+}
+// the result card in quick mode: play again, or go back to the real game
+function quickFinal() {
+  if (!QUICK) return;
+  const row = $('card').querySelector('.row');
+  if (row) row.innerHTML = '<button class="btn primary" data-qagain>Play again</button><button class="btn" data-qnormal>Normal game</button>';
+  const k = $('card').querySelector('.k.mono');
+  if (k) k.textContent = 'Quick shot (test) · not ranked';
 }
 function showIntro() {
   $('card').innerHTML = `
@@ -1809,6 +1843,9 @@ $('card').addEventListener('click', e => {
   if (!b) return;
   ensureAudio(); sfx.click();
   if ('close' in b.dataset) { if (!ls('dailybreak:seenHelp')) track('intro'); ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
+  else if ('qclose' in b.dataset) $('overlay').classList.remove('show');
+  else if ('qagain' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), false); $('course').textContent = `${courseName(todayKey())} · quick shot`; }
+  else if ('qnormal' in b.dataset) location.href = location.pathname;
   else if ('copy' in b.dataset) shareResult(b);
   else if ('copyPar' in b.dataset) { const text = parShareText(); (canNativeShare() ? navigator.share({ text }).catch(() => {}) : navigator.clipboard.writeText(text).then(() => { b.textContent = 'Copied!'; }, () => { b.textContent = 'Select the text to copy'; })); }
   else if ('practice' in b.dataset) startPractice(todayKey());   // today's levels again, unranked
@@ -1877,12 +1914,14 @@ stage.addEventListener('pointerdown', e => {
   if (phase !== 'aim') return;
   const p = toWorld(e), c = table.cue;
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, a: Math.atan2(p.y - c.y, p.x - c.x) };
+  if (QUICK) Object.assign(drag, { quick: true, p0: p, p, a0: aim.angle, bi0: aim.bi, lines: allLines(table).filter(l => !l.blocked), snap: null });
   try { stage.setPointerCapture(e.pointerId); } catch {}
 });
 stage.addEventListener('pointermove', e => {
   if (!drag || e.pointerId !== drag.id || phase !== 'aim') return;
   if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
   drag.moved = true;
+  if (drag.quick) { quickAim(toWorld(e)); return; }
   const p = toWorld(e), c = table.cue, a = Math.atan2(p.y - c.y, p.x - c.x);
   let da = a - drag.a; da = Math.atan2(Math.sin(da), Math.cos(da));
   drag.a = a;
@@ -1893,7 +1932,8 @@ stage.addEventListener('pointermove', e => {
 });
 stage.addEventListener('pointerup', e => {
   if (!drag || e.pointerId !== drag.id) return;
-  const moved = drag.moved; drag = null;
+  const moved = drag.moved, qd = drag.quick && drag; drag = null;
+  if (qd && moved) { quickLetGo(qd); return; }
   if (moved || phase !== 'aim') return;
   const p = toWorld(e);
   let bi = -1, bd = R * 3;   // generous, so a thumb can pick a ball
@@ -1902,7 +1942,45 @@ stage.addEventListener('pointerup', e => {
   if (g) { tapIn(g); return; }
   if (bi >= 0) { focusBall(bi); ls('dailybreak:tappedBall', '1'); }
 });
-stage.addEventListener('pointercancel', () => { drag = null; });
+stage.addEventListener('pointercancel', () => { if (drag?.quick) quickCancel(drag); drag = null; });
+
+// Quick shot: the shot goes the opposite way to your drag (a slingshot), and the drag's length is the power.
+// Within 2.5° of a pot line the aim locks onto it (and lets go again past 4°), with a click to say so.
+function quickAim(p) {
+  if (phase !== 'aim') return;
+  drag.p = p;
+  const dx = drag.p0.x - p.x, dy = drag.p0.y - p.y, len = Math.hypot(dx, dy) * view.s;
+  if (len < QUICK_DEAD) { if (power) { setPower(0); drag.snap = null; } quickHint(); return; }
+  let a = Math.atan2(dy, dx), snap = drag.snap && Math.abs(angDiff(drag.snap.angle, a)) < SNAP_OUT ? drag.snap : null;
+  if (!snap) {
+    let bd = SNAP_IN;
+    for (const l of drag.lines) { const d = Math.abs(angDiff(l.angle, a)); if (d < bd) { bd = d; snap = l; } }
+    if (snap) { tone(1318, 0.05, 0.05, 'sine', 1, 0, 0.3); buzz(8); }
+  }
+  drag.snap = snap;
+  if (snap) { a = snap.angle; aim.bi = snap.bi; }
+  else { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(a), Math.sin(a)), k = table.balls.indexOf(hit.ball); if (k >= 0) aim.bi = k; }
+  aim.spotY = 0; aim.spin = 0;
+  setAngle(a);
+  setPower(clamp((len - QUICK_DEAD) / QUICK_PULL, 0, 1));
+  quickHint();
+}
+function quickCancel(d) { power = 0; aim.angle = d.a0; aim.bi = d.bi0; updateUI(); }
+function quickLetGo(d) {
+  if (phase !== 'aim' || power < MIN_PULL) { quickCancel(d); return; }
+  aim.spotY = 0; aim.spin = 0;
+  release();
+}
+function quickHint() {
+  const el = $('quickHint');
+  if (!QUICK || !el || !table) return;
+  const q = drag?.quick && drag.moved;
+  el.textContent = phase === 'moving' ? 'Tap to speed up'
+    : phase !== 'aim' ? ''
+    : q ? (power < MIN_PULL ? 'Pull back further · let go here to cancel' : `${paceName(power)}${drag.snap ? ' · lined up ✓' : ''}`)
+    : gimmes.length ? 'Tap the glowing ball to tap in · or drag back to shoot'
+    : 'Drag back anywhere · let go to shoot';
+}
 
 // The aim strip: swipe left or right like a scroll wheel. Slow swipes are fine (0.04° a pixel);
 // fast swipes gear up to 6× for big turns. A tap near either end nudges 0.1°.
@@ -2756,6 +2834,11 @@ function draw(t, dt) {
   }
 
   drawAim(t);
+  if (drag?.quick && drag.moved && phase === 'aim' && power >= MIN_PULL) {
+    ctx.save(); ctx.strokeStyle = drag.snap ? 'rgba(226,177,60,.75)' : 'rgba(251,248,240,.45)'; ctx.lineWidth = 3; ctx.setLineDash([2, 8]); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(drag.p0.x, drag.p0.y); ctx.lineTo(drag.p.x, drag.p.y); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(drag.p0.x, drag.p0.y, 6, 0, TAU); ctx.fill(); ctx.restore();
+  }
 
   for (const b of table.live()) updateSpin(b, dt);
   // potted balls swirl down into the pocket as they shrink
@@ -2941,7 +3024,8 @@ resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
 const firstVisit = !ls('dailybreak:seenHelp');
-if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
+if (QUICK) { document.body.classList.add('quick'); newRound(todayKey(), false); $('course').textContent = `${courseName(todayKey())} · quick shot`; showQuickIntro(); }
+else if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
 // the first time the page is hidden before today's first shot: how long they'd been here and on which screen
 // (some come back and play later; this is one event per device per day)
 document.addEventListener('visibilitychange', () => {
