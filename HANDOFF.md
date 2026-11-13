@@ -147,6 +147,15 @@ once per device per day (`dailybreak:ev:<day>:<step>`), ranked daily runs on dai
 The Worker writes them to Analytics Engine dataset `daily_break_events` (blob1 day, blob2 step); the
 Results report shows them as a funnel table with percentages of "Opened".
 
+Who leaves before the first shot (13 Nov 2026): on load, `open` is followed by `opennew` (no
+`dailybreak:seenHelp` yet, so they get the intro) or `openback`. The first time the page is hidden before
+today's first shot, `track('left', {secs, where})` sends the seconds since load and the screen (`intro` card
+open, `table` with the cue untouched, or `pulled` the cue but no shot); the Worker stores them as blob3 and
+double2. One per device per day, and some come back and play later, so treat it as "went away", not "quit".
+The report shows new/returning under Opened and a "Left before the first shot" table (screen, time buckets,
+median). Your own devices: open `dailybreak.app/?me=1` once on each (`dailybreak:me`; `?me=0` undoes it) and
+they send no funnel events or results (the card still shows the rank, from `loadRank`).
+
 Saved runs (11 Nov 2026): a ranked run in progress is saved to `dailybreak:run:<date>` after every shot
 and at the start of every level (`saveRun`: level, lives, balls potted, results, points, streak, misses,
 cue and ball positions; after a clear it saves the start of the next level). `resumeRun` restores it

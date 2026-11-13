@@ -1472,17 +1472,23 @@ function endRun() {
 // Only from the live site, so local tests and previews don't count.
 // The drop-off funnel: one anonymous signal per step, at most once per device per day, ranked runs on
 // the live site only (open → first shot → cleared level 1 → reached level 3 → finished).
-function track(step) {
-  if (location.hostname !== 'dailybreak.app' || !round?.ranked || !isDailySeed(round.seed) || round.done && step !== 'finish') return;
+// ?me=1 marks this browser as the developer's (?me=0 undoes it): no funnel events or results from it
+const meParam = new URLSearchParams(location.search).get('me');
+if (meParam === '1') ls('dailybreak:me', '1');
+if (meParam === '0') { try { localStorage.removeItem('dailybreak:me'); } catch {} }
+const isMe = () => ls('dailybreak:me') === '1';
+function track(step, extra) {
+  if (location.hostname !== 'dailybreak.app' || isMe() || !round?.ranked || !isDailySeed(round.seed) || round.done && step !== 'finish') return;
   const key = `dailybreak:ev:${round.seed}:${step}`;
   if (ls(key)) return;
   ls(key, '1');
-  const body = JSON.stringify({ day: round.seed, step });
+  const body = JSON.stringify({ day: round.seed, step, ...extra });
   try { if (navigator.sendBeacon?.('/api/event', new Blob([body], { type: 'application/json' }))) return; } catch {}
   fetch('/api/event', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
 }
 function sendResult() {
   if (location.hostname !== 'dailybreak.app' || !isDailySeed(round.seed)) return;
+  if (isMe()) { loadRank(); return; }
   const body = JSON.stringify(isPar()
     ? { day: round.seed, mode: 'par', score: parTotal(), strokes: round.cards.reduce((a, c) => a + c.strokes, 0), points: Math.round(round.points || 0) }
     : { day: round.seed, level: round.level + 1, potted: round.potted, points: Math.round(round.points || 0) });
@@ -2934,7 +2940,15 @@ function frame(now) {
 resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
-if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); }
+const firstVisit = !ls('dailybreak:seenHelp');
+if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
+// the first time the page is hidden before today's first shot: how long they'd been here and on which screen
+// (some come back and play later; this is one event per device per day)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden' || !round || ls(`dailybreak:ev:${round.seed}:shot`)) return;
+  const where = $('overlay').classList.contains('show') ? 'intro' : ls(`dailybreak:ev:${round.seed}:pull`) ? 'pulled' : 'table';
+  track('left', { secs: Math.min(86400, Math.round(performance.now() / 1000)), where });
+});
 if (!ls('dailybreak:seenHelp') && !$('overlay').classList.contains('show')) showIntro();
 requestAnimationFrame(frame);
 </script>

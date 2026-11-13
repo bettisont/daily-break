@@ -20,7 +20,7 @@ def account():
     return call(API + '/accounts')['result'][0]['id']
 
 
-STEPS = [('open', 'Opened'), ('intro', 'Closed the intro (first visit)'), ('pull', 'Touched the cue'), ('shot', 'Took a shot'), ('clear1', 'Cleared level/hole 1'), ('level3', 'Reached level/hole 3'), ('finish', 'Finished')]
+STEPS = [('open', 'Opened'), ('opennew', '↳ new'), ('openback', '↳ returning'), ('intro', 'Closed the intro (first visit)'), ('pull', 'Touched the cue'), ('shot', 'Took a shot'), ('clear1', 'Cleared level/hole 1'), ('level3', 'Reached level/hole 3'), ('finish', 'Finished')]
 
 
 def fetch_funnel(acc, days):
@@ -41,6 +41,38 @@ def funnel_report(rows, days=14):
         c = by_day[day]; top = c.get('open') or max(c.values())
         cells = [f"{c.get(k, 0)} ({round(100 * c.get(k, 0) / top)}%)" if top else '0' for k, _ in STEPS]
         out.append(f"| {dt.date.fromisoformat(day).strftime('%a %-d %b')} | " + ' | '.join(cells) + ' |')
+    return '\n'.join(out + [''])
+
+
+def fetch_left(acc, days):
+    sql = (f"SELECT blob1 AS day, blob3 AS where, double2 AS secs, _sample_interval AS n FROM daily_break_events "
+           f"WHERE blob2 = 'left' AND timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY FORMAT JSON")
+    return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+WHERE = [('intro', 'On the intro card'), ('table', 'At the table, cue untouched'), ('pulled', 'Touched the cue, no shot')]
+BUCKETS = [(10, '<10 s'), (30, '10–30 s'), (60, '30–60 s'), (None, '1 min+')]
+
+
+def left_report(rows, days=14):
+    # one row per device that hid the page before its first shot that day (some came back and played)
+    by_day = defaultdict(list)
+    for r in rows:
+        by_day[r['day']] += [(r['where'], float(r['secs']))] * int(float(r['n']))
+    out = ['## Left before the first shot (page hidden; some come back later)', '']
+    if not by_day:
+        return '\n'.join(out + ['None recorded yet (it starts from 14 Nov 2026).', ''])
+    def bucket(s):
+        return next(label for top, label in BUCKETS if top is None or s < top)
+    out += ['| Day | Left | ' + ' | '.join(n for _, n in WHERE) + ' | ' + ' | '.join(n for _, n in BUCKETS) + ' | Median time |',
+            '|---' * (len(WHERE) + len(BUCKETS) + 3) + '|']
+    for day in sorted(by_day, reverse=True)[:days]:
+        v = by_day[day]
+        secs = sorted(s for _, s in v)
+        med = secs[len(secs) // 2]
+        out.append(f"| {dt.date.fromisoformat(day).strftime('%a %-d %b')} | {len(v)} | "
+                   + ' | '.join(str(sum(w == k for w, _ in v)) for k, _ in WHERE) + ' | '
+                   + ' | '.join(str(sum(bucket(s) == b for _, s in v)) for _, b in BUCKETS) + f' | {med:.0f} s |')
     return '\n'.join(out + [''])
 
 
@@ -144,6 +176,10 @@ if __name__ == '__main__':
         print(funnel_report(fetch_funnel(acc, days), days))
     except Exception as e:   # the events dataset only exists once the first event arrives
         print(f'## Where people drop off\n\nNo funnel data yet ({e}).\n')
+    try:
+        print(left_report(fetch_left(acc, days), days))
+    except Exception as e:
+        print(f'## Left before the first shot\n\nCould not read them: {e}\n')
     try:
         print(visits_report(fetch_visits(acc, days)))
     except Exception as e:   # visits are a bonus: never fail the results report over them
