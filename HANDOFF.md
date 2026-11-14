@@ -372,7 +372,9 @@ shot is identical to before, checked on five days × six holes):
   bars stop the line, and so do pocket jaws, within 2.5 ball radii of a pocket, where the knuckles make a
   bounce unpredictable). Checked against the real cue ball path on the classic, hexagon, octagon and L tables
   (204 shots, cue ball alone, no tilt): 151 within 3° (a mirror was off by a median 6°), 52 stop at the jaws,
-  1 off by 10° (an inside corner of the L). A pocket glows green when a clean centre-ball hit on this
+  1 off by 10° (an inside corner of the L). The object ball's line stops at the pocket's edge, and a pocket
+  gets a bold, slowly turning dashed white ring (`ringPocket`, cap + 10; it replaced a green glow that read as the
+  golden pocket's) when a clean centre-ball hit on this
   line really pots into it at a soft, medium or firm pace (`guideSim`: three `simulate` runs, redone only when
   the aim moves, tilt and sand included). That's simulated because the geometric "heading into a pocket"
   test was right only ~70% of the time at any tolerance. Nothing shows where balls stop.

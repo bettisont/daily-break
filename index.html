@@ -2863,8 +2863,9 @@ function drawAim(t) {
 }
 // The generous guide (short round): the lines are simple geometry, but they follow the cue ball and the object
 // ball once off a cushion or bumper (so banks and kicks can be seen) and show a combination's second ball. A
-// pocket lights up when a clean centre-ball hit on this line really pots into it at some sensible pace (that's
-// simulated: lines alone were right only ~70% of the time). It never shows where the balls stop.
+// line stops at a pocket's edge, and the pocket gets a slowly turning white ring when a clean centre-ball hit on
+// this line really pots into it at some sensible pace (that's simulated: lines alone were right only ~70% of the
+// time). The golden pocket keeps its own gold glow; aiming at it doesn't change it. It never shows where the balls stop.
 const generous = () => isPar() && !!round && shortSeed(round.seed);
 function bounceOff(px, py, ux, uy, h) {
   if (!isFinite(h.t)) return null;
@@ -2899,25 +2900,34 @@ function drawGuide(c, dx, dy, hit, t) {
     const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, `rgba(251,248,240,${a0})`); g.addColorStop(1, `rgba(251,248,240,${a1})`);
     ctx.strokeStyle = g; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
   };
-  const glowPocket = i => {
-    const p = table.pk[i], k = 0.7 + 0.3 * Math.sin(t * 6);
-    const g = ctx.createRadialGradient(p.x, p.y, p.cap * 0.5, p.x, p.y, p.cap * 2.2);
-    g.addColorStop(0, `rgba(170,240,180,${0.75 * k})`); g.addColorStop(1, 'rgba(170,240,180,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap * 2.2, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(200,255,205,${0.9 * k})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap + 2, 0, TAU); ctx.stroke();
+  // "it's in": a bold white ring round the pocket's edge, turning slowly (the same for every pocket, golden or not)
+  const ringRadius = p => p.cap + 10;
+  const ringPocket = i => {
+    const p = table.pk[i], k = 0.8 + 0.2 * Math.sin(t * 4), rr = ringRadius(p);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(40,30,20,.35)'; ctx.lineWidth = 7.5; ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,253,245,${k})`; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+    ctx.setLineDash([rr * 0.55, rr * 0.3]); ctx.lineDashOffset = -t * 18;
+    ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, TAU); ctx.stroke();
+    ctx.restore();
+  };
+  // how far along a line from (px, py) the ball reaches the edge of that pocket's ring
+  const toRim = (px, py, ux, uy, pk) => {
+    const p = table.pk[pk.i], perp = Math.abs((p.x - px) * uy - (p.y - py) * ux), rr = ringRadius(p);
+    return Math.max(0, pk.s - Math.sqrt(Math.max(0, rr * rr - perp * perp)));
   };
   // the object ball: to a pocket (which lights up), to another ball (a combination: its line too), or off one cushion
   const objectPath = (ball, gx, gy) => {
     let px = ball.x, py = ball.y, ux = (ball.x - gx) / (2 * R), uy = (ball.y - gy) / (2 * R);
     for (let leg = 0; leg < 2; leg++) {
-      const h = trace(table, px, py, ux, uy, ball), pk = pocketAlong(px, py, ux, uy, h.t), end = pk ? pk.s : Math.min(h.t, 900);
+      const h = trace(table, px, py, ux, uy, ball), pk = pocketAlong(px, py, ux, uy, h.t), end = pk ? toRim(px, py, ux, uy, pk) : Math.min(h.t, 900);
       const a0 = leg ? 0.6 : 0.9, from = leg ? 0 : R + 3;
       solid(px + ux * from, py + uy * from, px + ux * end, py + uy * end, a0, pk ? a0 : a0 * 0.35);
       if (pk) return;
       if (h.ball) {
         const cx = px + ux * h.t, cy = py + uy * h.t, b2 = h.ball, nx = (b2.x - cx) / (2 * R), ny = (b2.y - cy) / (2 * R);
         ghost(cx, cy, 0.6);
-        const h2 = trace(table, b2.x, b2.y, nx, ny, b2), p2 = pocketAlong(b2.x, b2.y, nx, ny, h2.t), e2 = p2 ? p2.s : Math.min(h2.t, 160);
+        const h2 = trace(table, b2.x, b2.y, nx, ny, b2), p2 = pocketAlong(b2.x, b2.y, nx, ny, h2.t), e2 = p2 ? toRim(b2.x, b2.y, nx, ny, p2) : Math.min(h2.t, 160);
         solid(b2.x + nx * (R + 3), b2.y + ny * (R + 3), b2.x + nx * e2, b2.y + ny * e2, 0.6, p2 ? 0.6 : 0.1, 2.5);
         return;
       }
@@ -2937,7 +2947,7 @@ function drawGuide(c, dx, dy, hit, t) {
       for (const q of s.shot.pots) if (!guideSim.pks.includes(q.pocket)) guideSim.pks.push(q.pocket);
     }
   }
-  guideSim.pks.forEach(glowPocket);
+  guideSim.pks.forEach(ringPocket);
   // the cue ball: to the first thing it meets, or once off a cushion and on to whatever it meets next
   let px = c.x, py = c.y, ux = dx, uy = dy, h = hit;
   for (let leg = 0; leg < 2; leg++) {
