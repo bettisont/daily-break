@@ -326,13 +326,17 @@ const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way
 const SHORT_ON = false, SHORT_FROM = '2026-11-15', SHORT_MAX = 3, FEATURE_KEYS = ['windmill', 'gate', 'sand', 'cat'];
 const shortSeed = seed => SHORT_ON && parSeed(seed) && (!isDailySeed(seed) || seed >= SHORT_FROM);
 const ballsFor = (seed, i) => Math.min(i + 1, shortSeed(seed) ? SHORT_MAX : MAX_BALLS);
+// On a short round the last hole is the trick-shot hole (a layout with a shot that pots two or more), and
+// holes 2 to 5 have a golden pocket (pot into it for a stroke back).
+const trickHole = (seed, i) => shortSeed(seed) && i === HOLES - 1;
+const goldHole = (seed, i) => shortSeed(seed) && i >= 1 && !trickHole(seed, i);
 const featureName = h => h.obst ? OBST_NAMES[h.obst.type] : h.feature ? OBST_NAMES[h.feature] : '';
 const CAT_R = 30, CAT_E = 0.3;   // the cat on the felt: a big soft ball that soaks up most of a hit
 const BAR_T = 6, WM_W = 1.5, GATE_MAX = 1.45, GATE_BACK = 2.2;
 let obstacleOverride = null;   // the test build forces an obstacle here
 function obstFor(seed, i) {
   if (obstacleOverride) return obstacleOverride === 'none' ? null : obstacleOverride;
-  if (shortSeed(seed)) return i < 2 ? null : shuffle(rngFor(`${seed}:feature`), FEATURE_KEYS)[(i - 2) % FEATURE_KEYS.length];
+  if (shortSeed(seed)) return i < 2 || trickHole(seed, i) ? null : shuffle(rngFor(`${seed}:feature`), FEATURE_KEYS)[(i - 2) % FEATURE_KEYS.length];
   if (!OBSTACLES_ON || i < 2 || !parSeed(seed)) return null;
   const n = OBST_KEYS.length, c = Math.floor((i - 2) / n), deck = shuffle(rngFor(`${seed}:obst:${c}`), OBST_KEYS);
   const k = deck[(i - 2) % n];
@@ -370,17 +374,44 @@ const holeCache = new Map();
 function makeHole(seed, i) {
   const key = `${seed}:${i}:${shapeOverride || ''}:${obstacleOverride || ''}`;
   if (holeCache.has(key)) return holeCache.get(key);
-  const n = ballsFor(seed, i), kind = obstFor(seed, i), needFeature = !!kind && shortSeed(seed);
+  const n = ballsFor(seed, i), kind = obstFor(seed, i), needFeature = !!kind && shortSeed(seed), trick = trickHole(seed, i);
+  const done = h => {
+    if (goldHole(seed, i) && h.gold == null) h.gold = pickGold(h, rngFor(`${seed}:gold:${i}`));
+    holeCache.set(key, h); return h;
+  };
   let h = null, fallback = null;
   for (let attempt = 0; attempt < 60; attempt++) {
     h = buildHole(seed, i, attempt);
     if (h.balls.length !== n || needFeature && !h.feature || !openingPot(h)) continue;
+    if (trick && !(h.trick = findTrick(h))) continue;
     fallback = fallback || h;
-    if (clearable(h)) { holeCache.set(key, h); return h; }
+    if (clearable(h)) return done(h);
   }
-  h = fallback || h;
-  holeCache.set(key, h);
-  return h;
+  return done(fallback || h);
+}
+// The trick shot: of the 8 best open pots, at four paces and three spins, the shot that pots the most balls
+// (at least two, no foul) and still does with its aim 0.23° either way or its pace 0.05 either way (at least
+// two of those four), so it isn't a fluke of the simulation. Null if there's none.
+const trickPots = (t, a, pw, sp) => { const s = simulate(t, a, pw, sp); return s.shot.scratch || !s.shot.firstHit ? 0 : s.shot.pots.length; };
+function findTrick(h) {
+  const t = new Table(h);
+  let best = null;
+  for (const l of allLines(t).filter(l => !l.blocked).sort((a, b) => b.q - a.q).slice(0, 8))
+    for (const pw of [0.3, 0.45, 0.6, 0.8]) for (const sp of [0, 0.6, -0.6]) {
+      const n = trickPots(t, l.angle, pw, sp);
+      if (n < 2) continue;
+      const ok = [[0.004, 0], [-0.004, 0], [0, 0.05], [0, -0.05]].filter(([da, dp]) => trickPots(t, l.angle + da, pw + dp, sp) >= 2).length;
+      const score = n * 10 + ok;
+      if (ok >= 2 && (!best || score > best.score)) best = { angle: l.angle, power: pw, spin: sp, bi: l.bi, n, score };
+    }
+  return best;
+}
+// The golden pocket: never the pocket of the easiest pot, but (where it can) one that some open pot goes into.
+function pickGold(h, rr) {
+  const t = new Table(h), ls = allLines(t).filter(l => !l.blocked), top = [...ls].sort((a, b) => b.q - a.q)[0];
+  const pks = [0, 1, 2, 3, 4, 5].filter(i => t.openPocket(i) && (!top || i !== top.pocket));
+  const live = pks.filter(i => ls.some(l => l.pocket === i && l.q > 0.12)), pool = live.length ? live : pks;
+  return pool.length ? pool[Math.floor(rr() * pool.length)] : null;
 }
 // Can the whole level be cleared? A bot with perfect execution plays it: each shot it tries the best
 // few pots (stun, follow and draw at three paces), keeps the one that leaves the best next pot, and
@@ -428,13 +459,13 @@ function buildHole(seed, i, attempt) {
   const closed = haz(0.04 + hz * 0.04) ? [Math.floor(rnd() * 6)] : [];
   const placed = [], shape = shapeFor(seed, i), pks = shape ? shape.pockets : POCKETS;
   let obst = null;
-  const ok = (x, y, rad, gap) => (!obst || obst.type !== 'water' || !inPond(obst, x, y, rad + 10)) && (shape ? freeIn(shape, x, y, rad + 6) : x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6) &&
+  const ok = (x, y, rad, gap, pkGap = R * 3.2) => (!obst || obst.type !== 'water' || !inPond(obst, x, y, rad + 10)) && (shape ? freeIn(shape, x, y, rad + 6) : x > rad + 6 && x < W - rad - 6 && y > rad + 6 && y < H - rad - 6) &&
     placed.every(o => Math.hypot(o.x - x, o.y - y) > o.r + rad + gap) &&
-    pks.every(p => Math.hypot(p.x - x, p.y - y) > rad + R * 3.2);
-  const place = (gen, rad, gap) => {
+    pks.every(p => Math.hypot(p.x - x, p.y - y) > rad + pkGap);
+  const place = (gen, rad, gap, pkGap) => {
     for (let k = 0; k < 500; k++) {
       const [x, y] = gen();
-      if (ok(x, y, rad, gap)) { const o = { x, y, r: rad }; placed.push(o); return o; }
+      if (ok(x, y, rad, gap, pkGap)) { const o = { x, y, r: rad }; placed.push(o); return o; }
     }
     return null;
   };
@@ -454,8 +485,18 @@ function buildHole(seed, i, attempt) {
     if (o) bumpers.push({ x: o.x, y: o.y, r: o.r });
   }
   const n = ballsFor(seed, i), nums = shuffle(rnd, Array.from({ length: 15 }, (_, k) => k + 1)), balls = [];
-  const spread = !isDailySeed(seed) || seed >= SPREAD_FROM;
+  const spread = !isDailySeed(seed) || seed >= SPREAD_FROM, trick = trickHole(seed, i), openPks = [0, 1, 2, 3, 4, 5].filter(k => !closed.includes(k));
   for (let k = 0; k < n; k++) {
+    // the trick-shot hole: two balls hang a little way out from open pockets, which is what makes doubles possible
+    if (trick && k < 2) {
+      const o = place(() => {
+        const p = pks[openPks[Math.floor(rnd() * openPks.length)]], cx = W / 2 - p.x, cy = H / 2 - p.y, cl = Math.hypot(cx, cy) || 1;
+        const d = R * (2.8 + rnd() * 1.6), a = (rnd() - 0.5) * 0.9, ux = cx / cl, uy = cy / cl;
+        return [p.x + (ux * Math.cos(a) - uy * Math.sin(a)) * d, p.y + (ux * Math.sin(a) + uy * Math.cos(a)) * d];
+      }, R, R * 1.6, R * 1.7);
+      if (o) balls.push({ x: o.x, y: o.y, n: nums[k] });
+      continue;
+    }
     // From SPREAD_FROM (and on practice courses) no ball starts touching or crowding another: a ball-width-ish gap
     // between them all. Earlier days keep their clusters so their layouts and saved rounds don't change.
     const mode = spread ? (rnd() < 0.22 ? 'rail' : 'open') : balls.length && rnd() < 0.35 ? 'cluster' : rnd() < 0.22 ? 'rail' : 'open';
@@ -903,6 +944,9 @@ const potGain = () => Math.round(PTS.pot * streakMult(hs.streak + 1));
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [], levelMisses = 0;
+// this hole's golden pocket and trick shot: each, once, takes a stroke off the hole (holeBonus)
+let holeBonus = 0, goldUsed = false, trickDone = false;
+const onTrickHole = () => isPar() && !!round && trickHole(round.seed, round.level);
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0 };
@@ -1118,7 +1162,7 @@ function startHole(i) {
   if (i === 2) track('level3');
   hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
-  strokes = 0; levelMisses = 0;
+  strokes = 0; levelMisses = 0; holeBonus = 0; goldUsed = false; trickDone = false;
   // a cat hole: the cat hops up from its cushion onto the felt as the hole starts
   catAnim = table.cat ? { from: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, to: { x: table.cat.x, y: table.cat.y, rot: table.cat.rot, sc: CAT_SC }, t: -0.9 } : null;
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
@@ -1127,7 +1171,7 @@ function startHole(i) {
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
-  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life: featureName(hole) ? 2.3 : banner.life, max: featureName(hole) ? 2.3 : banner.max });
+  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}${onTrickHole() ? ' · Trick shot' : ''}`, sub: onTrickHole() ? 'Pot two in one shot for ⭐ and a stroke back' : `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${hole.gold != null ? 'golden pocket · ' : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life: featureName(hole) || onTrickHole() ? 2.3 : banner.life, max: featureName(hole) || onTrickHole() ? 2.3 : banner.max });
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -1139,6 +1183,12 @@ function startHole(i) {
 function lineUp() {
   phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
   if (firstShotEver() && strokes === 0) startOffTarget();
+  // the trick-shot hole's first shot starts lined up on the trick, with its spin set and its pace named
+  const tr = hole.trick;
+  if (onTrickHole() && tr && strokes === 0 && !trickDone) {
+    aim.bi = tr.bi; aim.angle = tr.angle; aim.spotY = clamp(-tr.spin / 1.4, -0.5, 0.5); aim.spin = spinFor(aim.spotY);
+    const h = hole; setTimeout(() => { if (hole === h && phase === 'aim' && !strokes) float(W / 2, H * 0.55, `Trick shot: ${paceName(tr.power).toLowerCase()}${tr.spin ? ', ' + strikeName(tr.spin).toLowerCase() : ''}`, '#b88a2e', 20, 3); }, 2400);
+  }
   updateUI();
 }
 // A new player's first shot starts 3.5° off the best pot line (still on the ball), so the aim lesson has a miss to fix.
@@ -1154,10 +1204,12 @@ function startOffTarget() {
 // Gimmes: a ball within two ball widths of an open pocket, with a clear, nearly straight line from the cue ball.
 function findGimmes() {
   const out = [];
+  if (onTrickHole()) return out;
   table.balls.forEach((b, bi) => {
     if (b.potted) return;
     for (let i = 0; i < 6; i++) {
       const p = table.pk[i], l = potLine(table, bi, i);
+      if (i === hole.gold && !goldUsed) continue;   // no tapping in to the golden pocket
       if (l && !l.blocked && l.cos > 0.9 && Math.hypot(b.x - p.x, b.y - p.y) < p.cap + 2 * R) { out.push({ bi, pocket: i }); break; }
     }
   });
@@ -1308,7 +1360,7 @@ function release() {
   if (rescue) { ls('dailybreak:scratchSaved', '1'); ct.spin = spinFor(rescue.toY); }
   // Will this shot clear the rack? Then the last ball gets the slow-motion treatment.
   const sim = simulate(table, angle, ct.power, ct.spin), sp = sim.shot.pots;
-  cine = round.level >= 2 && !sim.remaining() && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
+  cine = (round.level >= 2 && !sim.remaining() || onTrickHole() && !trickDone && sp.length >= 2) && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
   strike = { angle, power: ct.power, spin: ct.spin, t: 0, end: teach ? SHOOT_T + TEACH_T : SHOOT_T };
   zoom = { t: 0, ct, d, from: contactPanel(), teach, end: strike.end };
   if (rescue) {
@@ -1398,6 +1450,19 @@ function resolveParShot() {
   const wet = Math.max(0, s.splashes - (foul ? 1 : 0));
   if (wet) { strokes += wet; say(`In the water · +${wet} stroke${wet > 1 ? 's' : ''}`, table.cue.y + 70, '#3b6ea6'); }
   if (!foul && shotLog.length) scorePots();
+  if (!foul && s.pots.length) {
+    if (hole.gold != null && !goldUsed && s.pots.some(p => p.pocket === hole.gold)) {
+      goldUsed = true; holeBonus++;
+      const p = table.pk[hole.gold], px = clamp(p.x, 90, W - 90), py = clamp(p.y + (p.y < H / 2 ? 70 : -70), 50, H - 50);
+      float(px, py, 'Golden pocket! −1 stroke', '#b88a2e', 22, 2.2); sparkle(p.x, p.y, '#e2b13c', 30, 170); ring(p.x, p.y, '226,177,60', 70, 0.9, p.cap);
+      sfx.chime(); buzz([15, 40, 15]); fx.glow = 1;
+    }
+    if (onTrickHole() && !trickDone && s.pots.length >= 2) {
+      trickDone = true; holeBonus++;
+      float(W / 2, H * 0.42, 'Trick shot! ⭐ −1 stroke', '#b88a2e', 28, 2.6); confettiBurst(120);
+      sfx.chime(); buzz([20, 40, 20, 40, 20]); fx.glow = 1;
+    }
+  }
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (!table.remaining()) finishParHole(false);
   else if (strokes >= capOf(round.level)) finishParHole(true);
@@ -1406,8 +1471,8 @@ function resolveParShot() {
 }
 function finishParHole(picked) {
   if (round.level === 0) track('clear1');
-  const forLevel = round.level, par = parOf(forLevel), n = picked ? capOf(forLevel) : strokes, d = n - par;
-  round.cards.push({ strokes: n, par, picked });
+  const forLevel = round.level, par = parOf(forLevel), n = picked ? capOf(forLevel) : Math.max(1, strokes - holeBonus), d = n - par;
+  round.cards.push({ strokes: n, par, picked, gold: goldUsed, star: trickDone });
   hs.points += picked ? 0 : PTS.level * hole.balls.length;
   phase = 'holed'; gimmes = [];
   if (forLevel + 1 < HOLES) saveRun(forLevel + 1);
@@ -1435,11 +1500,11 @@ function endParRound() {
 }
 function parShareText(r = round) {
   const tot = r.cards.reduce((a, c) => a + c.strokes - c.par, 0);
-  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⛳ ${toPar(tot)}\n${r.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}\n${gameUrl()}`;
+  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⛳ ${toPar(tot)}\n${r.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}${r.cards.some(c => c.star) ? ' ⭐ trick shot' : ''}\n${gameUrl()}`;
 }
 function showParFinal(already) {
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0), parAll = round.cards.reduce((a, c) => a + c.par, 0);
-  const cell = c => `<td style="color:${holeColor(c.strokes - c.par)};font-weight:700">${c.strokes}${c.picked ? '*' : ''}</td>`;
+  const cell = c => `<td style="color:${holeColor(c.strokes - c.par)};font-weight:700">${c.strokes}${c.picked ? '*' : ''}${c.star ? '⭐' : ''}</td>`;
   $('card').innerHTML = `
     <div class="k mono">${round.ranked ? courseName(round.seed) : 'Practice · not ranked'}</div>
     <h2>${already ? "Today's round is in" : 'Round over'}</h2>
@@ -1476,7 +1541,7 @@ function saveRun(nextLevel) {
   if (isPar()) {
     ls(runKey(), JSON.stringify({
       par: true, level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
-      points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes,
+      points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes, bonus: fresh ? 0 : holeBonus, gold: !fresh && goldUsed, trick: !fresh && trickDone,
       cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
     }));
     return;
@@ -1499,7 +1564,7 @@ function resumeRun() {
     r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));
     if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
     levelMisses = r.misses || 0;
-    if (isPar()) strokes = r.strokes || 0;
+    if (isPar()) { strokes = r.strokes || 0; holeBonus = r.bonus || 0; goldUsed = !!r.gold; trickDone = !!r.trick; }
     lineUp();
     saveRun();   // startHole saved a fresh layout; put the real one back so a second reload can't reset the balls
   }
@@ -1637,7 +1702,7 @@ function updateUI() {
   $('iHole').innerHTML = `Level ${round.level + 1} · <span id="ptsVal">${shownPts.toLocaleString()}</span> pts<b>${left} ball${left === 1 ? '' : 's'}<small>left</small></b>`;
   $('iLie').innerHTML = `Streak<b${hs.streak ? ' style="color:#c4472f"' : ''}>${hs.streak ? `🔥 ×${streakMult(hs.streak + 1)}` : '×1'}</b>`;
   if (isPar()) {
-    const n = Math.min(strokes, capOf(round.level));
+    const n = Math.max(0, Math.min(strokes, capOf(round.level)) - holeBonus);
     $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
     $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
   }
@@ -1846,7 +1911,7 @@ function showIntro() {
     <div class="k mono">Daily Break · daily pool</div>
     ${parSeed(todayKey()) ? `<h2>Six holes. Fewest shots wins.</h2>
     <div class="howto">
-      <p>⛳ Pool scored like golf. ${shortSeed(todayKey()) ? 'Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: sand, a windmill, a gate or the cat.' : 'Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.'}</p>
+      <p>⛳ Pool scored like golf. ${shortSeed(todayKey()) ? 'Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: sand, a windmill, a gate or the cat. Pot into the glowing golden pocket for a stroke back, and hole 6 is a trick shot.' : 'Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.'}</p>
       <p>🎱 Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>` : `<h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
@@ -1871,7 +1936,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), a <b>windmill</b> that turns while the balls roll, a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
+      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), a <b>windmill</b> that turns while the balls roll, a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p><p>✨ Holes 2 to 5 have a <b>golden pocket</b>: your first pot into it takes a stroke off the hole. Hole 6 is a <b>trick shot</b>: there's a shot that pots two or more at once (it starts lined up for you). Pull it off for ⭐ and a stroke back.</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
@@ -2906,6 +2971,13 @@ function draw(t, dt) {
     sk.t += dt / 0.36;
     const k = Math.min(1, sk.t) ** 1.6, a = k * 2.6, dx = (sk.x - sk.tx) * (1 - k), dy = (sk.y - sk.ty) * (1 - k);
     drawBall(sk.b, sk.tx + dx * Math.cos(a) - dy * Math.sin(a), sk.ty + dx * Math.sin(a) + dy * Math.cos(a), 1 - 0.6 * k, 1 - k * k);
+  }
+  if (isPar() && hole.gold != null && !goldUsed && phase !== 'holed') {
+    const p = table.pk[hole.gold], k = 0.65 + 0.35 * Math.sin(t * 3.2);
+    const g = ctx.createRadialGradient(p.x, p.y, p.cap * 0.6, p.x, p.y, p.cap * 2.3);
+    g.addColorStop(0, `rgba(255,200,70,${0.6 * k})`); g.addColorStop(1, 'rgba(255,200,70,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap * 2.3, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(226,177,60,${0.7 + 0.3 * k})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap + 3, 0, TAU); ctx.stroke();
   }
   for (const p of table.pk) if (p.glow > 0) {
     p.glow = Math.max(0, p.glow - dt * 1.8);
