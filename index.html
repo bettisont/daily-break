@@ -1385,7 +1385,9 @@ function drawReplay(dt) {
   replay.proxies.forEach((pb, k) => {
     const o = 1 + k * 3;
     if (a[o + 2]) {
-      // it dropped: send it spiralling into the nearest pocket, once
+      // it dropped during the shot: send it spiralling into the nearest pocket, once (a ball potted on an earlier
+      // shot is down from the first frame, with no position here: nothing to show)
+      if (pb.x === undefined) replay.sunk.add(k);
       if (!replay.sunk.has(k)) {
         replay.sunk.add(k);
         const pk = table.pk.reduce((m, q) => Math.hypot(q.x - pb.x, q.y - pb.y) < Math.hypot(m.x - pb.x, m.y - pb.y) ? q : m);
@@ -2302,6 +2304,7 @@ function stripeCap(x, y, r, p, sg) {
   ctx.fill();
 }
 function drawBall(b, x, y, sc = 1, alpha = 1) {
+  if (!isFinite(x) || !isFinite(y) || !isFinite(sc)) return;   // never let a bad position stop the frame
   ensureSpin(b);
   const r = R * sc;
   ctx.save();
@@ -3405,7 +3408,8 @@ function frame(now) {
   }
   if (follow) follow.t += dt;
   tickDemo(dt); tickSpinDemo(dt);
-  draw(t, dt);
+  // a drawing error must never stop the game: log it and carry on with the next frame
+  try { draw(t, dt); } catch (e) { console.error(e); }
   requestAnimationFrame(frame);
 }
 

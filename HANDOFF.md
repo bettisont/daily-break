@@ -409,6 +409,11 @@ shot is identical to before, checked on five days × six holes):
 - Windmill while aiming (short rounds): it keeps turning during aim and strike at its in-play speed
   (`WM_W` × `PLAY`, 1.1 rad/s), so it reads as alive and shots can be timed through a gap; the aim line, glow and
   path hint follow it. It waits while any ball rests inside its sweep, so it never turns into a resting ball.
+- Freeze fix (14 Nov): a trick shot on a hole where a ball had been potted on an earlier shot made the replay
+  sink that ball from a position it never had (NaN); the canvas threw and the frame loop died, freezing the game
+  mid slow-motion. The replay now only sinks balls that drop during the shot, `drawBall` skips non-finite
+  positions, and `frame` wraps `draw` in try/catch so a drawing error can never stop the loop again (this
+  safety net is on for every round, not just short ones). 9 auto-played rounds afterwards: no errors.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
