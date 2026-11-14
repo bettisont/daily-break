@@ -470,6 +470,12 @@ shot is identical to before, checked on five days × six holes):
   uncounted (the bank rule skips jaw touches), so a two-cushion pot off a corner lit the ring as if it were one
   cushion and the line ran on. Checked: straight pots 66/66 ringed, clean one-cushion kicks 88/88, clean
   one-cushion banks 22/22.
+- The line is drawn at a pace that really pots (of `GUIDE_PACES`, the potting one nearest 0.45), not the midpoint
+  of the potting range, which could be a pace that rattles out (ring lit, line hooking out of the jaws). And the
+  object ball's path is played right out before deciding: if it drops into a ringed pocket the whole path is
+  drawn, otherwise it's cut at its second cushion (a ball that rattles out of the jaws and back in still drops).
+  Checked over 1,546 ringed aims (14–21 Nov): every one whose first ball drops ends its line in a ringed pocket
+  (1,148); the other 398 are combinations, where another ball drops.
 
 ## Release: the short round goes live (from the 15 Nov 2026 game)
 
