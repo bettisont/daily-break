@@ -921,7 +921,12 @@ let hs = null, shotLog = [], levelMisses = 0;
 let holeBonus = 0, goldUsed = false, trickDone = false, holeStars = 0;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
-const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], shake: 0, glow: 0 };
+// Short-round animation (all off on other rounds): a ball on the lip gets slow motion and a heartbeat (lip),
+// trick shots get an instant replay (shotRec, replay), the cue follows through (follow), hard contacts flash
+// (fx.flashes), potted balls fly to a tray at the top (trayFly), the cat reacts (catStartle), and tables slide
+// in and out between holes (slide).
+let trayDone = [], lip = null, lipTried = new Set(), shotRec = null, replay = null, replayed = false, follow = null, trayFly = [], catStartle = 0, slide = null;
+const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], flashes: [], shake: 0, glow: 0 };
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
 
@@ -1068,6 +1073,8 @@ function onEvent(type, e) {
   if (type === 'hit') {
     if (audio && audio.currentTime - lastHit > 0.015) { lastHit = audio.currentTime; atX(e.x, () => sfx.clack(e.speed)); }
     if (e.speed > 500) ring(e.x, e.y, '255,250,235', 18, 0.35, 4);
+    if (generous() && e.speed > 250) fx.flashes.push({ x: e.x, y: e.y, r: 10 + Math.min(40, e.speed / 45), life: 0.2 });
+    if (generous() && e.speed > 1000) catStartle = 1;
     // a hard hit freezes the frame for a blink and gives a little kick
     if (e.speed > 900) { hitStop = Math.max(hitStop, 0.03); fx.shake = Math.max(fx.shake, 2 + e.speed / 700); sparkle(e.x, e.y, '#fbf8f0', 5, 90); }
   } else if (type === 'cushion') {
@@ -1098,6 +1105,7 @@ function onEvent(type, e) {
     atX(tx, () => sfx.drop());
     hitStop = Math.max(hitStop, 0.045);
     if (b.isCue) { sfx.pot(); buzz(10); return; }
+    if (generous()) trayFly.push({ b: { n: b.n, spot: b.spot, pole: b.pole }, wx: tx, wy: ty, t: -0.35 });
     // the event fires before the ball is marked potted, so it still counts as on the table here
     const s = table.shot, bank = (b.cush || 0) > 0, combo = !!s?.firstHit && s.firstHit !== b;
     const k = (hs?.streak || 0) + shotLog.length;   // pots in a row, counting this one's place
@@ -1134,6 +1142,7 @@ function startHole(i) {
   if (i === 2) track('level3');
   hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
+  if (generous()) { slide = { dir: 'in', t: 0 }; if (i > 0) whoosh(); trayFly = []; trayDone = []; }
   strokes = 0; levelMisses = 0; holeBonus = 0; goldUsed = false; trickDone = false; holeStars = 0;
   // a cat hole: the cat hops up from its cushion onto the felt as the hole starts
   catAnim = table.cat ? { from: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, to: { x: table.cat.x, y: table.cat.y, rot: table.cat.rot, sc: CAT_SC }, t: -0.9 } : null;
@@ -1355,7 +1364,20 @@ function release() {
   renderCard9(); updateUI();
 }
 
+// Trick shot on a short round: replay it first (recorded frame by frame while it rolled), about half speed and
+// at most ~5 s, from the strike to just after the last pot. A tap skips it.
+function startReplay(kinds) {
+  const frames = shotRec, nb = table.balls.length;
+  let last = 0;
+  for (let f = 1; f < frames.length; f++) for (let k = 0; k <= nb; k++) if (frames[f][k * 3 + 2] && !frames[f - 1][k * 3 + 2]) last = f;
+  const end = Math.min(frames.length - 1, last + 45);
+  replay = { frames, i: 0, end, speed: Math.max(0.5, end / 300), kinds };
+  phase = 'replay'; updateUI();
+  tone(660, 0.12, 0.05, 'sine', 1.5, 0, 0.4);
+}
 function resolveShot() {
+  if (generous() && !replayed && shotRec && shotRec.length > 20 && trickKinds(table.shot).length) { startReplay(trickKinds(table.shot)); return; }
+  shotRec = null;
   catAfterShot();
   if (isPar()) return resolveParShot();
   const s = table.shot, c = table.cue;
@@ -1471,7 +1493,9 @@ function finishParHole(picked) {
   }, 450);
   setTimeout(() => {
     if (round.level !== forLevel || phase !== 'holed') return;
-    if (forLevel + 1 >= HOLES) endParRound(); else act();
+    if (forLevel + 1 >= HOLES) endParRound();
+    else if (generous()) { slide = { dir: 'out', t: 0 }; whoosh(); setTimeout(() => { if (round.level === forLevel && phase === 'holed') act(); }, 380); }
+    else act();
   }, 450 + 1700);
 }
 function endParRound() {
@@ -2001,6 +2025,7 @@ let drag = null;
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
   if (phase === 'moving') { if (movingT > 0.8 && !(cine && cine.hold > 0)) ffwd = true; return; }   // tap to hurry the balls along
+  if (phase === 'replay') { replay.i = replay.end; return; }   // tap to skip the replay
   if (phase !== 'aim') return;
   const p = toWorld(e), c = table.cue;
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, a: Math.atan2(p.y - c.y, p.x - c.x) };
@@ -2393,10 +2418,25 @@ function drawRecord(dt) {
 // draws it anywhere: rot turns it, sc scales it, awake opens its eyes.
 function drawCat(t) {
   if (table?.cat || catAnim) return;
-  drawCatBody(DECOR.cat.x, DECOR.cat.y, -0.3, 1, t, false);
+  const { x, y } = DECOR.cat;
+  if (!generous()) { drawCatBody(x, y, -0.3, 1, t, false); return; }
+  // short round: it wakes for loud hits and fast balls, and watches them roll
+  const busy = catStartle > 0.05 || !!table && table.live().some(b => Math.hypot(b.vx, b.vy) > 400);
+  drawCatBody(x, y, -0.3, 1, t, busy, busy ? catLook(x, y, -0.3, 1) : 0, catStartle);
 }
-function drawCatBody(x, y, rot, sc, t, awake) {
+// the angle (relative to the cat) to turn its head towards the nearest rolling ball, up to 0.8 rad either way
+function catLook(x, y, rot, sc) {
+  if (!table) return 0;
+  const hx = x + (Math.cos(rot) * 24 - Math.sin(rot) * 8) * sc, hy = y + (Math.sin(rot) * 24 + Math.cos(rot) * 8) * sc;
+  let best = null, bd = 700;
+  for (const b of table.live()) { if (!b.vx && !b.vy) continue; const d = Math.hypot(b.x - hx, b.y - hy); if (d < bd) { bd = d; best = b; } }
+  if (!best) return 0;
+  const a = Math.atan2(best.y - hy, best.x - hx) - rot;
+  return clamp(Math.atan2(Math.sin(a), Math.cos(a)), -0.8, 0.8);
+}
+function drawCatBody(x, y, rot, sc, t, awake, look = 0, startle = 0) {
   const br = 1 + Math.sin(t * 1.6) * 0.025;
+  y -= 7 * startle * sc;   // a flinch: up off its cushion for a moment
   const flick = Math.max(0, Math.sin(t * 0.45)) ** 12;
   ctx.drawImage(SOFT_SHADOW, x - 50 * sc, y - 38 * sc, 106 * sc, 86 * sc);
   ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sc, sc);
@@ -2408,14 +2448,18 @@ function drawCatBody(x, y, rot, sc, t, awake) {
   ctx.fillStyle = '#e0a35a'; ctx.beginPath(); ctx.ellipse(0, 0, 34, 25, 0, 0, TAU); ctx.fill();
   ctx.strokeStyle = 'rgba(160,90,40,.45)'; ctx.lineWidth = 3;
   for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.arc(-4, 0, 18 + k * 3, -1.2 + k * 0.1, -0.5 + k * 0.1); ctx.stroke(); }
+  // the head turns on its neck, and the ears go flat when it's startled
+  ctx.save(); ctx.translate(24, 8); ctx.rotate(look); ctx.translate(-24, -8);
+  const ear = 6 * startle;
   ctx.fillStyle = '#e0a35a'; ctx.beginPath(); ctx.arc(24, 8, 14, 0, TAU); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(28, -4); ctx.lineTo(36, -10); ctx.lineTo(36, 2); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(18, -2); ctx.lineTo(18, -12); ctx.lineTo(28, -5); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(28, -4); ctx.lineTo(36 + ear * 0.5, -10 + ear); ctx.lineTo(36, 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(18, -2); ctx.lineTo(18 - ear * 0.5, -12 + ear); ctx.lineTo(28, -5); ctx.fill();
   ctx.strokeStyle = '#7a4a28'; ctx.lineWidth = 1.5;
   if (awake) {
     ctx.fillStyle = '#9bbf4a'; ctx.beginPath(); ctx.ellipse(21, 9, 3.2, 2.6, 0, 0, TAU); ctx.ellipse(30, 9, 3.2, 2.6, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = '#24221f'; ctx.beginPath(); ctx.ellipse(21.5, 9, 1, 2.3, 0, 0, TAU); ctx.ellipse(30.5, 9, 1, 2.3, 0, 0, TAU); ctx.fill();
   } else { ctx.beginPath(); ctx.arc(22, 10, 3, 0.2, 2.6); ctx.moveTo(31, 9); ctx.arc(29, 10, 3, 0.2, 2.6); ctx.stroke(); }
+  ctx.restore();
   ctx.restore();
 }
 // The cat on the felt: a big soft obstacle (CAT_R, CAT_E). Its eyes open when a ball rolls near. Hit it and,
@@ -2436,8 +2480,10 @@ function drawTableCat(t, dt) {
   const c = table?.cat;
   if (!c) return;
   const near = table.live().some(b => (b.vx || b.vy) && Math.hypot(b.x - c.x, b.y - c.y) < 230);
-  drawCatBody(c.x, c.y, c.rot, CAT_SC * (1 + catFlash * 0.1), t, near || catFlash > 0);
+  const g = generous();
+  drawCatBody(c.x, c.y, c.rot, CAT_SC * (1 + catFlash * 0.1), t, near || catFlash > 0 || g && catStartle > 0.05, g && near ? catLook(c.x, c.y, c.rot, CAT_SC) : 0, g ? catStartle : 0);
 }
+function whoosh() { noise(0.4, 0.07, 700, 'bandpass', 0, 0.8); tone(240, 0.35, 0.03, 'sine', 1.8, 0, 0.3); }
 function meow() { tone(560, 0.18, 0.05, 'triangle', 1.45, 0, 0.3); tone(810, 0.3, 0.045, 'triangle', 0.62, 0.14, 0.3); }
 function catSpotFree(t, x, y) {
   return (t.hole.shape ? freeIn(t.hole.shape, x, y, CAT_R + 4) : x > CAT_R + 4 && x < W - CAT_R - 4 && y > CAT_R + 4 && y < H - CAT_R - 4) &&
@@ -2960,8 +3006,8 @@ function drawContact(dt) {
   ctx.restore();
 }
 
-function drawCue(angle, pull, sk) {
-  const c = table.cue, gap = (6 + pull * 80) * (1 - sk) ** 2, tip = R + 2 + gap, len = 420;
+function drawCue(angle, pull, sk, at = table.cue, through = 0) {
+  const c = at, gap = (6 + pull * 80) * (1 - sk) ** 2, tip = R + 2 + gap - through, len = 420;
   ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(angle);
   const stick = (ox, oy) => { ctx.beginPath(); ctx.moveTo(-tip + ox, -3 + oy); ctx.lineTo(-tip - len + ox, -6.5 + oy); ctx.lineTo(-tip - len + ox, 6.5 + oy); ctx.lineTo(-tip + ox, 3 + oy); ctx.closePath(); };
   ctx.fillStyle = 'rgba(40,25,10,.22)'; stick(8, 12); ctx.fill();
@@ -2973,6 +3019,26 @@ function drawCue(angle, pull, sk) {
   ctx.restore();
 }
 
+// The tray (short round): a slot down the right-hand edge for each ball on this hole. A potted ball flies there
+// from its pocket once it has dropped, and lands with a click.
+function drawTray(dt, S, OX, OY) {
+  const n = table.balls.length, gap = 25, r = 10, x = view.cw - 15, y0 = view.ch / 2 - (n - 1) * gap / 2;
+  // a resumed hole: balls already down go straight into the tray
+  const flying = trayFly.length, potted = table.balls.filter(b => b.potted).length;
+  for (const b of table.balls) if (b.potted && trayDone.length + flying < potted && !trayDone.some(o => o.n === b.n) && !trayFly.some(f => f.b.n === b.n)) trayDone.push(b);
+  ctx.fillStyle = 'rgba(43,30,20,.55)'; ctx.beginPath(); ctx.roundRect(x - r - 4, y0 - r - 4, 2 * r + 8, (n - 1) * gap + 2 * r + 8, r + 4); ctx.fill();
+  for (let k = 0; k < n; k++) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(x, y0 + k * gap, r - 1, 0, TAU); ctx.fill(); }
+  trayDone.forEach((b, k) => drawBall(b, x, y0 + k * gap, r / R));
+  for (const f of trayFly) {
+    f.t += dt / 0.55;
+    if (f.t <= 0) continue;
+    const k = Math.min(1, f.t), e = 1 - (1 - k) ** 3, slot = trayDone.length, tx = x, ty = y0 + slot * gap;
+    const fx0 = OX + f.wx * S, fy0 = OY + f.wy * S;
+    drawBall(f.b, lerp(fx0, tx, e), lerp(fy0, ty, e) - Math.sin(k * Math.PI) * 40, lerp(S, r / R, e) * (1 + Math.sin(k * Math.PI) * 0.3));
+    if (f.t >= 1 && !f.landed) { f.landed = true; trayDone.push(f.b); tone(1400 + slot * 120, 0.04, 0.05, 'sine', 1, 0, 0.2); buzz(6); }
+  }
+  trayFly = trayFly.filter(f => !f.landed);
+}
 function drawStamp(dt) {
   if (!stamp) return;
   stamp.t += dt;
@@ -3021,6 +3087,15 @@ function draw(t, dt) {
   drawChair();
   drawRecord(dt);
   drawCat(t);
+  // short round: the table (and everything on it) slides off to the left after a hole, and the next slides in
+  let slideX = 0;
+  if (slide) {
+    slide.t += dt;
+    const out = slide.dir === 'out', k = clamp(slide.t / (out ? 0.38 : 0.5), 0, 1), e = out ? k * k : 1 - (1 - k) ** 3;
+    slideX = out ? -e * (W + 600) : (1 - e) * (W + 600);
+    if (!out && k >= 1) slide = null;
+  }
+  ctx.save(); ctx.translate(slideX, 0);
   drawTable(t, dt);
   drawTableCat(t, dt);
 
@@ -3069,8 +3144,42 @@ function draw(t, dt) {
     }
   }
   fx.sinks = fx.sinks.filter(sk => sk.t < 1);
-  for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
-  if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
+  if (phase === 'replay') {
+    const f = replay.frames[Math.min(replay.end, Math.floor(replay.i))];
+    table.balls.forEach((b, k) => { if (!f[3 + k * 3 + 2]) drawBall(b, f[3 + k * 3], f[3 + k * 3 + 1]); });
+    if (!f[2]) drawBall(table.cue, f[0], f[1]);
+  } else {
+    for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
+    if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
+  }
+  // the cue drives on through where the cue ball was, then eases back and fades
+  if (follow && follow.t < 0.5) {
+    const k = follow.t / 0.5, push = follow.power * 70 * Math.sin(Math.min(1, k * 1.6) * Math.PI / 2) * (1 - k * 0.4);
+    ctx.globalAlpha = 1 - k ** 2; drawCue(follow.angle, 0, 1, follow, push); ctx.globalAlpha = 1;
+  } else follow = null;
+  // a bright flash where balls meet, sized by how hard
+  ctx.globalCompositeOperation = 'lighter';
+  for (const f of fx.flashes) {
+    f.life -= dt; const k = Math.max(0, f.life / 0.2);
+    const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+    g.addColorStop(0, `rgba(255,250,230,${0.8 * k})`); g.addColorStop(1, 'rgba(255,250,230,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  fx.flashes = fx.flashes.filter(f => f.life > 0);
+  // a pocket's jaws shiver after a ball stops on the lip
+  for (const p of table.pk) if (p.wobble > 0) {
+    p.wobble = Math.max(0, p.wobble - dt * 1.5);
+    ctx.strokeStyle = `rgba(184,85,63,${0.8 * p.wobble})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(p.x + Math.sin(t * 60) * 3 * p.wobble, p.y, p.cap + 4, 0, TAU); ctx.stroke();
+  }
+  if (phase === 'replay') {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = "700 15px 'DM Mono', monospace"; ctx.fillStyle = 'rgba(251,248,240,.9)';
+    ctx.fillText('● REPLAY · tap to skip', W / 2, 26);
+    ctx.font = "800 30px 'DM Sans', sans-serif"; ctx.fillStyle = '#e2b13c';
+    ctx.fillText(`${replay.kinds.join(' + ')} ⭐`, W / 2, 62);
+  }
   if (phase === 'aim') drawCue(aim.angle, demo ? demoPull(demo.t).p : power, 0);
   drawAimLabels();
   if (phase === 'aim' && !hold) drawGimmes(t);
@@ -3090,6 +3199,7 @@ function draw(t, dt) {
   fx.particles = fx.particles.filter(p => p.life > 0);
   ctx.globalAlpha = 1;
 
+  ctx.restore();
   for (const pl of DECOR.plants) drawPlant(pl, t);
 
   for (const c of fx.confetti) {
@@ -3132,6 +3242,8 @@ function draw(t, dt) {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawContact(dt);
+  catStartle = Math.max(0, catStartle - dt * 1.2);
+  if (generous() && table) drawTray(dt, S, OX, OY);
   // a warm golden glow round the edges on pots, stronger as a streak builds
   if (fx.glow > 0) {
     fx.glow = Math.max(0, fx.glow - dt * 1.4);
@@ -3180,6 +3292,11 @@ function frame(now) {
       const c = table.cue;
       for (let k = 0; k < 8; k++) fx.particles.push({ x: c.x - Math.cos(strike.angle) * R, y: c.y - Math.sin(strike.angle) * R, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, life: 0.5, color: '#7fa0d8', r: 1.5 });
       acc = 0; movingT = 0; phase = 'moving'; updateUI();
+      if (generous()) {
+        shotRec = []; replayed = false; lip = null; lipTried = new Set();
+        follow = { x: c.x, y: c.y, angle: strike.angle, power: strike.power, t: 0 };
+        cam.k += 0.03 + 0.04 * strike.power;   // a small push in on the strike, which eases back
+      }
     }
   }
   // Slow motion and a push-in as the rack's last ball heads for the pocket.
@@ -3188,6 +3305,38 @@ function frame(now) {
     const b = table.balls.find(o => o.n === cine.n), p = table.pk[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
     else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
+  }
+  // A ball on the lip (short round): one slow, close call near a pocket gets slow motion, a push-in and a heartbeat,
+  // then "It dropped!" or "So close!". The outcome is known first by playing the rest of the shot out, so it only
+  // happens when it really is close (it drops, or stops within a ball and a half of the pocket).
+  if (phase === 'moving' && generous() && !cine) {
+    if (!lip) for (const b of table.balls) {
+      const sp = Math.hypot(b.vx, b.vy);
+      if (b.potted || sp < 20 || sp > 330) continue;
+      table.pk.forEach((p, i) => {
+        const key = b.n + ':' + i;
+        if (lip || lipTried.has(key) || !table.openPocket(i)) return;
+        const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy);
+        if (d > p.cap + R * 2.6 || dx * b.vx + dy * b.vy <= 0) return;
+        lipTried.add(key);
+        const sim = cloneTable(table), sb = sim.balls[table.balls.indexOf(b)];
+        for (let n = 0; n < 4000 && sim.moving(); n++) sim.step();
+        const drops = sb.potted && sim.shot.pots.some(q => q.ball === sb && q.pocket === i);
+        if (drops || (!sb.potted && Math.hypot(sb.x - p.x, sb.y - p.y) < p.cap + R * 1.5)) lip = { n: b.n, i, drops, t: 0, beat: 0 };
+      });
+    }
+    if (lip) {
+      const b = table.balls.find(o => o.n === lip.n), p = table.pk[lip.i];
+      lip.t += dt; lip.beat -= dt;
+      if (lip.beat <= 0) { lip.beat = 0.5; tone(58, 0.16, 0.3, 'sine', 0.6, 0, 0); tone(52, 0.14, 0.22, 'sine', 0.6, 0.13, 0); buzz(12); }
+      const done = b.potted || (!b.vx && !b.vy) || lip.t > 5;
+      if (done) {
+        const fy = clamp(p.y + (p.y < H / 2 ? 80 : -80), 60, H - 60), fxp = clamp(p.x, 100, W - 100);
+        if (b.potted) { float(fxp, fy, 'It dropped!', '#2f6b4f', 28, 2); confettiBurst(60); fx.glow = 1; buzz([20, 30, 40]); }
+        else { float(fxp, fy, 'So close!', '#b8553f', 26, 2); tone(330, 0.5, 0.06, 'triangle', 0.6, 0, 0.3); p.wobble = 1; fx.shake = 3; catStartle = 1; }
+        lip = null;
+      } else { slow = true; tk = 1.5; tx = (b.x + clamp(p.x, 0, W)) / 2; ty = (b.y + clamp(p.y, 0, H)) / 2; }
+    }
   }
   // Fast-forward the dead time: a tap on the table (once the shot has rolled for 0.8 s) plays the rest at
   // 3×, and once everything is just creeping (under 35, after 2 s) it runs at 1.6× by itself. Otherwise the
@@ -3203,6 +3352,7 @@ function frame(now) {
     else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; } }
     const c = table.cue, last = curTrail?.pts[curTrail.pts.length - 1];
     if (curTrail && !c.potted && last && Math.hypot(c.x - last[0], c.y - last[1]) > 14) curTrail.pts.push([c.x, c.y]);
+    if (shotRec && shotRec.length < 3000) shotRec.push([c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.x, b.y, b.potted ? 1 : 0])]);
     if (!table.moving() && !(cine && cine.hold > 0)) resolveShot();
   }
   if (rollGain) {
@@ -3218,6 +3368,12 @@ function frame(now) {
     if (el) el.textContent = shownPts.toLocaleString();
     if (Math.abs(d) > 2 && audio && audio.currentTime - lastTick > 0.05) { lastTick = audio.currentTime; tone(1500 + Math.random() * 200, 0.012, 0.012, 'sine', 1, 0, 0); }
   }
+  // the replay plays the recorded shot at about half speed, then the shot is scored as usual
+  if (phase === 'replay') {
+    replay.i += dt * 60 * replay.speed;
+    if (replay.i >= replay.end) { replay = null; replayed = true; phase = 'moving'; resolveShot(); }
+  }
+  if (follow) follow.t += dt;
   tickDemo(dt); tickSpinDemo(dt);
   draw(t, dt);
   requestAnimationFrame(frame);

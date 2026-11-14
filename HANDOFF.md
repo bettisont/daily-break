@@ -378,6 +378,26 @@ shot is identical to before, checked on five days × six holes):
   later, 71–83% (was 84–88%); an off-centre hit's average push 0.5–0.9° (was 0.3–0.4°). A first try at 25% /
   25% / 30% left the timed player at 48% on hole 6, too harsh. An aim snap (settling onto pot lines within
   0.35°) was tried the same day and removed: with the glow it made aiming too easy.
+- Animation (14 Nov; short rounds only, all gated on `generous()`):
+  - Ball on the lip (`lip`, in `frame`): when an object ball rolls slowly (20–330) towards an open pocket from
+    within 2.6 ball radii, the rest of the shot is played out on a copy (once per ball and pocket per shot). If
+    it drops, or stops within 1.5 radii of the pocket, the table goes to slow motion with a push-in and a
+    heartbeat until it settles: "It dropped!" (confetti) or "So close!" (a groan, the jaws shiver: `p.wobble`,
+    and the cat flinches). It came up once in ~100 auto-played shots.
+  - Instant replay (`shotRec`, `startReplay`, phase `'replay'`): every frame of a shot is recorded; a trick
+    shot (`trickKinds`) is replayed at about half speed (capped near 5 s) up to just after the last pot,
+    titled "REPLAY · tap to skip" and the trick's name, before the shot is scored (`resolveShot` runs after
+    it; `replayed` stops it replaying twice). A tap skips it.
+  - Follow-through (`follow`, `drawCue(..., at, through)`): after the strike the cue drives on through where
+    the cue ball was (up to 70 px at full power), eases back and fades over 0.5 s; the camera pushes in a
+    little on the strike. Balls meeting harder than 250 flash, sized by speed (`fx.flashes`).
+  - Ball tray (`drawTray`, `trayFly`, `trayDone`): a slot per ball down the right-hand edge; a potted ball
+    flies there from its pocket once it has dropped and lands with a rising click. A resumed hole fills it.
+  - The cat (`catLook`, `catStartle`): its head turns towards the nearest rolling ball (room cat when a ball
+    is fast or it's startled; table cat when a ball is near), and hard hits or a ball stopping on the lip
+    make it flinch with its ears flat.
+  - Table slides (`slide`): after a hole the table slides off to the left (0.38 s, a whoosh) and the next slides
+    in from the right (0.5 s). The room stays put; the banner and stamp don't move.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
