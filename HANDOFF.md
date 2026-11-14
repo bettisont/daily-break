@@ -196,7 +196,8 @@ seven before any repeat, never the same twice running), the same for everyone, f
 Shapes (`SHAPES`, built by `mkShape`; each fits the 500 × 1000 box and has six pockets): ⬡ Hexagon (a
 pocket at each corner), ⯃ Octagon (pockets on the four diagonals plus two sides), ⌐ L-shape, ⧗ Hourglass
 (two chambers joined by a waist half the table's width; pockets on the two waist points), ⬭ Oval (pockets round the rim) and ⊡ Island (a classic
-table with a walnut block in the middle).
+table with a walnut block in the middle; from 14 Nov it's drawn as a raised block, with a drop shadow, a dark
+cushion, a bevelled grained top and cream sights, because players read the flat version as a mat, not a wall).
 
 - Physics: a shaped table's cushions are segments (`sh.segs`, with normals into the felt). A ball overlapping
   one is pushed off its nearest point and bounces off that normal (`Table.step`), which also rounds corners.
