@@ -3030,8 +3030,8 @@ function drawGuide(c, dx, dy, hit, t) {
       px = bo.x; py = bo.y; ux = bo.ux; uy = bo.uy;
     }
   };
-  // The ring, for a perfect strike with the spin you've set, played out in full (tilt and sand included): a
-  // pocket is ringed if the shot pots into it at some pace (GUIDE_PACES). It doesn't depend on how hard you pull:
+  // The ring, for a perfect strike with the spin you've set, played out in full (tilt and sand included): if the
+  // shot pots at some pace (GUIDE_PACES), the pocket it goes into at the pace nearest medium that pots is ringed. It doesn't depend on how hard you pull:
   // the guide shows where the shot goes, assuming the right pace; judging the pace is up to you.
   const sp = aim.spin;
   const shownPots = (a, pw) => {   // only pots the guide shows: cue ball and potted ball each off at most one cushion
@@ -3042,9 +3042,9 @@ function drawGuide(c, dx, dy, hit, t) {
   const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}:${sp.toFixed(2)}`;
   if (guideSim.key !== key) {
     guideSim.key = key; guideSim.range = {}; guideSim.nowKey = null;
-    let potPace = null;
+    let potPace = null; const at = {};
     for (const pw of GUIDE_PACES) {
-      const pk = shownPots(aim.angle, pw);
+      const pk = at[pw] = shownPots(aim.angle, pw);
       for (const i of pk) {
         const r = guideSim.range[i] = guideSim.range[i] || [pw, pw];
         r[0] = Math.min(r[0], pw); r[1] = Math.max(r[1], pw);
@@ -3053,10 +3053,13 @@ function drawGuide(c, dx, dy, hit, t) {
       if (pk.length && (potPace == null || Math.abs(pw - 0.45) < Math.abs(potPace - 0.45))) potPace = pw;
     }
     guideSim.mid = potPace;
+    // ring only what the line shows: the pocket(s) it pots into at that pace (a freak pot at a very hard or soft
+    // pace, say off a jaw into the next pocket, doesn't get a ring of its own)
+    guideSim.ringed = potPace == null ? [] : at[potPace];
   }
   if (guideSim.nowKey !== guideSim.key) {
     guideSim.nowKey = guideSim.key;
-    guideSim.pks = Object.keys(guideSim.range).map(Number);
+    guideSim.pks = guideSim.ringed;
     // the paths are drawn at the middle of the pace that pots, or else a firm pace (cut to a set length and faded),
     // so the line shows where the ball heads, not how far a soft hit happens to run
     const pots = guideSim.mid != null, pw = pots ? guideSim.mid : 0.85;

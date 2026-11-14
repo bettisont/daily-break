@@ -476,6 +476,9 @@ shot is identical to before, checked on five days × six holes):
   drawn, otherwise it's cut at its second cushion (a ball that rattles out of the jaws and back in still drops).
   Checked over 1,546 ringed aims (14–21 Nov): every one whose first ball drops ends its line in a ringed pocket
   (1,148); the other 398 are combinations, where another ball drops.
+- Only the pocket the line shows is ringed (`guideSim.ringed`): the pocket(s) potted at the drawing pace. It used to
+  ring every pocket the ball reached at any pace, so a freak hard-pace pot (off one jaw, along the cushion, into
+  the next pocket) ringed a second pocket. Aims with 2+ rings went from 143 to 10 of 1,546 (the 10 pot two balls).
 
 ## Release: the short round goes live (brought forward to the 14 Nov 2026 game)
 
