@@ -323,16 +323,20 @@ practice courses) change like this; other days and the live game are untouched (
 shot is identical to before, checked on five days × six holes):
 - At most `SHORT_MAX` (3) balls a table (`ballsFor`): holes have 1, 2, 3, 3, 3, 3 balls. Par is still the
   number of balls, +1 from hole 3 (`parOf` now takes the seed): 1, 2, 4, 4, 4, 4 = 19. Still six holes.
-- Holes 3–6 each get one feature, dealt for the day from `FEATURE_KEYS` (water, windmill, gate, sand, cat;
-  one sits out each day; `obstFor`). The random rough/slick felt patches are off on these days; tilt,
-  bumpers and closed pockets still appear.
-- Sand bunker (`placeFeature`): a `rough` patch with `bunker: true`, placed after the balls. It tries spots on
-  both legs (cue ball → ghost ball, object ball → pocket) of the best 8 open pots, each lying across its leg,
-  and keeps the one whose ellipse crosses the most pots weighted by `q`. Never over a pocket mouth or under
-  the cue ball. In testing it crossed 19 of the 23 best opening pots on its holes. `openingPot` and
-  `clearable` try a harder pace (0.7 / 0.75) on sand holes.
-- The cat (`placeFeature`, `Table.cat`, `Table.bumps`): it naps on the cue ball's path to the best pot (so that
-  pot is blocked) as a big soft bumper (`CAT_R` 30, restitution `CAT_E` 0.3). `Table.bumps` is the hole's
+- Holes 3–6 each get one feature, dealt for the day from `FEATURE_KEYS` (windmill, gate, sand, cat; all four
+  every day, shuffled; `obstFor`). No water: players found it annoying. The random rough/slick felt patches are
+  off on these days; tilt, bumpers and closed pockets still appear.
+- Placement (`placeFeature`, after the balls; 14 Nov): every feature goes where it gets in the way. Candidate
+  spots lie on both legs (cue ball → ghost ball, object ball → pocket) of the 8 best open pots, at 35/50/65%
+  along, and each is scored by the pots it affects weighted by `q`: sand by the legs crossing its ellipse
+  (85–110 across, 48–62 along, lying across the leg; never over a pocket mouth or under the cue ball), the
+  windmill by legs passing through its sweep, the cat and the gate (flap tried across the leg both ways and
+  ±0.6 rad) by pots they block outright, which must leave at least one open. Every spot keeps clear of balls,
+  pockets and bumpers. Share of the 4 best opening pots each one gets in the way of (15 days): sand 93%,
+  windmill 69%, gate 62%, cat 60%. When the windmill and gate were dropped at random they managed 29% and 10%.
+  `openingPot` and `clearable` try a harder pace (0.7 / 0.75) on sand holes.
+- The cat (`placeFeature`, `Table.cat`, `Table.bumps`): it naps where it blocks the most good pots (as many
+  as it can while leaving one open) as a big soft bumper (`CAT_R` 30, restitution `CAT_E` 0.3). `Table.bumps` is the hole's
   bumpers plus the cat, and physics, `trace`, `pathBlocked` and `respot` use it. Its eyes open when a ball
   rolls within 230 px. After a shot that hit it (`shot.catHit`, `catAfterShot`), it meows and hops to a new
   spot (seeded by day, hole and stroke), choosing one that blocks your best pot from the new cue position if it
@@ -342,8 +346,8 @@ shot is identical to before, checked on five days × six holes):
   starts (`catAnim`; `drawCat` hides the room cat while it's on the table). Not saved mid-hole: a reload puts
   it back where it started.
 - Intro and help text mention the three-ball cap and the features when it's on.
-- Testing (10 days, 60 holes): every hole had the right balls and its feature, a real opening pot, and was
-  clearable; generation 13 ms on average, 114 ms at worst. 280 random shots on cat holes (85 hit the cat):
+- Testing (15 days, 60 feature holes): every hole had its feature, a real opening pot, and was clearable;
+  generation 11 ms on average, 40 ms at worst. 280 random shots on cat holes (85 hit the cat):
   no ball ended inside the cat, no NaN.
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
   saved run changes mid-round). Open questions: seven holes instead of six (`HOLES`), and par on feature holes.

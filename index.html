@@ -321,9 +321,9 @@ const pocketsOf = h => h.shape ? h.shape.pockets : POCKETS;
 const OBSTACLES_ON = false, OBST_KEYS = ['none', 'water', 'windmill', 'gate'];
 const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way gate', sand: 'Sand bunker', cat: 'The cat' };
 // Shorter round (test; SHORT_ON is off in the live game, the test build turns it on): at most SHORT_MAX balls a
-// table, and holes 3-6 each get one feature, dealt for the day from water, windmill, gate, a sand bunker across
-// the best opening shot and the cat napping on the felt (one of the five sits out each day).
-const SHORT_ON = false, SHORT_FROM = '2026-11-15', SHORT_MAX = 3, FEATURE_KEYS = ['water', 'windmill', 'gate', 'sand', 'cat'];
+// table, and holes 3-6 each get one feature, dealt for the day: windmill, gate, a sand bunker and the cat, each
+// placed where it gets in the way of the good pots (placeFeature). No water: players found it annoying.
+const SHORT_ON = false, SHORT_FROM = '2026-11-15', SHORT_MAX = 3, FEATURE_KEYS = ['windmill', 'gate', 'sand', 'cat'];
 const shortSeed = seed => SHORT_ON && parSeed(seed) && (!isDailySeed(seed) || seed >= SHORT_FROM);
 const ballsFor = (seed, i) => Math.min(i + 1, shortSeed(seed) ? SHORT_MAX : MAX_BALLS);
 const featureName = h => h.obst ? OBST_NAMES[h.obst.type] : h.feature ? OBST_NAMES[h.feature] : '';
@@ -370,7 +370,7 @@ const holeCache = new Map();
 function makeHole(seed, i) {
   const key = `${seed}:${i}:${shapeOverride || ''}:${obstacleOverride || ''}`;
   if (holeCache.has(key)) return holeCache.get(key);
-  const n = ballsFor(seed, i), kind = obstFor(seed, i), needFeature = kind === 'sand' || kind === 'cat';
+  const n = ballsFor(seed, i), kind = obstFor(seed, i), needFeature = !!kind && shortSeed(seed);
   let h = null, fallback = null;
   for (let attempt = 0; attempt < 60; attempt++) {
     h = buildHole(seed, i, attempt);
@@ -439,7 +439,7 @@ function buildHole(seed, i, attempt) {
     return null;
   };
   const kind = obstFor(seed, i);
-  if (kind) {
+  if (kind && !shortSeed(seed)) {
     const orr = rngFor(`${seed}:obstacle:${i}` + (attempt ? `:${attempt}` : ''));
     const spot = (r, gen) => place(gen || (() => [80 + orr() * (W - 160), 220 + orr() * (H - 470)]), r, R * 1.5);
     if (kind === 'water') { const rx = 70 + orr() * 40, ry = 48 + orr() * 30, o = spot(Math.max(rx, ry)); if (o) obst = { type: 'water', x: o.x, y: o.y, rx, ry, rot: orr() * Math.PI }; }
@@ -475,50 +475,61 @@ function buildHole(seed, i, attempt) {
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
   const h = { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape, obst };
-  if (kind === 'sand' || kind === 'cat') placeFeature(h, kind, rngFor(`${seed}:feature:${i}` + (attempt ? `:${attempt}` : '')));
+  if (kind && shortSeed(seed)) placeFeature(h, kind, rngFor(`${seed}:feature:${i}` + (attempt ? `:${attempt}` : '')));
   return h;
 }
-// Sand and the cat go where they change the hole. Sand lies across the legs (cue ball to ghost ball, object ball
-// to pocket) of as many of the good opening pots as it can, so most ways of playing the hole go through it and
-// have to be hit harder. The cat naps on the cue ball's path to the best pot, so that one is blocked and you
-// need another (or a way round). makeHole then checks the hole still has a real opening pot and can be cleared.
+// On a short round the feature goes where it changes the hole, after the balls are down. Candidate spots lie on
+// both legs (cue ball to ghost ball, object ball to pocket) of the 8 best open pots, and each is scored by the
+// pots it gets in the way of, weighted by how good they are: sand by the legs that cross it, the windmill by the
+// legs that pass through its sweep, the cat and the gate by the pots they block outright. The cat and gate must
+// leave at least one of those pots open. makeHole then checks there's a real opening pot and it can be cleared.
 function placeFeature(h, kind, rr) {
-  const t = new Table(h), pks = pocketsOf(h);
-  const lines = allLines(t).filter(l => !l.blocked && l.cos > 0.55).sort((a, b) => b.q - a.q).slice(0, 3);
+  const t = new Table(h), pks = pocketsOf(h), c = t.cue;
+  const good = allLines(t).filter(l => !l.blocked && l.cos > 0.5).sort((a, b) => b.q - a.q).slice(0, 8);
+  if (!good.length) return;
+  const legsOf = l => { const b = t.balls[l.bi], P = pocketAim(l.pocket, h); return [[c.x, c.y, l.ghost.x, l.ghost.y, l.d1], [b.x, b.y, P.x, P.y, l.d2]]; };
   const onFelt = (x, y, m) => h.shape ? freeIn(h.shape, x, y, m) : x > m && x < W - m && y > m && y < H - m;
-  if (kind === 'sand') {
-    // try spots on both legs of the good pots, each lying across its leg, and keep the one that cuts across the
-    // most (weighted by how good each pot is), so most ways of playing the hole go through sand
-    const all = allLines(t).filter(l => !l.blocked && l.cos > 0.5).sort((a, b) => b.q - a.q).slice(0, 8), c = t.cue;
-    const legsOf = l => { const b = t.balls[l.bi], P = pocketAim(l.pocket, h); return [[c.x, c.y, l.ghost.x, l.ghost.y, l.d1], [b.x, b.y, P.x, P.y, l.d2]]; };
-    const crosses = (p, [ax, ay, bx, by]) => { for (let u = 0.05; u <= 0.95; u += 0.05) if (inPatch(p, ax + (bx - ax) * u, ay + (by - ay) * u)) return true; return false; };
-    let best = null;
-    for (const l of all) for (const [ax, ay, bx, by, len] of legsOf(l)) {
-      if (len < 170) continue;
-      for (const u of [0.35, 0.5, 0.65]) {
-        const x = ax + (bx - ax) * u, y = ay + (by - ay) * u, across = 70 + rr() * 25, along = 42 + rr() * 16;
-        const p = { type: 'rough', bunker: true, x, y, rx: across, ry: along, rot: Math.atan2(by - ay, bx - ax) + Math.PI / 2, seed: Math.floor(rr() * 1e6) };
-        if (pks.some(q => Math.hypot(q.x - x, q.y - y) < across + R * 2) || inPatch(p, c.x, c.y)) continue;
-        const score = all.reduce((a, m) => a + (legsOf(m).some(g => crosses(p, g)) ? m.q : 0), 0) + rr() * 0.01;
-        if (!best || score > best.score) best = { p, score };
+  // room round a spot: on the felt, off the pockets and bumpers, and clear of every ball (reach: how far it extends)
+  const clear = (x, y, reach) => onFelt(x, y, reach + 6) && pks.every(q => Math.hypot(q.x - x, q.y - y) > reach + R * 3) &&
+    h.bumpers.every(o => Math.hypot(o.x - x, o.y - y) > o.r + reach + 8) && [c, ...t.balls].every(o => Math.hypot(o.x - x, o.y - y) > reach + R + 6);
+  const blockedBy = extra => { const t2 = new Table({ ...h, ...extra }); return good.map(l => { const m = potLine(t2, l.bi, l.pocket); return !m || m.blocked; }); };
+  const crossesSand = (p, [ax, ay, bx, by]) => { for (let u = 0.05; u <= 0.95; u += 0.05) if (inPatch(p, ax + (bx - ax) * u, ay + (by - ay) * u)) return true; return false; };
+  let best = null;
+  const consider = (extra, hits) => {
+    const score = good.reduce((a, l, k) => a + (hits[k] ? l.q : 0), 0) + rr() * 0.001;
+    if (score > 0.001 && (!best || score > best.score)) best = { extra, score };
+  };
+  for (const l of good) for (const [ax, ay, bx, by, len] of legsOf(l)) {
+    if (len < 120) continue;
+    const across = Math.atan2(by - ay, bx - ax) + Math.PI / 2;
+    for (const u of [0.35, 0.5, 0.65]) {
+      const x = ax + (bx - ax) * u, y = ay + (by - ay) * u;
+      if (kind === 'sand') {
+        const p = { type: 'rough', bunker: true, x, y, rx: 85 + rr() * 25, ry: 48 + rr() * 14, rot: across, seed: Math.floor(rr() * 1e6) };
+        if (pks.some(q => Math.hypot(q.x - x, q.y - y) < p.rx + R * 2) || inPatch(p, c.x, c.y)) continue;
+        consider({ patches: [...h.patches, p], feature: 'sand' }, good.map(m => legsOf(m).some(g => crossesSand(p, g))));
+      } else if (kind === 'cat') {
+        if (!clear(x, y, CAT_R)) continue;
+        const extra = { cat: { x, y, r: CAT_R, cat: true, rot: rr() * TAU }, feature: 'cat' }, hits = blockedBy(extra);
+        if (hits.every(Boolean)) continue;
+        consider(extra, hits);
+      } else if (kind === 'windmill') {
+        const len = 62 + rr() * 18;
+        if (!clear(x, y, len + BAR_T)) continue;
+        consider({ obst: { type: 'windmill', x, y, len, a0: rr() * Math.PI }, feature: 'windmill' }, good.map(m => legsOf(m).some(([px, py, qx, qy]) => segDist(x, y, px, py, qx, qy) < len + BAR_T + R)));
+      } else if (kind === 'gate') {
+        const len = 70 + rr() * 20;
+        if (!clear(x, y, len + BAR_T)) continue;
+        // the flap from its hinge at (x, y): try it lying across this leg either way, and a couple of other angles
+        for (const a0 of [across, across + Math.PI, across + 0.6, across - 0.6]) {
+          const extra = { obst: { type: 'gate', x, y, len, a0, dir: rr() < 0.5 ? 1 : -1 }, feature: 'gate' }, hits = blockedBy(extra);
+          if (hits.every(Boolean)) continue;
+          consider(extra, hits);
+        }
       }
     }
-    if (best) { h.patches = [...h.patches, best.p]; h.feature = 'sand'; }
-    return;
   }
-  for (const l of lines) {
-    const b = t.balls[l.bi], P = pocketAim(l.pocket, h), c = t.cue;
-    const legs = [[c.x, c.y, l.ghost.x, l.ghost.y, l.d1], [b.x, b.y, P.x, P.y, l.d2]];
-    const [ax, ay, bx, by, len] = legs[0];
-    if (len < 4 * CAT_R + 2 * R) continue;
-    for (let k = 0; k < 6; k++) {
-      const u = 0.35 + rr() * 0.3, x = ax + (bx - ax) * u, y = ay + (by - ay) * u;
-      if (!onFelt(x, y, CAT_R + 4) || pks.some(q => Math.hypot(q.x - x, q.y - y) < CAT_R + R * 3) ||
-        [c, ...t.balls].some(o => Math.hypot(o.x - x, o.y - y) < CAT_R + R + 8) ||
-        h.bumpers.some(o => Math.hypot(o.x - x, o.y - y) < o.r + CAT_R + 10)) continue;
-      h.cat = { x, y, r: CAT_R, cat: true, rot: rr() * TAU }; h.feature = 'cat'; return;
-    }
-  }
+  if (best) Object.assign(h, best.extra);
 }
 
 class Table {
@@ -1835,7 +1846,7 @@ function showIntro() {
     <div class="k mono">Daily Break · daily pool</div>
     ${parSeed(todayKey()) ? `<h2>Six holes. Fewest shots wins.</h2>
     <div class="howto">
-      <p>⛳ Pool scored like golf. ${shortSeed(todayKey()) ? 'Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: sand, water, a windmill, a gate, or the cat.' : 'Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.'}</p>
+      <p>⛳ Pool scored like golf. ${shortSeed(todayKey()) ? 'Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: sand, a windmill, a gate or the cat.' : 'Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.'}</p>
       <p>🎱 Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>` : `<h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
@@ -1860,7 +1871,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      <p${OBSTACLES_ON || shortSeed(round?.seed) ? '' : ' hidden'}>💧 ${shortSeed(round?.seed) ? 'From hole 3 every hole has one thing in the way' : 'Some holes have an obstacle'}: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.${shortSeed(round?.seed) ? ' Or a <b>sand bunker</b> across the obvious shot (balls slow right down in sand), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.' : ''}</p>
+      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), a <b>windmill</b> that turns while the balls roll, a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
