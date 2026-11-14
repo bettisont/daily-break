@@ -386,7 +386,12 @@ shot is identical to before, checked on five days × six holes):
   the geometric line to the pocket's edge. This replaced a "stop the bounce line near pocket jaws" rule that hid
   half the line on kicks that really went in (the ring showed the pot, the line stopped). When nothing pots, the paths
   are simulated at a firm pace (0.85; the object ball's cut to 650 units, fading out) rather than medium, so the
-  line doesn't jump from long to short when a hair's aim change stops it potting. Of 55 potting kicks
+  line doesn't jump from long to short when a hair's aim change stops it potting.
+- One cushion at most (`GUIDE_CUSH` = 1, 14 Nov): the guide follows the cue ball and the object ball off one
+  cushion each, then stops; and the ring only lights for pots the guide shows (cue ball off ≤ 1 cushion before
+  its first ball, from `shot.kickCush`; potted ball off ≤ 1). Two-cushion shots are left to the player (they
+  still count as trick shots). Checked: ring on 103/103 straight pots, 54/54 one-cushion banks, 187/187
+  one-cushion kicks; 0/25 two-cushion banks and 0/123 two-cushion kicks. Of 55 potting kicks
   that bounce near a pocket, all now draw through to the ball.
 - Harder strike (14 Nov; `strikeK`, short rounds only): with a generous guide the skill moves to the strike.
   From hole 3 `strikeK` ramps 0 → 1 over holes 3–5 and the gold spot shrinks (`SPOT_SHRINK` 15%), the tip
