@@ -459,3 +459,19 @@ shot is identical to before, checked on five days × six holes):
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
   saved run changes mid-round). Open questions: seven holes instead of six (`HOLES`), and par on feature holes.
+
+## Release: the short round goes live (from the 15 Nov 2026 game)
+
+Merged 14 Nov at ~16:45 UTC. `SHORT_ON` is true and `SHORT_FROM` is 2026-11-15, so days up to 14 Nov (and saved
+rounds and results for them) are exactly as before (checked: 11–14 Nov identical to the previous build). From 15 Nov
+the daily game is the short round described above, with two changes from the playtest build:
+- No windmill: `FEATURE_KEYS` is gate, sand and cat, so holes 3–6 get one each and one comes up twice a day.
+- `TRICK_STARS` is false: trick shots still get the instant replay (titled with the shot, no ⭐), but no call-out,
+  no stars on the scorecard and nothing in the share text. Set it true to bring the stars back.
+Released with it: the raised island, the freeze safety net, golden pockets, the generous guide (one cushion,
+pocket ring, never starting lined up), the strike changes (harder from hole 3, Perfect bullseye, gentle Clean),
+and the animations (lip, replay, follow-through, flashes, tray, cat). Practice courses on random seeds use the short
+round straight away. Players already on 15 Nov in time zones ahead of UTC when this deployed could have seen their
+tables change mid-round (a resumed run whose ball count no longer matches starts the hole fresh).
+Checked before merging: 15–28 Nov all generate (84 holes, every feature placed, opener and clearable, golden pocket
+from hole 2, 10 ms average, 108 ms worst); full rounds of 15 and 16 Nov play through with no errors.
