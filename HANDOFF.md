@@ -435,6 +435,10 @@ shot is identical to before, checked on five days × six holes):
   republished mid-game, which reloads it, and the round carrying on from its save (with the since-removed
   slide-in). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat goes
   back to where it started the hole.
+- No pot lined up at the start (14 Nov; `startUnpotted`, `guidePots`, in `lineUp`, short rounds): each shot still
+  starts dead centre on the ball with the easiest pot, but if that would light a pocket's ring it's turned by the
+  smallest step (0.5°, up to 10° either way) that still hits that ball and doesn't pot. 90 holes checked: none
+  start lined up; 13 were nudged, 1.5° at most; 3 ms on average.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's

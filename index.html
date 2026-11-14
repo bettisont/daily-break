@@ -1162,7 +1162,25 @@ function startHole(i) {
 function lineUp() {
   phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
   if (firstShotEver() && strokes === 0) startOffTarget();
+  if (generous()) startUnpotted();
   updateUI();
+}
+// Short round: a shot never starts with a pot already lined up. If the starting aim (dead centre on the ball with
+// the easiest pot) would light a pocket's ring, turn it the smallest amount (0.5° steps, up to 10° either way)
+// that still hits that ball first but doesn't pot anything the guide would show.
+function guidePots(angle) {
+  return [0.3, 0.42, 0.6].some(pw => {
+    const s = simulate(table, angle, pw, 0);
+    return !s.shot.scratch && !!s.shot.firstHit && (s.shot.kickCush || 0) <= GUIDE_CUSH && s.shot.pots.some(q => (q.ball.cush || 0) <= GUIDE_CUSH);
+  });
+}
+function startUnpotted() {
+  if (!guidePots(aim.angle)) return;
+  const target = table.balls[aim.bi], a0 = aim.angle, c = table.cue;
+  for (let k = 1; k <= 20; k++) for (const sg of [1, -1]) {
+    const a = a0 + sg * k * 0.5 * Math.PI / 180, h = trace(table, c.x, c.y, Math.cos(a), Math.sin(a));
+    if (h.ball === target && !guidePots(a)) { aim.angle = a; return; }
+  }
 }
 // A new player's first shot starts 3.5° off the best pot line (still on the ball), so the aim lesson has a miss to fix.
 function startOffTarget() {
