@@ -64,19 +64,8 @@
   #card9 .c.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #card9 .c.b1 .v{color:#2f6b4f} #card9 .c.b2 .v{color:var(--gold)} #card9 .c.o1 .v{color:var(--red)}
   #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:crosshair}
-  /* quick-shot prototype (?quick): the shot is lined up for you; a power meter and one button do the rest */
+  /* quick-shot prototype (?quick): no control panel, one drag on the table does it all */
   body.quick #controls{display:none}
-  #quickBar{display:none;width:min(100%,640px);margin-inline:auto;background:var(--panel);border-top:1px solid var(--line);
-    padding:12px 16px max(12px,env(safe-area-inset-bottom));gap:12px;align-items:center;grid-template-columns:1fr 112px}
-  body.quick #quickBar{display:grid}
-  #qMeter{position:relative;height:56px;border-radius:14px;background:#2f3a31;box-shadow:inset 0 2px 8px rgba(0,0,0,.35);overflow:hidden;touch-action:none}
-  #qZone{position:absolute;top:0;bottom:0;background:rgba(98,190,120,.55);border-left:2px solid #8fe0a4;border-right:2px solid #8fe0a4;transition:left .15s,width .15s}
-  #qMark{position:absolute;top:4px;bottom:4px;width:6px;margin-left:-3px;border-radius:3px;background:#fbf8f0;box-shadow:0 0 8px rgba(255,255,255,.7)}
-  #qLabs{position:absolute;inset:auto 10px 4px;display:flex;justify-content:space-between;font:500 9px 'DM Mono',monospace;letter-spacing:.08em;color:rgba(251,248,240,.55);pointer-events:none}
-  #qShoot{height:56px;border:0;border-radius:14px;background:#2f6b4f;color:#fbf8f0;font:800 18px 'DM Sans',sans-serif;box-shadow:0 3px 0 #1d4a35;touch-action:none;cursor:pointer}
-  #qShoot.stop{background:#c4472f;box-shadow:0 3px 0 #86372b}
-  #qShoot:disabled{opacity:.5}
-  #qShoot:focus-visible{outline:3px solid #e2b13c;outline-offset:2px}
   #quickHint{display:none;position:absolute;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);pointer-events:none;
     background:rgba(29,37,31,.6);color:#fbf8f0;font:600 12.5px 'DM Sans',sans-serif;padding:6px 13px;border-radius:999px;white-space:nowrap;transition:opacity .2s}
   body.quick #quickHint{display:block}
@@ -194,7 +183,6 @@
     <div id="pull" class="pulse" title="Pull down, let go to shoot (or hold Space)"><div id="pullFill"></div><div id="pullCue"></div><div id="pullLab"></div></div>
     <button id="act">…</button>
   </div>
-  <div id="quickBar"><div id="qMeter"><div id="qZone"></div><div id="qMark"></div><div id="qLabs"><span>SOFT</span><span>MEDIUM</span><span>HARD</span></div></div><button id="qShoot">Shoot</button></div>
 </div>
 <div id="overlay"><div class="card" id="card"></div></div>
 
@@ -813,7 +801,7 @@ function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); l
 // shoot. No spin, no timing wobble, and the aim snaps onto a pot line when it's close. Plays today's tables
 // unranked: nothing is saved, tracked or sent.
 const QUICK = new URLSearchParams(location.search).has('quick');
-const QUICK_T = 0.42, SWEEP_T = 1.7;   // the strike's length; one full sweep of the power marker, soft to hard and back
+const QUICK_PULL = 170, QUICK_DEAD = 14, SNAP_IN = 2.5 * Math.PI / 180, SNAP_OUT = 4 * Math.PI / 180, QUICK_T = 0.42;
 const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
 // The table plays at 0.75x so there's time to watch the balls; outcomes are unchanged.
@@ -1088,7 +1076,6 @@ function startHole(i) {
 function lineUp() {
   phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
   if (!QUICK && firstShotEver() && strokes === 0) startOffTarget();
-  if (QUICK) quickTarget(aim.bi, true);
   updateUI();
 }
 // A new player's first shot starts 3.5° off the best pot line (still on the ball), so the aim lesson has a miss to fix.
@@ -1794,11 +1781,11 @@ function showFinal(already) {
 function showQuickIntro() {
   $('card').innerHTML = `
     <div class="k mono">Daily Break · quick shot (test)</div>
-    <h2>Two taps per shot.</h2>
+    <h2>One move per shot.</h2>
     <div class="howto">
-      <p>🎯 Every shot starts lined up on a pot. Tap another ball to aim at that one instead, or tap it again to try a different pocket.</p>
-      <p>💪 Tap <b>Shoot</b> and the power marker starts moving. Tap <b>Stop</b> while it's in the green zone to pot the ball.</p>
-      <p>👉 Want to fine-tune the line? Drag anywhere on the table.</p>
+      <p>👆 Put your thumb anywhere on the table and drag <b>back</b>, away from where you want the ball to go.</p>
+      <p>💪 The further you drag, the harder the shot. Let go to shoot.</p>
+      <p>✨ Get close to a pot and the aim locks on. Drag back to where you started to cancel.</p>
       <p>🧪 Today's tables, just for testing: this doesn't count towards your daily result.</p>
     </div>
     <div class="row"><button class="btn primary" data-qclose>Let's play</button></div>`;
@@ -1927,13 +1914,14 @@ stage.addEventListener('pointerdown', e => {
   if (phase !== 'aim') return;
   const p = toWorld(e), c = table.cue;
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, a: Math.atan2(p.y - c.y, p.x - c.x) };
-  if (qSweep) return;
+  if (QUICK) Object.assign(drag, { quick: true, p0: p, p, a0: aim.angle, bi0: aim.bi, lines: allLines(table).filter(l => !l.blocked), snap: null });
   try { stage.setPointerCapture(e.pointerId); } catch {}
 });
 stage.addEventListener('pointermove', e => {
   if (!drag || e.pointerId !== drag.id || phase !== 'aim') return;
   if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
   drag.moved = true;
+  if (drag.quick) { quickAim(toWorld(e)); return; }
   const p = toWorld(e), c = table.cue, a = Math.atan2(p.y - c.y, p.x - c.x);
   let da = a - drag.a; da = Math.atan2(Math.sin(da), Math.cos(da));
   drag.a = a;
@@ -1944,81 +1932,54 @@ stage.addEventListener('pointermove', e => {
 });
 stage.addEventListener('pointerup', e => {
   if (!drag || e.pointerId !== drag.id) return;
-  const moved = drag.moved; drag = null;
-  if (moved && QUICK) quickZone();
+  const moved = drag.moved, qd = drag.quick && drag; drag = null;
+  if (qd && moved) { quickLetGo(qd); return; }
   if (moved || phase !== 'aim') return;
   const p = toWorld(e);
   let bi = -1, bd = R * 3;   // generous, so a thumb can pick a ball
   table.balls.forEach((b, k) => { if (!b.potted) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; bi = k; } } });
   const g = isPar() && gimmes.find(o => o.bi === bi);
   if (g) { tapIn(g); return; }
-  if (bi >= 0 && QUICK) { quickTarget(bi); return; }
   if (bi >= 0) { focusBall(bi); ls('dailybreak:tappedBall', '1'); }
 });
-stage.addEventListener('pointercancel', () => { drag = null; });
+stage.addEventListener('pointercancel', () => { if (drag?.quick) quickCancel(drag); drag = null; });
 
-// Quick shot. Aim: each shot starts lined up on the best pot; tapping a ball lines up its best pot, and
-// tapping it again tries its next pocket (a ball with no open pot gets a dead-centre hit). Dragging on the
-// felt still nudges the line. Power: Shoot starts a marker sweeping soft to hard and back; Stop (or Space)
-// shoots at that pace. The green zone is every pace that pots the ball on this line (cue ball centre hit).
-let qSweep = null, qZoneT = 0, qLine = null, qNoPot = false;
-function quickTarget(bi, quiet) {
-  if (phase !== 'aim' || qSweep || bi < 0) return;
-  const lines = allLines(table).filter(l => l.bi === bi && !l.blocked).sort((a, b) => b.q - a.q);
-  if (!lines.length) { focusBall(bi, quiet); qLine = null; quickZone(); return; }
-  const k = !quiet && qLine && qLine.bi === bi ? (lines.findIndex(l => Math.abs(angDiff(l.angle, qLine.angle)) < 1e-6) + 1) % lines.length : 0;
-  qLine = lines[k];
-  aim.bi = bi; aim.angle = qLine.angle; aim.spotY = 0; aim.spin = 0;
-  if (!quiet) { tone(1175, 0.06, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
-  quickZone(); updateUI();
-}
-// the paces that pot the targeted ball on the current line, worked out a moment after the aim settles
-function quickZone() {
-  clearTimeout(qZoneT);
-  $('qZone').style.width = '0'; qNoPot = false;
-  qZoneT = setTimeout(() => {
-    if (phase !== 'aim' || !table) return;
-    const ok = [];
-    for (let pw = 0.05; pw <= 1.001; pw += 0.025) { const s = simulate(table, aim.angle, pw, 0); ok.push(!s.shot.scratch && s.balls[aim.bi] && s.balls[aim.bi].potted && !table.balls[aim.bi].potted); }
-    // the longest run of paces that pot it
-    let best = null;
-    for (let i = 0; i < ok.length; i++) if (ok[i]) { let j = i; while (j + 1 < ok.length && ok[j + 1]) j++; if (!best || j - i > best[1] - best[0]) best = [i, j]; i = j; }
-    const z = $('qZone');
-    qNoPot = !best;
-    if (best) { const a = 0.05 + best[0] * 0.025 - 0.0125, b = 0.05 + best[1] * 0.025 + 0.0125; z.style.left = `${clamp(a, 0, 1) * 100}%`; z.style.width = `${(clamp(b, 0, 1) - clamp(a, 0, 1)) * 100}%`; }
-    quickHint();
-  }, 120);
-}
-function quickShoot() {
-  ensureAudio();
+// Quick shot: the shot goes the opposite way to your drag (a slingshot), and the drag's length is the power.
+// Within 2.5° of a pot line the aim locks onto it (and lets go again past 4°), with a click to say so.
+function quickAim(p) {
   if (phase !== 'aim') return;
-  if (!qSweep) { qSweep = { t: 0 }; aim.spotY = 0; aim.spin = 0; sfx.click(); buzz(6); updateUI(); return; }
-  qSweep = null;
-  if (power < MIN_PULL) power = MIN_PULL;
+  drag.p = p;
+  const dx = drag.p0.x - p.x, dy = drag.p0.y - p.y, len = Math.hypot(dx, dy) * view.s;
+  if (len < QUICK_DEAD) { if (power) { setPower(0); drag.snap = null; } quickHint(); return; }
+  let a = Math.atan2(dy, dx), snap = drag.snap && Math.abs(angDiff(drag.snap.angle, a)) < SNAP_OUT ? drag.snap : null;
+  if (!snap) {
+    let bd = SNAP_IN;
+    for (const l of drag.lines) { const d = Math.abs(angDiff(l.angle, a)); if (d < bd) { bd = d; snap = l; } }
+    if (snap) { tone(1318, 0.05, 0.05, 'sine', 1, 0, 0.3); buzz(8); }
+  }
+  drag.snap = snap;
+  if (snap) { a = snap.angle; aim.bi = snap.bi; }
+  else { const hit = trace(table, table.cue.x, table.cue.y, Math.cos(a), Math.sin(a)), k = table.balls.indexOf(hit.ball); if (k >= 0) aim.bi = k; }
+  aim.spotY = 0; aim.spin = 0;
+  setAngle(a);
+  setPower(clamp((len - QUICK_DEAD) / QUICK_PULL, 0, 1));
+  quickHint();
+}
+function quickCancel(d) { power = 0; aim.angle = d.a0; aim.bi = d.bi0; updateUI(); }
+function quickLetGo(d) {
+  if (phase !== 'aim' || power < MIN_PULL) { quickCancel(d); return; }
+  aim.spotY = 0; aim.spin = 0;
   release();
 }
-function tickQuick(dt) {
-  if (!QUICK) return;
-  if (qSweep && phase === 'aim') {
-    qSweep.t += dt;
-    const k = (qSweep.t / SWEEP_T) % 1;
-    power = clamp(0.02 + 0.98 * (k < 0.5 ? k * 2 : 2 - k * 2), 0, 1);
-  } else if (qSweep) qSweep = null;
-  $('qMark').style.left = `${power * 100}%`;
-}
-$('qShoot').addEventListener('pointerdown', e => { e.preventDefault(); quickShoot(); });
-$('qShoot').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); quickShoot(); } });
 function quickHint() {
   const el = $('quickHint');
   if (!QUICK || !el || !table) return;
-  const btn = $('qShoot');
-  btn.textContent = qSweep ? 'Stop' : 'Shoot'; btn.classList.toggle('stop', !!qSweep); btn.disabled = phase !== 'aim';
+  const q = drag?.quick && drag.moved;
   el.textContent = phase === 'moving' ? 'Tap to speed up'
     : phase !== 'aim' ? ''
-    : qSweep ? 'Stop it in the green'
-    : gimmes.length ? 'Tap the glowing ball to tap in'
-    : qNoPot ? 'No pot on this line · tap another ball'
-    : 'Tap a ball to aim at it · then Shoot';
+    : q ? (power < MIN_PULL ? 'Pull back further · let go here to cancel' : `${paceName(power)}${drag.snap ? ' · lined up ✓' : ''}`)
+    : gimmes.length ? 'Tap the glowing ball to tap in · or drag back to shoot'
+    : 'Drag back anywhere · let go to shoot';
 }
 
 // The aim strip: swipe left or right like a scroll wheel. Slow swipes are fine (0.04° a pixel);
@@ -2136,8 +2097,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Space' || e.key === 'Enter') {
     e.preventDefault();
     if (e.repeat) return;
-    if (phase === 'aim' && e.code === 'Space' && QUICK) quickShoot();
-    else if (phase === 'aim' && e.code === 'Space') startHold(null, 0, lastPower);   // hold Space, let go to shoot
+    if (phase === 'aim' && e.code === 'Space') startHold(null, 0, lastPower);   // hold Space, let go to shoot
     else if (actBtn.classList.contains('show')) act();
   }
   else if (hold?.kb && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); setPower(power + (e.key === 'ArrowDown' ? 0.05 : -0.05)); }
@@ -2874,7 +2834,26 @@ function draw(t, dt) {
   }
 
   drawAim(t);
+  if (drag?.quick && drag.moved && phase === 'aim' && power >= MIN_PULL) {
+    ctx.save(); ctx.strokeStyle = drag.snap ? 'rgba(226,177,60,.75)' : 'rgba(251,248,240,.45)'; ctx.lineWidth = 3; ctx.setLineDash([2, 8]); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(drag.p0.x, drag.p0.y); ctx.lineTo(drag.p.x, drag.p.y); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(drag.p0.x, drag.p0.y, 6, 0, TAU); ctx.fill(); ctx.restore();
+  }
 
+  for (const b of table.live()) updateSpin(b, dt);
+  // potted balls swirl down into the pocket as they shrink
+  for (const sk of fx.sinks) {
+    sk.t += dt / 0.36;
+    const k = Math.min(1, sk.t) ** 1.6, a = k * 2.6, dx = (sk.x - sk.tx) * (1 - k), dy = (sk.y - sk.ty) * (1 - k);
+    drawBall(sk.b, sk.tx + dx * Math.cos(a) - dy * Math.sin(a), sk.ty + dx * Math.sin(a) + dy * Math.cos(a), 1 - 0.6 * k, 1 - k * k);
+  }
+  for (const p of table.pk) if (p.glow > 0) {
+    p.glow = Math.max(0, p.glow - dt * 1.8);
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.cap * 2.4);
+    g.addColorStop(0, `rgba(255,214,120,${0.55 * p.glow})`); g.addColorStop(1, 'rgba(255,214,120,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap * 2.4, 0, TAU); ctx.fill();
+  }
+  // spin taking hold: gold arcs whirl round the cue ball (back for draw, forward for follow)
   if (spinFx && !table.cue.potted) {
     spinFx.t += dt;
     const k = spinFx.t / 0.7, c = table.cue, dir = spinFx.kind === 'draw' ? -1 : 1;
@@ -3036,7 +3015,7 @@ function frame(now) {
     if (el) el.textContent = shownPts.toLocaleString();
     if (Math.abs(d) > 2 && audio && audio.currentTime - lastTick > 0.05) { lastTick = audio.currentTime; tone(1500 + Math.random() * 200, 0.012, 0.012, 'sine', 1, 0, 0); }
   }
-  tickDemo(dt); tickSpinDemo(dt); tickQuick(dt);
+  tickDemo(dt); tickSpinDemo(dt);
   draw(t, dt);
   requestAnimationFrame(frame);
 }
