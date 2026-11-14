@@ -362,6 +362,16 @@ shot is identical to before, checked on five days × six holes):
   scorecard and the share text ("⭐×2 trick shots"). Of 335 ordinary direct pots, 3 were flagged (as banks).
   A trick-shot hole (a layout with a lined-up double on hole 6) was tried the same day and dropped: too easy,
   and trick shots should count on every hole.
+- Generous guide (14 Nov; `generous`, `drawGuide`, short rounds only): the idea is less squinting at a line
+  and more imagining the shot. The cue ball's line carries on once off a cushion or bumper to the next ball
+  (kicks), and the object ball's line goes to the pocket, or once off a cushion (banks), or to the next ball,
+  whose line it also shows (combinations). The lines are geometry only (`bounceOff` mirrors off the cushion
+  normal that `trace` now returns; bars stop them). A pocket glows green when a clean centre-ball hit on this
+  line really pots into it at a soft, medium or firm pace (`guideSim`: three `simulate` runs, redone only when
+  the aim moves, tilt and sand included). That's simulated because the geometric "heading into a pocket"
+  test was right only ~70% of the time at any tolerance. Nothing shows where balls stop.
+- Aim snap (`turnAim`, short rounds only): aim moves (strip, arrows, felt drag) settle onto any open pot line
+  within 0.35° with a click and hold there for ~0.7° of turning, then let go (`aimRaw` tracks your input).
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's

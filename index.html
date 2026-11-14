@@ -827,12 +827,12 @@ function trace(t, px, py, dx, dy, skip = null) {
   for (const o of t.bumps) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
   for (const [ax, ay, bx, by, solid] of obstBars(t)) { const s = rayBar(px, py, dx, dy, ax, ay, bx, by, BAR_T, solid); if (s < best.t) best = { t: s, wall: true }; }
   if (t.hole.shape) {
-    for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true }; }
+    for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true, nx: g.nx, ny: g.ny }; }
     return best;
   }
   const tx = dx > 0 ? (W - R - px) / dx : dx < 0 ? (R - px) / dx : Infinity;
   const ty = dy > 0 ? (H - R - py) / dy : dy < 0 ? (R - py) / dy : Infinity;
-  if (Math.min(tx, ty) < best.t) best = { t: Math.min(tx, ty), wall: true };
+  if (Math.min(tx, ty) < best.t) best = tx < ty ? { t: tx, wall: true, nx: dx > 0 ? -1 : 1, ny: 0 } : { t: ty, wall: true, nx: 0, ny: dy > 0 ? -1 : 1 };
   return best;
 }
 
@@ -1153,6 +1153,7 @@ function startHole(i) {
 
 // Each shot starts lined up dead centre on the ball with the easiest pot.
 function lineUp() {
+  aimLines = null; aimRaw = null; aimSnap = null;
   phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
   if (firstShotEver() && strokes === 0) startOffTarget();
   updateUI();
@@ -1221,7 +1222,22 @@ function setAngle(a) {
   if (Math.round(aim.angle / TICK) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; sfx.tick(); buzz(2); }
   updateAimUI();
 }
-const turnAim = da => setAngle(aim.angle + da);
+const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+const SNAP = 0.35 * Math.PI / 180;
+let aimRaw = null, aimSnap = null, aimLines = null;
+function turnAim(da) {
+  if (!generous()) return setAngle(aim.angle + da);
+  // aimRaw is where your input has taken the aim; if something else moved the aim, start again from there
+  if (aimRaw == null || Math.abs(angDiff(aimRaw, aim.angle)) > SNAP * 3) aimRaw = aim.angle;
+  aimRaw = Math.atan2(Math.sin(aimRaw + da), Math.cos(aimRaw + da));
+  aimLines = aimLines || allLines(table).filter(l => !l.blocked);
+  let best = null, bd = SNAP;
+  for (const l of aimLines) { const d = Math.abs(angDiff(l.angle, aimRaw)); if (d < bd) { bd = d; best = l; } }
+  const key = best && `${best.bi}:${best.pocket}`;
+  if (best && key !== aimSnap) { tone(1568, 0.05, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
+  aimSnap = key;
+  setAngle(best ? best.angle : aimRaw);
+}
 // The aim offset from dead centre on the focused ball, in degrees (+ is right of centre, from behind the cue ball).
 function aimOffset() {
   // measured from the ball the line actually hits (not the one first targeted), so it never reads 115°
@@ -2753,6 +2769,7 @@ function drawAim(t) {
     ctx.beginPath(); ctx.arc(fb.x, fb.y, R + 7, 0, TAU); ctx.stroke(); ctx.restore();
   }
   const hit = trace(table, c.x, c.y, dx, dy), gx = c.x + dx * hit.t, gy = c.y + dy * hit.t;
+  if (generous()) { drawGuide(c, dx, dy, hit, t); return; }
   ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(c.x + dx * R, c.y + dy * R); ctx.lineTo(gx, gy); ctx.stroke(); ctx.restore();
   ctx.strokeStyle = 'rgba(251,248,240,.9)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gx, gy, R, 0, TAU); ctx.stroke();
@@ -2762,6 +2779,90 @@ function drawAim(t) {
     g.addColorStop(0, 'rgba(251,248,240,.9)'); g.addColorStop(1, 'rgba(251,248,240,0)');
     ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(b.x + nx * (R + 3), b.y + ny * (R + 3)); ctx.lineTo(b.x + nx * len, b.y + ny * len); ctx.stroke();
+  }
+}
+// The generous guide (short round): the lines are simple geometry, but they follow the cue ball and the object
+// ball once off a cushion or bumper (so banks and kicks can be seen) and show a combination's second ball. A
+// pocket lights up when a clean centre-ball hit on this line really pots into it at some sensible pace (that's
+// simulated: lines alone were right only ~70% of the time). It never shows where the balls stop.
+const generous = () => isPar() && !!round && shortSeed(round.seed);
+function bounceOff(px, py, ux, uy, h) {
+  if (!isFinite(h.t)) return null;
+  const x = px + ux * h.t, y = py + uy * h.t;
+  let nx = h.nx, ny = h.ny;
+  if (h.bumper) { const d = Math.hypot(x - h.bumper.x, y - h.bumper.y) || 1; nx = (x - h.bumper.x) / d; ny = (y - h.bumper.y) / d; }
+  if (nx == null) return null;   // a windmill or gate bar: the guide stops there
+  const k = ux * nx + uy * ny;
+  return { x: x + nx * 0.5, y: y + ny * 0.5, ux: ux - 2 * k * nx, uy: uy - 2 * k * ny };
+}
+// the open pocket a ball's centre would drop into along (ux, uy) before travelling maxT (plus the pocket's reach)
+function pocketAlong(px, py, ux, uy, maxT) {
+  let best = null;
+  table.pk.forEach((p, i) => {
+    if (!table.openPocket(i)) return;
+    const s = (p.x - px) * ux + (p.y - py) * uy;
+    if (s < 0 || s > maxT + p.cap + R) return;
+    if (Math.abs((p.x - px) * uy - (p.y - py) * ux) < p.cap * 0.85 && (!best || s < best.s)) best = { i, s };
+  });
+  return best;
+}
+const guideSim = { key: null, pks: [] };
+function drawGuide(c, dx, dy, hit, t) {
+  const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = `rgba(251,248,240,${a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
+  const ghost = (x, y, a) => { ctx.strokeStyle = `rgba(251,248,240,${a})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.stroke(); };
+  const solid = (ax, ay, bx, by, a0, a1, w = 3) => {
+    const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, `rgba(251,248,240,${a0})`); g.addColorStop(1, `rgba(251,248,240,${a1})`);
+    ctx.strokeStyle = g; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  };
+  const glowPocket = i => {
+    const p = table.pk[i], k = 0.7 + 0.3 * Math.sin(t * 6);
+    const g = ctx.createRadialGradient(p.x, p.y, p.cap * 0.5, p.x, p.y, p.cap * 2.2);
+    g.addColorStop(0, `rgba(170,240,180,${0.75 * k})`); g.addColorStop(1, 'rgba(170,240,180,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap * 2.2, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(200,255,205,${0.9 * k})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, p.cap + 2, 0, TAU); ctx.stroke();
+  };
+  // the object ball: to a pocket (which lights up), to another ball (a combination: its line too), or off one cushion
+  const objectPath = (ball, gx, gy) => {
+    let px = ball.x, py = ball.y, ux = (ball.x - gx) / (2 * R), uy = (ball.y - gy) / (2 * R);
+    for (let leg = 0; leg < 2; leg++) {
+      const h = trace(table, px, py, ux, uy, ball), pk = pocketAlong(px, py, ux, uy, h.t), end = pk ? pk.s : Math.min(h.t, 900);
+      const a0 = leg ? 0.6 : 0.9, from = leg ? 0 : R + 3;
+      solid(px + ux * from, py + uy * from, px + ux * end, py + uy * end, a0, pk ? a0 : a0 * 0.35);
+      if (pk) return;
+      if (h.ball) {
+        const cx = px + ux * h.t, cy = py + uy * h.t, b2 = h.ball, nx = (b2.x - cx) / (2 * R), ny = (b2.y - cy) / (2 * R);
+        ghost(cx, cy, 0.6);
+        const h2 = trace(table, b2.x, b2.y, nx, ny, b2), p2 = pocketAlong(b2.x, b2.y, nx, ny, h2.t), e2 = p2 ? p2.s : Math.min(h2.t, 160);
+        solid(b2.x + nx * (R + 3), b2.y + ny * (R + 3), b2.x + nx * e2, b2.y + ny * e2, 0.6, p2 ? 0.6 : 0.1, 2.5);
+        return;
+      }
+      const bo = bounceOff(px, py, ux, uy, h);
+      if (!bo) return;
+      px = bo.x; py = bo.y; ux = bo.ux; uy = bo.uy;
+    }
+  };
+  // the pockets a clean centre-ball hit on this line really pots into, at a soft, medium or firm pace (played out
+  // in full, tilt and sand included, but only when the aim moves), so a lit pocket means it can go in
+  const key = `${aim.angle}:${strokes}:${round.level}`;
+  if (guideSim.key !== key) {
+    guideSim.key = key; guideSim.pks = [];
+    for (const pw of [0.3, 0.42, 0.6]) {
+      const s = simulate(table, aim.angle, pw, 0);
+      if (s.shot.scratch || !s.shot.firstHit) continue;
+      for (const q of s.shot.pots) if (!guideSim.pks.includes(q.pocket)) guideSim.pks.push(q.pocket);
+    }
+  }
+  guideSim.pks.forEach(glowPocket);
+  // the cue ball: to the first thing it meets, or once off a cushion and on to whatever it meets next
+  let px = c.x, py = c.y, ux = dx, uy = dy, h = hit;
+  for (let leg = 0; leg < 2; leg++) {
+    const ex = px + ux * Math.min(h.t, 1200), ey = py + uy * Math.min(h.t, 1200), a = leg ? 0.6 : 0.85;
+    dash(px + ux * (leg ? 0 : R), py + uy * (leg ? 0 : R), ex, ey, a);
+    ghost(ex, ey, h.ball ? a : 0.4);
+    if (h.ball) { objectPath(h.ball, ex, ey); return; }
+    const bo = leg ? null : bounceOff(px, py, ux, uy, h);
+    if (!bo) return;
+    px = bo.x; py = bo.y; ux = bo.ux; uy = bo.uy; h = trace(table, px, py, ux, uy);
   }
 }
 // Gimmes glow green with a "Tap in" label; tapping one pots it for a stroke.
