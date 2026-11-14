@@ -460,6 +460,17 @@ shot is identical to before, checked on five days × six holes):
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
   saved run changes mid-round). Open questions: seven holes instead of six (`HOLES`), and par on feature holes.
 
+## Guide fixes after release (14 Nov, evening)
+
+- The object ball's simulated line is drawn the same whether or not it pots (`GUIDE_OBJ_LEN` 2600: to its second
+  cushion, the pocket or a stop; only a line that runs out without a pocket fades over its last 30%). Before, a
+  near miss drew a short faded line and a pot a long bright one, so lining up a pot made the whole line flicker on.
+- The guide counts cushions its own way (`wallPts`, `guideWalls`, `rollingWalls`): every contact, including in a
+  pocket's jaws, except touches in the jaws of the pocket the ball then drops into. Corner ricochets used to go
+  uncounted (the bank rule skips jaw touches), so a two-cushion pot off a corner lit the ring as if it were one
+  cushion and the line ran on. Checked: straight pots 66/66 ringed, clean one-cushion kicks 88/88, clean
+  one-cushion banks 22/22.
+
 ## Release: the short round goes live (from the 15 Nov 2026 game)
 
 Merged 14 Nov at ~16:45 UTC. `SHORT_ON` is true and `SHORT_FROM` is 2026-11-15, so days up to 14 Nov (and saved
