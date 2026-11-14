@@ -1088,7 +1088,7 @@ function startHole(i) {
 function lineUp() {
   phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
   if (!QUICK && firstShotEver() && strokes === 0) startOffTarget();
-  if (QUICK) quickTarget(aim.bi, true);
+  if (QUICK) quickLineUp();
   updateUI();
 }
 // A new player's first shot starts 3.5° off the best pot line (still on the ball), so the aim lesson has a miss to fix.
@@ -1962,10 +1962,52 @@ stage.addEventListener('pointercancel', () => { drag = null; });
 // felt still nudges the line. Power: Shoot starts a marker sweeping soft to hard and back; Stop (or Space)
 // shoots at that pace. The green zone is every pace that pots the ball on this line (cue ball centre hit).
 let qSweep = null, qZoneT = 0, qLine = null, qNoPot = false;
-function quickTarget(bi, quiet) {
+// A line only counts if playing it out (centre hit, a spread of paces) actually pots the ball without a scratch.
+const Q_PACES = [0.2, 0.3, 0.4, 0.5, 0.62, 0.75, 0.9];
+const linePots = (t, l, paces = Q_PACES) => paces.some(pw => { const s = simulate(t, l.angle, pw, 0); return !s.shot.scratch && s.balls[l.bi].potted; });
+function pottableLines(bi, t = table, max = 12, paces) {
+  return allLines(t).filter(l => !l.blocked && (bi == null || l.bi === bi)).sort((a, b) => b.q - a.q).slice(0, max).filter(l => linePots(t, l, paces));
+}
+// Start each shot on the best real pot. If nothing on the table can be potted from where the cue ball
+// stopped, it's ball in hand: the cue ball moves to the nearest spot that gives one.
+function quickLineUp() {
+  let lines = pottableLines();
+  if (!lines.length && ballInHand()) lines = pottableLines();
+  if (lines.length) quickTarget(lines[0].bi, true, lines[0]);
+  else { qLine = null; quickZone(); }
+}
+function cueFree(t, px, py) {
+  return (t.hole.shape ? freeIn(t.hole.shape, px, py, R + 1) : px > R && px < W - R && py > R && py < H - R) &&
+    t.live().every(o => o === t.cue || Math.hypot(o.x - px, o.y - py) > 2 * R + 4) &&
+    t.hole.bumpers.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
+    t.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 10) &&
+    (!t.hole.obst || (t.hole.obst.type === 'water' ? !inPond(t.hole.obst, px, py, R + 2) : obstBars(t).every(([ax, ay, bx, by]) => segDist(px, py, ax, ay, bx, by) > R + BAR_T + 2)));
+}
+function ballInHand() {
+  const c = table.cue, x0 = c.x, y0 = c.y, spots = [];
+  for (let x = 45; x < W; x += 41) for (let y = 45; y < H; y += 41) if (cueFree(table, x, y)) spots.push([x, y, Math.hypot(x - x0, y - y0)]);
+  spots.sort((a, b) => a[2] - b[2]);
+  for (const [x, y] of spots.slice(0, 80)) {
+    c.x = x; c.y = y;
+    if (pottableLines(null, table, 2, [0.3, 0.45, 0.6]).length) {
+      for (let k = 0; k < 10; k++) fx.particles.push({ x: x0, y: y0, vx: (x - x0) * (0.6 + Math.random() * 0.8), vy: (y - y0) * (0.6 + Math.random() * 0.8), life: 0.5, color: '#e2b13c', r: 2 });
+      ring(x, y, '#e2b13c', 50, 0.8);
+      float(clamp(x, 80, W - 80), clamp(y - 55, 40, H - 40), 'Ball in hand', '#b88a2e', 20, 2);
+      tone(880, 0.08, 0.05, 'sine', 1.5, 0, 0.3);
+      return true;
+    }
+  }
+  c.x = x0; c.y = y0;
+  return false;
+}
+function quickTarget(bi, quiet, line) {
   if (phase !== 'aim' || qSweep || bi < 0) return;
-  const lines = allLines(table).filter(l => l.bi === bi && !l.blocked).sort((a, b) => b.q - a.q);
-  if (!lines.length) { focusBall(bi, quiet); qLine = null; quickZone(); return; }
+  const lines = line ? [line] : pottableLines(bi, table, 6);
+  if (!lines.length) {
+    focusBall(bi, quiet); qLine = null; quickZone();
+    if (!quiet) float(clamp(table.balls[bi].x, 80, W - 80), clamp(table.balls[bi].y - 45, 40, H - 40), `No pot for the ${table.balls[bi].n} from here`, '#b8553f', 17, 1.6);
+    return;
+  }
   const k = !quiet && qLine && qLine.bi === bi ? (lines.findIndex(l => Math.abs(angDiff(l.angle, qLine.angle)) < 1e-6) + 1) % lines.length : 0;
   qLine = lines[k];
   aim.bi = bi; aim.angle = qLine.angle; aim.spotY = 0; aim.spin = 0;
@@ -2017,7 +2059,7 @@ function quickHint() {
     : phase !== 'aim' ? ''
     : qSweep ? 'Stop it in the green'
     : gimmes.length ? 'Tap the glowing ball to tap in'
-    : qNoPot ? 'No pot on this line · tap another ball'
+    : qNoPot ? 'No pot on this line · tap a ball to line it up'
     : 'Tap a ball to aim at it · then Shoot';
 }
 
