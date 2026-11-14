@@ -323,8 +323,8 @@ practice courses) change like this; other days and the live game are untouched (
 shot is identical to before, checked on five days × six holes):
 - At most `SHORT_MAX` (3) balls a table (`ballsFor`): holes have 1, 2, 3, 3, 3, 3 balls. Par is still the
   number of balls, +1 from hole 3 (`parOf` now takes the seed): 1, 2, 4, 4, 4, 4 = 19. Still six holes.
-- Holes 3–5 each get one feature, dealt for the day from `FEATURE_KEYS` (windmill, gate, sand, cat; one sits
-  out each day; `obstFor`). Hole 6 is the trick-shot hole (below). No water: players found it annoying. The random rough/slick felt patches are
+- Holes 3–6 each get one feature, dealt for the day from `FEATURE_KEYS` (windmill, gate, sand, cat; all four
+  every day, shuffled; `obstFor`). No water: players found it annoying. The random rough/slick felt patches are
   off on these days; tilt, bumpers and closed pockets still appear.
 - Placement (`placeFeature`, after the balls; 14 Nov): every feature goes where it gets in the way. Candidate
   spots lie on both legs (cue ball → ghost ball, object ball → pocket) of the 8 best open pots, at 35/50/65%
@@ -349,20 +349,20 @@ shot is identical to before, checked on five days × six holes):
 - Testing (15 days, 60 feature holes): every hole had its feature, a real opening pot, and was clearable;
   generation 11 ms on average, 40 ms at worst. 280 random shots on cat holes (85 hit the cat):
   no ball ended inside the cat, no NaN.
-- Golden pocket (14 Nov; `goldHole`, holes 2–5): one pocket glows gold (`pickGold`, seeded by day and hole):
+- Golden pocket (14 Nov; `goldHole`, holes 2–6): one pocket glows gold (`pickGold`, seeded by day and hole):
   never the pocket of the easiest pot, and one that some open pot goes into where possible (58% of holes in
   testing; the rest need a bank, combo or position). The first pot into it, on a shot without a foul, takes a
   stroke off the hole (`holeBonus`; "Golden pocket! −1 stroke") and the glow goes. No tap-in gimmes into it.
-- Trick-shot hole (14 Nov; `trickHole`, hole 6): two of the three balls hang 2.8–4.4 ball radii out from open
-  pockets, and `makeHole` keeps only layouts where `findTrick` finds a shot (8 best pots × 4 paces × 3 spins)
-  that pots two or more without a foul and still does with the aim 0.23° or the pace 0.05 off, at least two of
-  those four ways. The first shot starts lined up on it, with its spin set and a hint naming the pace and
-  spin. Any shot that pots two or more (no foul) earns ⭐ and a stroke off (`trickDone`), with the slow-motion
-  finish; no gimmes on this hole. The ⭐ shows on the scorecard and the share text ("⭐ trick shot").
-  Found on all 15 trick holes tested (all two-ball tricks; none potted all three); generation averages
-  180 ms, 460 ms at worst (built in the background during hole 5).
+- Trick shots (14 Nov; `trickKinds`, any hole on a short round): a pot on a shot without a foul that's a
+  Double/Triple (two or three balls), a Kick (the cue ball hit a cushion before its first ball: `shot.kick`,
+  from `cue.cush` when `firstHit` is set), a Bank (a potted ball hit a cushion first; touches in a pocket's jaws
+  don't count on a short round, so brushing the jaw isn't a bank) or a Combo (a single pot of a ball the cue
+  ball didn't hit first). Each earns ⭐ ("Bank + Double! ⭐") with confetti and the slow-motion finish (the
+  pre-shot simulation spots it); the first on a hole also takes a stroke off. Stars per hole go on the
+  scorecard and the share text ("⭐×2 trick shots"). Of 335 ordinary direct pots, 3 were flagged (as banks).
+  A trick-shot hole (a layout with a lined-up double on hole 6) was tried the same day and dropped: too easy,
+  and trick shots should count on every hole.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
-  run in progress. Open question: the trick is worth two strokes (the double itself saves one, plus the
-  bonus), so pulling it off makes hole 6 −3.
+  run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
   saved run changes mid-round). Open questions: seven holes instead of six (`HOLES`), and par on feature holes.
