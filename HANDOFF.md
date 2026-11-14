@@ -384,7 +384,9 @@ shot is identical to before, checked on five days × six holes):
   as it takes (1800 units max); and when the object ball's straight line would meet a cushion before a pocket,
   its line is its simulated path (`objectSimPath`) into the pocket's ring or until it stops. Straight pots keep
   the geometric line to the pocket's edge. This replaced a "stop the bounce line near pocket jaws" rule that hid
-  half the line on kicks that really went in (the ring showed the pot, the line stopped). Of 55 potting kicks
+  half the line on kicks that really went in (the ring showed the pot, the line stopped). When nothing pots, the paths
+  are simulated at a firm pace (0.85; the object ball's cut to 650 units, fading out) rather than medium, so the
+  line doesn't jump from long to short when a hair's aim change stops it potting. Of 55 potting kicks
   that bounce near a pocket, all now draw through to the ball.
 - Harder strike (14 Nov; `strikeK`, short rounds only): with a generous guide the skill moves to the strike.
   From hole 3 `strikeK` ramps 0 → 1 over holes 3–5 and the gold spot shrinks (`SPOT_SHRINK` 15%), the tip

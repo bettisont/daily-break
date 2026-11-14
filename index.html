@@ -2892,14 +2892,14 @@ function pocketAlong(px, py, ux, uy, maxT) {
 const guideSim = { key: null, pks: [], kick: null, obj: null };
 // The first ball the cue ball hits, as it really travels after contact (same pace, no spin), up to 1400 units, until
 // it drops (and which pocket) or stops: drawn when its straight line would meet a cushion before a pocket.
-function objectSimPath(pw) {
+function objectSimPath(pw, maxLen = 1400) {
   const s = cloneTable(table); s.shoot(aim.angle, pw, 0);
   for (let n = 0; n < 6000 && s.moving() && !s.shot.firstHit; n++) s.step();
   const fb = s.shot.firstHit;
   if (!fb) return null;
   const pts = [[fb.x, fb.y]];
   let len = 0, lx = fb.x, ly = fb.y;
-  for (let n = 0; n < 8000 && s.moving() && !fb.potted && len < 1400; n++) {
+  for (let n = 0; n < 8000 && s.moving() && !fb.potted && len < maxLen; n++) {
     s.step();
     if (fb.potted) break;
     len += Math.hypot(fb.x - lx, fb.y - ly); lx = fb.x; ly = fb.y;
@@ -2970,8 +2970,14 @@ function drawGuide(c, dx, dy, hit, t) {
       if (leg === 0 && o && table.balls[o.bi] === ball) {
         let pts = o.pts.filter(([x, y]) => Math.hypot(x - ball.x, y - ball.y) > R + 3 || o.pts.length < 3);
         if (o.pocket != null) { const p = table.pk[o.pocket], rr = ringRadius(p); pts = pts.filter(([x, y]) => Math.hypot(x - p.x, y - p.y) > rr); }
-        ctx.save(); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.beginPath(); ctx.moveTo(px + ux * (R + 3), py + uy * (R + 3)); for (const [x, y] of pts) ctx.lineTo(x, y); ctx.stroke(); ctx.restore();
+        // solid into a pocket; otherwise fading out towards its end, like the straight lines
+        const all = [[px + ux * (R + 3), py + uy * (R + 3)], ...pts], fade = o.pocket == null;
+        ctx.save(); ctx.lineWidth = 3; ctx.lineCap = 'round';
+        for (let n = 1; n < all.length; n++) {
+          ctx.strokeStyle = `rgba(251,248,240,${0.85 * (fade ? 1 - 0.8 * n / all.length : 1)})`;
+          ctx.beginPath(); ctx.moveTo(all[n - 1][0], all[n - 1][1]); ctx.lineTo(all[n][0], all[n][1]); ctx.stroke();
+        }
+        ctx.restore();
         return;
       }
       const bo = bounceOff(px, py, ux, uy, h);
@@ -2990,8 +2996,10 @@ function drawGuide(c, dx, dy, hit, t) {
       if (s.shot.pots.length && potPace == null) potPace = pw;
       for (const q of s.shot.pots) if (!guideSim.pks.includes(q.pocket)) guideSim.pks.push(q.pocket);
     }
-    guideSim.kick = hit.ball ? null : kickPath(potPace ?? 0.42);
-    guideSim.obj = objectSimPath(potPace ?? 0.42);
+    // the paths are drawn at the pace that pots, or else at a firm pace (cut to a set length and faded), so the
+    // line shows where the ball heads, not how far a medium hit happens to run
+    guideSim.kick = hit.ball ? null : kickPath(potPace ?? 0.85);
+    guideSim.obj = objectSimPath(potPace ?? 0.85, potPace == null ? 650 : 1400);
   }
   guideSim.pks.forEach(ringPocket);
   // the cue ball: straight to the first ball it meets, or (a kick) along its simulated path off the cushion to
