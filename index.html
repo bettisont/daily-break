@@ -2878,9 +2878,9 @@ function drawAim(t) {
 }
 // The generous guide (short round): the lines are simple geometry, but they follow the cue ball and the object
 // ball once off a cushion or bumper (so banks and kicks can be seen) and show a combination's second ball. A
-// line stops at a pocket's edge, and the pocket gets a slowly turning white ring when a clean centre-ball hit on
-// this line really pots into it at some sensible pace (that's simulated: lines alone were right only ~70% of the
-// time). The golden pocket keeps its own gold glow; aiming at it doesn't change it. It never shows where the balls stop.
+// line stops at a pocket's edge, and the pocket gets a slowly turning white ring when your shot (your pace and
+// spin, struck within 0.15° of the aim) really pots into it (that's simulated: lines alone were right only ~70%
+// of the time). The golden pocket keeps its own gold glow; aiming at it doesn't change it. It never shows where the balls stop.
 const generous = () => isPar() && !!round && shortSeed(round.seed);
 function bounceOff(px, py, ux, uy, h) {
   if (!isFinite(h.t)) return null;
@@ -2908,11 +2908,11 @@ function pocketAlong(px, py, ux, uy, maxT) {
   return best;
 }
 const guideSim = { key: null, pks: [], kick: null, obj: null };
-const GUIDE_CUSH = 1;   // the guide follows a ball off at most this many cushions; beyond that it's up to you
+const GUIDE_CUSH = 1, GUIDE_SLOP = 0.15;   // the guide follows a ball off at most this many cushions; beyond that it's up to you
 // The first ball the cue ball hits, as it really travels after contact (same pace, no spin), up to 1400 units, until
 // it drops (and which pocket) or stops: drawn when its straight line would meet a cushion before a pocket.
-function objectSimPath(pw, maxLen = 1400) {
-  const s = cloneTable(table); s.shoot(aim.angle, pw, 0);
+function objectSimPath(pw, maxLen = 1400, sp = 0) {
+  const s = cloneTable(table); s.shoot(aim.angle, pw, sp);
   for (let n = 0; n < 6000 && s.moving() && !s.shot.firstHit; n++) s.step();
   const fb = s.shot.firstHit;
   if (!fb) return null;
@@ -2932,8 +2932,8 @@ function objectSimPath(pw, maxLen = 1400) {
 // not geometry, so it's
 // right near pocket jaws and with tilt: its path from the strike to its first ball (off one cushion at most, up
 // to 1800 units; or until it drops or stops), and where it meets that ball.
-function kickPath(pw) {
-  const s = cloneTable(table); s.shoot(aim.angle, pw, 0);
+function kickPath(pw, sp = 0) {
+  const s = cloneTable(table); s.shoot(aim.angle, pw, sp);
   const c = s.cue, pts = [[c.x, c.y]];
   let len = 0, lx = c.x, ly = c.y;
   for (let n = 0; n < 6000 && s.moving(); n++) {
@@ -3007,21 +3007,26 @@ function drawGuide(c, dx, dy, hit, t) {
   };
   // the pockets a clean centre-ball hit on this line really pots into, at a soft, medium or firm pace (played out
   // in full, tilt and sand included, but only when the aim moves), so a lit pocket means it can go in
-  const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}`;
+  // The ring is for your shot: the pace you're pulling back to (or, before you pull, your last shot's), the spin
+  // you've set, and a strike that's slightly off: it must pot at the aim and at 0.3° either side of it.
+  const pw = clamp(hold ? power : lastPower, 0.08, 1), sp = aim.spin;
+  const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}:${Math.round(pw * 33)}:${sp.toFixed(2)}`;
   if (guideSim.key !== key) {
-    guideSim.key = key; guideSim.pks = []; let potPace = null;
-    for (const pw of [0.3, 0.42, 0.6]) {
-      const s = simulate(table, aim.angle, pw, 0);
-      if (s.shot.scratch || !s.shot.firstHit) continue;
-      // only pots the guide shows: the cue ball off at most one cushion first, the potted ball off at most one
-      const shown = (s.shot.kickCush || 0) <= GUIDE_CUSH ? s.shot.pots.filter(q => (q.ball.cush || 0) <= GUIDE_CUSH) : [];
-      if (shown.length && potPace == null) potPace = pw;
-      for (const q of shown) if (!guideSim.pks.includes(q.pocket)) guideSim.pks.push(q.pocket);
-    }
-    // the paths are drawn at the pace that pots, or else at a firm pace (cut to a set length and faded), so the
-    // line shows where the ball heads, not how far a medium hit happens to run
-    guideSim.kick = hit.ball ? null : kickPath(potPace ?? 0.85);
-    guideSim.obj = objectSimPath(potPace ?? 0.85, potPace == null ? 650 : 1400);
+    guideSim.key = key;
+    // only pots the guide shows: the cue ball off at most one cushion first, the potted ball off at most one
+    const shownPots = a => {
+      const s = simulate(table, a, pw, sp);
+      if (s.shot.scratch || !s.shot.firstHit || (s.shot.kickCush || 0) > GUIDE_CUSH) return [];
+      return s.shot.pots.filter(q => (q.ball.cush || 0) <= GUIDE_CUSH).map(q => q.pocket);
+    };
+    const mid = shownPots(aim.angle), off = GUIDE_SLOP * Math.PI / 180;
+    const steady = mid.length ? [shownPots(aim.angle - off), shownPots(aim.angle + off)] : [];
+    guideSim.pks = mid.filter(i => steady.every(l => l.includes(i)));
+    const pots = guideSim.pks.length > 0;
+    // the paths are drawn at your pace when it pots, or else at a firm pace (cut to a set length and faded), so
+    // the line shows where the ball heads, not how far a soft hit happens to run
+    guideSim.kick = hit.ball ? null : kickPath(pots ? pw : 0.85, sp);
+    guideSim.obj = objectSimPath(pots ? pw : 0.85, pots ? 1400 : 650, sp);
   }
   guideSim.pks.forEach(ringPocket);
   // the cue ball: straight to the first ball it meets, or (a kick) along its simulated path off the cushion to

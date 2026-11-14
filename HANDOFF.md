@@ -435,6 +435,12 @@ shot is identical to before, checked on five days × six holes):
   republished mid-game, which reloads it, and the round carrying on from its save (with the since-removed
   slide-in). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat goes
   back to where it started the hole.
+- The ring is for your shot (14 Nov; `GUIDE_SLOP`): it used to light if a perfect centre hit potted at any of
+  three paces, and a playtester's thin cut along a rail lit up and then missed. Now it uses the pace you're
+  pulling back to (before you pull, your last shot's: `lastPower`), your spin, and must pot at the aim and at
+  0.15° either side. Measured on 10 days' holes, with a realistic go (pace ±0.05, aim ±0.2°): a lit ring meant a
+  pot 96% of the time (was 62%); 10% of unlit aims still went in. (0.3° slop: 98% but it lit far less.) While you
+  pull, the ring comes and goes with the pace, e.g. lit only between 30% and 50% on a sample shot.
 - No pot lined up at the start (14 Nov; `startUnpotted`, `guidePots`, in `lineUp`, short rounds): each shot still
   starts dead centre on the ball with the easiest pot, but if that would light a pocket's ring it's turned by the
   smallest step (0.5°, up to 10° either way) that still hits that ball and doesn't pot. 90 holes checked: none
