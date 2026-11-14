@@ -321,15 +321,9 @@ A test of a lower-effort shot, after comparing with daily games where a shot is 
 `dailybreak.app/?quick` plays today's tables unranked with the control panel swapped for a power meter and
 one button (`#quickBar`). A first version (drag back anywhere like a slingshot) was dropped the same day:
 the backwards direction, precise aiming, judging power and the thumb over the table were all hard.
-- Aim: every shot starts lined up on the best real pot (`lineUp` → `quickLineUp`). A line only counts if
-  playing it out at a spread of paces (`Q_PACES`, centre hit) pots the ball without a scratch (`linePots`,
-  `pottableLines`; the 12 best lines by `q`). Tap a ball to line up its best real pot; tap it again for its
-  next one (cycles). A ball with no pot gets a dead-centre hit and "No pot for the N from here". Dragging on
+- Aim: every shot starts lined up on the best pot (`lineUp` → `quickTarget`). Tap a ball to line up its best
+  pot; tap it again for its next pocket (cycles). A ball with no open pot gets a dead-centre hit. Dragging on
   the felt still nudges the line (the normal relative drag).
-- Ball in hand (`ballInHand`): without spin the cue ball often stops where nothing goes in. If no ball can be
-  potted, the cue ball moves to the nearest free spot (41-unit grid, `cueFree`) that gives a real pot, with a
-  gold ring and "Ball in hand". An auto-player stopping near the middle of the green zone never met a dead
-  table in 3 rounds (63 shots, 6 balls in hand); lining up took 7 ms on average, 48 ms at worst.
 - Power: Shoot starts a marker sweeping soft → hard → soft (`SWEEP_T` = 1.7 s a cycle, `tickQuick`); Stop (or
   Space) shoots at that pace. The green zone (`quickZone`) is the longest run of paces, in 0.025 steps, that
   pot the targeted ball on this line without a scratch (about 15 ms of `simulate`, run 120 ms after the aim
@@ -339,7 +333,6 @@ the backwards direction, precise aiming, judging power and the thumb over the ta
 - Its own intro card every load (`showQuickIntro`) and a hint pill on the table (`#quickHint`). The result
   card offers "Play again" and "Normal game" (`quickFinal`).
 - Nothing is saved, tracked or sent (the round is unranked), and practice runs aren't used up.
-- Open questions: it may be too easy (the zone is often a quarter of the meter, and that auto-player shot
-  −4 on all three days); narrow it, speed up the
+- Open questions: it may be too easy (the zone is often a quarter of the meter); narrow it, speed up the
   sweep, or hide the zone after hole 3. Ball and pocket choice and where the cue ball ends up still matter.
 - Test copy for phones: a claude.ai artifact built from index.html with `QUICK = true` (not in the repo).
