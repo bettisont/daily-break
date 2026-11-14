@@ -925,7 +925,7 @@ let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, 
 // trick shots get an instant replay (shotRec, replay), the cue follows through (follow), hard contacts flash
 // (fx.flashes), potted balls fly to a tray at the top (trayFly), the cat reacts (catStartle), and tables slide
 // in and out between holes (slide).
-let trayDone = [], lip = null, lipTried = new Set(), shotRec = null, replay = null, replayed = false, follow = null, trayFly = [], catStartle = 0, slide = null;
+let shotSteps = 0, trayDone = [], lip = null, lipTried = new Set(), shotRec = null, replay = null, replayed = false, follow = null, trayFly = [], catStartle = 0, slide = null;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], flashes: [], shake: 0, glow: 0 };
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
@@ -1364,16 +1364,40 @@ function release() {
   renderCard9(); updateUI();
 }
 
-// Trick shot on a short round: replay it first (recorded frame by frame while it rolled), about half speed and
-// at most ~5 s, from the strike to just after the last pot. A tap skips it.
+// Trick shot on a short round: replay it first. Every frame of the shot was recorded with its physics time, so the
+// replay runs on that clock at one steady pace (however the live shot was slowed or sped up), blends between
+// recorded frames, rolls the balls as they move and sinks them into their pockets. It runs from the strike to
+// 0.7 s after the last pot, at 45% speed or faster to keep it under ~5.5 s. A tap skips it.
 function startReplay(kinds) {
   const frames = shotRec, nb = table.balls.length;
-  let last = 0;
-  for (let f = 1; f < frames.length; f++) for (let k = 0; k <= nb; k++) if (frames[f][k * 3 + 2] && !frames[f - 1][k * 3 + 2]) last = f;
-  const end = Math.min(frames.length - 1, last + 45);
-  replay = { frames, i: 0, end, speed: Math.max(0.5, end / 300), kinds };
+  let lastT = 0;
+  for (let f = 1; f < frames.length; f++) for (let k = 0; k <= nb; k++) if (frames[f][3 + k * 3] && !frames[f - 1][3 + k * 3]) lastT = frames[f][0];
+  const endT = Math.min(frames[frames.length - 1][0], lastT + 0.7);
+  const proxies = [table.cue, ...table.balls].map(b => ({ n: b.n, isCue: b.isCue, spot: [0, 0, 1], pole: [0, 1, 0], vx: 0, vy: 0 }));
+  replay = { frames, T: 0, idx: 0, endT, speed: Math.max(0.45, endT / 5.5), kinds, proxies, sunk: new Set() };
   phase = 'replay'; updateUI();
   tone(660, 0.12, 0.05, 'sine', 1.5, 0, 0.4);
+}
+function drawReplay(dt) {
+  const fr = replay.frames;
+  while (replay.idx < fr.length - 2 && fr[replay.idx + 1][0] <= replay.T) replay.idx++;
+  const a = fr[replay.idx], b = fr[Math.min(fr.length - 1, replay.idx + 1)], u = b[0] > a[0] ? clamp((replay.T - a[0]) / (b[0] - a[0]), 0, 1) : 0;
+  replay.proxies.forEach((pb, k) => {
+    const o = 1 + k * 3;
+    if (a[o + 2]) {
+      // it dropped: send it spiralling into the nearest pocket, once
+      if (!replay.sunk.has(k)) {
+        replay.sunk.add(k);
+        const pk = table.pk.reduce((m, q) => Math.hypot(q.x - pb.x, q.y - pb.y) < Math.hypot(m.x - pb.x, m.y - pb.y) ? q : m);
+        fx.sinks.push({ x: pb.x, y: pb.y, tx: clamp(pk.x, 0, W), ty: clamp(pk.y, 0, H), b: { n: pb.n, spot: pb.spot, pole: pb.pole }, t: 0 });
+        atX(pk.x, () => sfx.drop());
+      }
+      return;
+    }
+    pb.x = lerp(a[o], b[o], u); pb.y = lerp(a[o + 1], b[o + 1], u);
+    updateSpin(pb, dt);
+    drawBall(pb, pb.x, pb.y);
+  });
 }
 function resolveShot() {
   if (generous() && !replayed && shotRec && shotRec.length > 20 && trickKinds(table.shot).length) { startReplay(trickKinds(table.shot)); return; }
@@ -2025,7 +2049,7 @@ let drag = null;
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
   if (phase === 'moving') { if (movingT > 0.8 && !(cine && cine.hold > 0)) ffwd = true; return; }   // tap to hurry the balls along
-  if (phase === 'replay') { replay.i = replay.end; return; }   // tap to skip the replay
+  if (phase === 'replay') { replay.T = replay.endT; return; }   // tap to skip the replay
   if (phase !== 'aim') return;
   const p = toWorld(e), c = table.cue;
   drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, a: Math.atan2(p.y - c.y, p.x - c.x) };
@@ -2723,7 +2747,7 @@ function cuePath(angle, pw, spin) {
 }
 let spinCache = { key: '', paths: [] };
 function spinPaths() {
-  const pw = hold ? power : lastPower, key = `${aim.angle.toFixed(5)}|${pw.toFixed(3)}|${aim.spin.toFixed(3)}|${strokes}|${hole.i}`;
+  const pw = hold ? power : lastPower, key = `${aim.angle.toFixed(5)}|${pw.toFixed(3)}|${aim.spin.toFixed(3)}|${strokes}|${hole.i}|${(table.wa || 0).toFixed(2)}`;
   if (key !== spinCache.key) {
     const main = { name: strikeName(aim.spin), spin: aim.spin, main: true, ...cuePath(aim.angle, pw, aim.spin) };
     spinCache = { key, paths: [main] };
@@ -2883,7 +2907,7 @@ function drawGuide(c, dx, dy, hit, t) {
   };
   // the pockets a clean centre-ball hit on this line really pots into, at a soft, medium or firm pace (played out
   // in full, tilt and sand included, but only when the aim moves), so a lit pocket means it can go in
-  const key = `${aim.angle}:${strokes}:${round.level}`;
+  const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}`;
   if (guideSim.key !== key) {
     guideSim.key = key; guideSim.pks = [];
     for (const pw of [0.3, 0.42, 0.6]) {
@@ -3104,7 +3128,7 @@ function draw(t, dt) {
   drawTable(t, dt);
   drawTableCat(t, dt);
 
-  for (const tr of trails) {
+  for (const tr of phase === 'replay' ? [] : trails) {   // (hidden in a replay, so it doesn't give the path away)
     ctx.fillStyle = `rgba(255,250,235,${tr === curTrail ? 0.85 : 0.35})`;
     for (const [x, y] of tr.pts) { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, TAU); ctx.fill(); }
   }
@@ -3149,11 +3173,8 @@ function draw(t, dt) {
     }
   }
   fx.sinks = fx.sinks.filter(sk => sk.t < 1);
-  if (phase === 'replay') {
-    const f = replay.frames[Math.min(replay.end, Math.floor(replay.i))];
-    table.balls.forEach((b, k) => { if (!f[3 + k * 3 + 2]) drawBall(b, f[3 + k * 3], f[3 + k * 3 + 1]); });
-    if (!f[2]) drawBall(table.cue, f[0], f[1]);
-  } else {
+  if (phase === 'replay') drawReplay(dt);
+  else {
     for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
     if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
   }
@@ -3298,7 +3319,7 @@ function frame(now) {
       for (let k = 0; k < 8; k++) fx.particles.push({ x: c.x - Math.cos(strike.angle) * R, y: c.y - Math.sin(strike.angle) * R, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, life: 0.5, color: '#7fa0d8', r: 1.5 });
       acc = 0; movingT = 0; phase = 'moving'; updateUI();
       if (generous()) {
-        shotRec = []; replayed = false; lip = null; lipTried = new Set();
+        shotRec = []; shotSteps = 0; replayed = false; lip = null; lipTried = new Set();
         follow = { x: c.x, y: c.y, angle: strike.angle, power: strike.power, t: 0 };
         cam.k += 0.03 + 0.04 * strike.power;   // a small push in on the strike, which eases back
       }
@@ -3311,6 +3332,10 @@ function frame(now) {
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
     else if (b && !b.potted && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < 230) { slow = true; tk = 1.3; tx = (b.x + px) / 2; ty = (b.y + py) / 2; }
   }
+  // The windmill (short round) keeps turning while you aim and strike, at the speed it turns in play, so you can
+  // time a shot through a gap; it waits if a ball has come to rest inside its sweep, so it never turns into one.
+  const wm = hole?.obst?.type === 'windmill' ? hole.obst : null;
+  if (wm && generous() && (phase === 'aim' || phase === 'strike') && table.live().every(b => Math.hypot(b.x - wm.x, b.y - wm.y) > wm.len + BAR_T + R + 2)) table.wa += WM_W * dt * PLAY;
   // A ball on the lip (short round): one slow, close call near a pocket gets slow motion, a push-in and a heartbeat,
   // then "It dropped!" or "So close!". The outcome is known first by playing the rest of the shot out, so it only
   // happens when it really is close (it drops, or stops within a ball and a half of the pocket).
@@ -3348,16 +3373,16 @@ function frame(now) {
   // table plays at PLAY (0.75×). Never during the slow-motion finish.
   if (phase === 'moving') movingT += dt;
   const creeping = phase === 'moving' && movingT > 2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 35);
-  const want = slow ? 0.25 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
+  const want = slow ? 0.25 : phase === 'replay' ? 0.45 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
   if (phase === 'moving') {
     if (hitStop > 0) hitStop -= dt;   // a blink of freeze on big moments
-    else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; } }
+    else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; shotSteps++; } }
     const c = table.cue, last = curTrail?.pts[curTrail.pts.length - 1];
     if (curTrail && !c.potted && last && Math.hypot(c.x - last[0], c.y - last[1]) > 14) curTrail.pts.push([c.x, c.y]);
-    if (shotRec && shotRec.length < 3000) shotRec.push([c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.x, b.y, b.potted ? 1 : 0])]);
+    if (shotRec && shotRec.length < 3000) shotRec.push([shotSteps * DT, c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.x, b.y, b.potted ? 1 : 0])]);
     if (!table.moving() && !(cine && cine.hold > 0)) resolveShot();
   }
   if (rollGain) {
@@ -3375,8 +3400,8 @@ function frame(now) {
   }
   // the replay plays the recorded shot at about half speed, then the shot is scored as usual
   if (phase === 'replay') {
-    replay.i += dt * 60 * replay.speed;
-    if (replay.i >= replay.end) { replay = null; replayed = true; phase = 'moving'; resolveShot(); }
+    replay.T += dt * replay.speed;
+    if (replay.T >= replay.endT) { replay = null; replayed = true; phase = 'moving'; resolveShot(); }
   }
   if (follow) follow.t += dt;
   tickDemo(dt); tickSpinDemo(dt);

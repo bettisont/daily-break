@@ -389,10 +389,13 @@ shot is identical to before, checked on five days × six holes):
     it drops, or stops within 1.5 radii of the pocket, the table goes to slow motion with a push-in and a
     heartbeat until it settles: "It dropped!" (confetti) or "So close!" (a groan, the jaws shiver: `p.wobble`,
     and the cat flinches). It came up once in ~100 auto-played shots.
-  - Instant replay (`shotRec`, `startReplay`, phase `'replay'`): every frame of a shot is recorded; a trick
-    shot (`trickKinds`) is replayed at about half speed (capped near 5 s) up to just after the last pot,
-    titled "REPLAY · tap to skip" and the trick's name, before the shot is scored (`resolveShot` runs after
-    it; `replayed` stops it replaying twice). A tap skips it.
+  - Instant replay (`shotRec`, `startReplay`, `drawReplay`, phase `'replay'`): every frame of a shot is recorded
+    with its physics time (`shotSteps` × `DT`). A trick shot (`trickKinds`) is replayed on that clock at one
+    steady pace (45%, faster if needed to stay under ~5.5 s), blending between frames, rolling copies of the
+    balls (`updateSpin` on proxies) and sinking them into their pockets, up to 0.7 s after the last pot; the
+    edges darken like slow motion and the live trail is hidden. Titled "REPLAY · tap to skip" and the
+    trick's name; the shot is scored after it (`replayed` stops it replaying twice). A tap skips it. (A first
+    version stepped through recorded frames, so it sped up and slowed down with the live shot and looked off.)
   - Follow-through (`follow`, `drawCue(..., at, through)`): after the strike the cue drives on through where
     the cue ball was (up to 70 px at full power), eases back and fades over 0.5 s; the camera pushes in a
     little on the strike. Balls meeting harder than 250 flash, sized by speed (`fx.flashes`).
@@ -403,6 +406,9 @@ shot is identical to before, checked on five days × six holes):
     make it flinch with its ears flat.
   - Table slides (`slide`): after a hole the table slides off to the left (0.38 s, a whoosh) and the next slides
     in from the right (0.5 s). The room stays put; the banner and stamp don't move.
+- Windmill while aiming (short rounds): it keeps turning during aim and strike at its in-play speed
+  (`WM_W` × `PLAY`, 1.1 rad/s), so it reads as alive and shots can be timed through a gap; the aim line, glow and
+  path hint follow it. It waits while any ball rests inside its sweep, so it never turns into a resting ball.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
