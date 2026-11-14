@@ -916,8 +916,7 @@ const potGain = () => Math.round(PTS.pot * streakMult(hs.streak + 1));
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [], levelMisses = 0;
-// this hole's golden pocket and first trick shot each take a stroke off the hole, once (holeBonus);
-// holeStars counts this hole's trick shots
+// this hole's golden pocket takes a stroke off the hole, once (holeBonus); holeStars counts its trick shots
 let holeBonus = 0, goldUsed = false, trickDone = false, holeStars = 0;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
@@ -1453,7 +1452,7 @@ function afterShot() {
 // up once you reach par + 3.
 // Trick shots (short round): a pot on a shot without a foul that's a double or triple (two or three balls), a kick
 // (the cue ball hit a cushion before its first ball), a bank (the potted ball hit a cushion first) or a combination
-// (a single pot of a ball the cue ball didn't hit first). Each earns ⭐; the first on a hole also a stroke back.
+// (a single pot of a ball the cue ball didn't hit first). Each earns ⭐ (no strokes: the pots already save those).
 function trickKinds(s) {
   if (!s || s.scratch || !s.firstHit || !s.pots.length) return [];
   const k = [];
@@ -1488,11 +1487,9 @@ function resolveParShot() {
     }
     const kinds = shortSeed(round.seed) ? trickKinds(s) : [];
     if (kinds.length) {
-      holeStars++;
-      const first = !trickDone;
-      if (first) { trickDone = true; holeBonus++; }
+      holeStars++; trickDone = true;   // a star only: the pots themselves already save the strokes
       float(W / 2, H * 0.4, `${kinds.join(' + ')}! ⭐`, '#b88a2e', 30, 2.6);
-      float(W / 2, H * 0.4 + 44, first ? 'Trick shot · −1 stroke' : 'Trick shot', '#7a6a3a', 18, 2.6);
+      float(W / 2, H * 0.4 + 44, 'Trick shot', '#7a6a3a', 18, 2.6);
       confettiBurst(110); sfx.chime(); buzz([20, 40, 20, 40, 20]); fx.glow = 1;
     }
   }
@@ -1969,7 +1966,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), a <b>windmill</b> that turns while the balls roll, a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p><p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. <b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first). Your first on each hole also takes a stroke off.</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
+      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), a <b>windmill</b> that turns while the balls roll, a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p><p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. <b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first).</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>

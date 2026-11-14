@@ -359,7 +359,8 @@ shot is identical to before, checked on five days × six holes):
   from `cue.cush` when `firstHit` is set), a Bank (a potted ball hit a cushion first; touches in a pocket's jaws
   don't count on a short round, so brushing the jaw isn't a bank) or a Combo (a single pot of a ball the cue
   ball didn't hit first). Each earns ⭐ ("Bank + Double! ⭐") with confetti and the slow-motion finish (the
-  pre-shot simulation spots it); the first on a hole also takes a stroke off. Stars per hole go on the
+  pre-shot simulation spots it). Until 14 Nov the first on a hole also took a stroke off; with the generous guide
+  that made scores too low (a playtest round went −9 with up to two strokes back a hole), so now it's ⭐ only. Stars per hole go on the
   scorecard and the share text ("⭐×2 trick shots"). Of 335 ordinary direct pots, 3 were flagged (as banks).
   A trick-shot hole (a layout with a lined-up double on hole 6) was tried the same day and dropped: too easy,
   and trick shots should count on every hole.
