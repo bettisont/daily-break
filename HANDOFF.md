@@ -436,9 +436,10 @@ shot is identical to before, checked on five days × six holes):
   slide-in). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat goes
   back to where it started the hole.
 - The ring (14 Nov): for a perfect strike with your spin. Before you pull, a pocket is ringed if the shot pots into
-  it at some pace (`GUIDE_PACES`, 0.15–0.95; `guideSim.range` keeps each pocket's potting range); while you pull it
-  stays bright only while your pace pots it, and otherwise dims with "softer" or "harder" by the pocket. (Before
-  that, the resting ring used the last shot's pace, so a good line after a hard shot showed no ring.) An allowance for a slightly-off strike (pot at ±0.15°)
+  it at some pace (`GUIDE_PACES`, 0.15–0.95; `guideSim.range` keeps each pocket's potting range). It doesn't change
+  with how hard you pull: the guide assumes the right pace, and judging it is the player's job. (Tried the same
+  day and dropped: a ring that followed the pull, with "softer"/"harder" labels; and before that, a resting ring
+  on the last shot's pace, which hid a good line after a hard shot.) An allowance for a slightly-off strike (pot at ±0.15°)
   was tried and dropped in favour of honest strike grades:
 - Strike grades (short rounds; `contact`, `PERFECT_CORE` 0.4, `GOOD_PUSH` 0.5°): the gold spot has a bright
   bullseye. A tip in it is 'perfect' and plays exactly as aimed (so exactly as the guide shows); the rest of the

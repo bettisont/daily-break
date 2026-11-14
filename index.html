@@ -3016,11 +3016,9 @@ function drawGuide(c, dx, dy, hit, t) {
       px = bo.x; py = bo.y; ux = bo.ux; uy = bo.uy;
     }
   };
-  // The ring, for a perfect strike with the spin you've set, played out in full (tilt and sand included):
-  // - before you pull, a pocket is ringed if the shot pots into it at some pace (GUIDE_PACES), so it shows the
-  //   shot is on;
-  // - while you pull, it stays bright only while your pace pots it; outside that range it dims and says
-  //   "softer" or "harder" by the pocket.
+  // The ring, for a perfect strike with the spin you've set, played out in full (tilt and sand included): a
+  // pocket is ringed if the shot pots into it at some pace (GUIDE_PACES). It doesn't depend on how hard you pull:
+  // the guide shows where the shot goes, assuming the right pace; judging the pace is up to you.
   const sp = aim.spin;
   const shownPots = (a, pw) => {   // only pots the guide shows: cue ball and potted ball each off at most one cushion
     const s = simulate(table, a, pw, sp);
@@ -3037,24 +3035,16 @@ function drawGuide(c, dx, dy, hit, t) {
     const rs = Object.values(guideSim.range);
     guideSim.mid = rs.length ? (rs[0][0] + rs[0][1]) / 2 : null;
   }
-  const pulling = hold && power >= MIN_PULL, nowKey = pulling ? Math.round(power * 50) : -1;
-  if (guideSim.nowKey !== nowKey) {
-    guideSim.nowKey = nowKey;
-    guideSim.pks = pulling ? shownPots(aim.angle, power) : Object.keys(guideSim.range).map(Number);
-    // the paths are drawn at your pace while you pull (or, before, a pace that pots), or else a firm pace (cut to a
-    // set length and faded), so the line shows where the ball heads, not how far a soft hit happens to run
-    const pw = pulling ? power : guideSim.mid ?? 0.85, pots = pulling ? guideSim.pks.length > 0 : guideSim.mid != null;
-    guideSim.kick = hit.ball ? null : kickPath(pots ? pw : 0.85, sp);
-    guideSim.obj = objectSimPath(pots ? pw : 0.85, pots ? 1400 : 650, sp);
+  if (guideSim.nowKey !== guideSim.key) {
+    guideSim.nowKey = guideSim.key;
+    guideSim.pks = Object.keys(guideSim.range).map(Number);
+    // the paths are drawn at the middle of the pace that pots, or else a firm pace (cut to a set length and faded),
+    // so the line shows where the ball heads, not how far a soft hit happens to run
+    const pots = guideSim.mid != null, pw = pots ? guideSim.mid : 0.85;
+    guideSim.kick = hit.ball ? null : kickPath(pw, sp);
+    guideSim.obj = objectSimPath(pw, pots ? 1400 : 650, sp);
   }
   guideSim.pks.forEach(ringPocket);
-  if (pulling) for (const [i, [lo, hi]] of Object.entries(guideSim.range)) {
-    if (guideSim.pks.includes(+i)) continue;
-    const p = table.pk[i], word = power < lo ? 'harder' : power > hi ? 'softer' : null;
-    ctx.save(); ctx.strokeStyle = 'rgba(255,253,245,.35)'; ctx.lineWidth = 3; ctx.setLineDash([6, 8]);
-    ctx.beginPath(); ctx.arc(p.x, p.y, ringRadius(p), 0, TAU); ctx.stroke(); ctx.restore();
-    if (word) tag(clamp(p.x, 40, W - 40), clamp(p.y, 30, H - 30), word, 'rgba(29,37,31,.82)', '#fbf8f0', 12, p.y < H / 2);
-  }
   // the cue ball: straight to the first ball it meets, or (a kick) along its simulated path off the cushion to
   // the ball it reaches next
   if (hit.ball) {
