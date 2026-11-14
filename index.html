@@ -923,9 +923,8 @@ let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 // Short-round animation (all off on other rounds): a ball on the lip gets slow motion and a heartbeat (lip),
 // trick shots get an instant replay (shotRec, replay), the cue follows through (follow), hard contacts flash
-// (fx.flashes), potted balls fly to a tray at the top (trayFly), the cat reacts (catStartle), and tables slide
-// in and out between holes (slide).
-let shotSteps = 0, trayDone = [], lip = null, lipTried = new Set(), shotRec = null, replay = null, replayed = false, follow = null, trayFly = [], catStartle = 0, slide = null;
+// (fx.flashes), potted balls fly to a tray down the right-hand edge (trayFly), and the cat reacts (catStartle).
+let shotSteps = 0, trayDone = [], lip = null, lipTried = new Set(), shotRec = null, replay = null, replayed = false, follow = null, trayFly = [], catStartle = 0;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], flashes: [], shake: 0, glow: 0 };
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 
@@ -1142,7 +1141,7 @@ function startHole(i) {
   if (i === 2) track('level3');
   hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
-  if (generous()) { slide = { dir: 'in', t: 0 }; if (i > 0) whoosh(); trayFly = []; trayDone = []; }
+  if (generous()) { trayFly = []; trayDone = []; }
   strokes = 0; levelMisses = 0; holeBonus = 0; goldUsed = false; trickDone = false; holeStars = 0;
   // a cat hole: the cat hops up from its cushion onto the felt as the hole starts
   catAnim = table.cat ? { from: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, to: { x: table.cat.x, y: table.cat.y, rot: table.cat.rot, sc: CAT_SC }, t: -0.9 } : null;
@@ -1519,9 +1518,7 @@ function finishParHole(picked) {
   }, 450);
   setTimeout(() => {
     if (round.level !== forLevel || phase !== 'holed') return;
-    if (forLevel + 1 >= HOLES) endParRound();
-    else if (generous()) { slide = { dir: 'out', t: 0 }; whoosh(); setTimeout(() => { if (round.level === forLevel && phase === 'holed') act(); }, 380); }
-    else act();
+    if (forLevel + 1 >= HOLES) endParRound(); else act();
   }, 450 + 1700);
 }
 function endParRound() {
@@ -1596,7 +1593,6 @@ function resumeRun() {
   else Object.assign(round, { lives: r.lives, potted: r.potted, results: r.results || [], bestStreak: r.bestStreak || 0 });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
   startHole(r.level);
-  slide = null;   // carrying on after a reload: the table is just there, it doesn't slide in like a new hole
   if (r.balls && r.balls.length === table.balls.length) {
     r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));
     if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
@@ -2511,7 +2507,6 @@ function drawTableCat(t, dt) {
   const g = generous();
   drawCatBody(c.x, c.y, c.rot, CAT_SC * (1 + catFlash * 0.1), t, near || catFlash > 0 || g && catStartle > 0.05, g && near ? catLook(c.x, c.y, c.rot, CAT_SC) : 0, g ? catStartle : 0);
 }
-function whoosh() { noise(0.4, 0.07, 700, 'bandpass', 0, 0.8); tone(240, 0.35, 0.03, 'sine', 1.8, 0, 0.3); }
 function meow() { tone(560, 0.18, 0.05, 'triangle', 1.45, 0, 0.3); tone(810, 0.3, 0.045, 'triangle', 0.62, 0.14, 0.3); }
 function catSpotFree(t, x, y) {
   return (t.hole.shape ? freeIn(t.hole.shape, x, y, CAT_R + 4) : x > CAT_R + 4 && x < W - CAT_R - 4 && y > CAT_R + 4 && y < H - CAT_R - 4) &&
@@ -3142,15 +3137,6 @@ function draw(t, dt) {
   drawChair();
   drawRecord(dt);
   drawCat(t);
-  // short round: the table (and everything on it) slides off to the left after a hole, and the next slides in
-  let slideX = 0;
-  if (slide) {
-    slide.t += dt;
-    const out = slide.dir === 'out', k = clamp(slide.t / (out ? 0.38 : 0.5), 0, 1), e = out ? k * k : 1 - (1 - k) ** 3;
-    slideX = out ? -e * (W + 600) : (1 - e) * (W + 600);
-    if (!out && k >= 1) slide = null;
-  }
-  ctx.save(); ctx.translate(slideX, 0);
   drawTable(t, dt);
   drawTableCat(t, dt);
 
@@ -3251,7 +3237,6 @@ function draw(t, dt) {
   fx.particles = fx.particles.filter(p => p.life > 0);
   ctx.globalAlpha = 1;
 
-  ctx.restore();
   for (const pl of DECOR.plants) drawPlant(pl, t);
 
   for (const c of fx.confetti) {

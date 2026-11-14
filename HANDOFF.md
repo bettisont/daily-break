@@ -405,8 +405,7 @@ shot is identical to before, checked on five days × six holes):
   - The cat (`catLook`, `catStartle`): its head turns towards the nearest rolling ball (room cat when a ball
     is fast or it's startled; table cat when a ball is near), and hard hits or a ball stopping on the lip
     make it flinch with its ears flat.
-  - Table slides (`slide`): after a hole the table slides off to the left (0.38 s, a whoosh) and the next slides
-    in from the right (0.5 s). The room stays put; the banner and stamp don't move.
+  - Table slides between holes were tried and removed the same day (the playtester didn't like them).
 - Windmill while aiming (short rounds): it keeps turning during aim and strike at its in-play speed
   (`WM_W` × `PLAY`, 1.1 rad/s), so it reads as alive and shots can be timed through a gap; the aim line, glow and
   path hint follow it. It waits while any ball rests inside its sweep, so it never turns into a resting ball.
@@ -415,10 +414,10 @@ shot is identical to before, checked on five days × six holes):
   mid slow-motion. The replay now only sinks balls that drop during the shot, `drawBall` skips non-finite
   positions, and `frame` wraps `draw` in try/catch so a drawing error can never stop the loop again (this
   safety net is on for every round, not just short ones). 9 auto-played rounds afterwards: no errors.
-- Carrying on after a reload (14 Nov): `resumeRun` clears `slide`, so a resumed hole doesn't slide in like a new
-  one (a playtester read that as the table restarting; it happened when the test page was republished mid-game
-  and reloaded). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat
-  goes back to where it started the hole.
+- Carrying on after a reload (14 Nov): a playtester thought a table restarted; it was the test page being
+  republished mid-game, which reloads it, and the round carrying on from its save (with the since-removed
+  slide-in). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat goes
+  back to where it started the hole.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
