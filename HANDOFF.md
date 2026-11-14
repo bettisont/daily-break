@@ -314,3 +314,36 @@ About half the phones that open the game never take a shot. Three changes aimed 
   "Spin keeps it out!", and the shot plays with that spin. Once ever (`dailybreak:scratchSaved`).
 - The level/hole 3 spin tip and its pulse are gone; the spin ball still pulses when the pull-back path shows a
   scratch. The "Tap a ball to target it" tip moved from level/hole 2 to 3 so it doesn't clash with the demo.
+
+## Short round with a feature on every hole (test, 14 Nov 2026; `SHORT_ON` is off in the live game)
+
+Feedback: the round is too long, and it needs obstacles. The quick-shot prototype was scrapped the same day (its
+three commits are reverted, so it's in the history). With `SHORT_ON` true, par days from `SHORT_FROM` (and
+practice courses) change like this; other days and the live game are untouched (with it off, every hole and
+shot is identical to before, checked on five days × six holes):
+- At most `SHORT_MAX` (3) balls a table (`ballsFor`): holes have 1, 2, 3, 3, 3, 3 balls. Par is still the
+  number of balls, +1 from hole 3 (`parOf` now takes the seed): 1, 2, 4, 4, 4, 4 = 19. Still six holes.
+- Holes 3–6 each get one feature, dealt for the day from `FEATURE_KEYS` (water, windmill, gate, sand, cat;
+  one sits out each day; `obstFor`). The random rough/slick felt patches are off on these days; tilt,
+  bumpers and closed pockets still appear.
+- Sand bunker (`placeFeature`): a `rough` patch with `bunker: true`, placed after the balls. It tries spots on
+  both legs (cue ball → ghost ball, object ball → pocket) of the best 8 open pots, each lying across its leg,
+  and keeps the one whose ellipse crosses the most pots weighted by `q`. Never over a pocket mouth or under
+  the cue ball. In testing it crossed 19 of the 23 best opening pots on its holes. `openingPot` and
+  `clearable` try a harder pace (0.7 / 0.75) on sand holes.
+- The cat (`placeFeature`, `Table.cat`, `Table.bumps`): it naps on the cue ball's path to the best pot (so that
+  pot is blocked) as a big soft bumper (`CAT_R` 30, restitution `CAT_E` 0.3). `Table.bumps` is the hole's
+  bumpers plus the cat, and physics, `trace`, `pathBlocked` and `respot` use it. Its eyes open when a ball
+  rolls within 230 px. After a shot that hit it (`shot.catHit`, `catAfterShot`), it meows and hops to a new
+  spot (seeded by day, hole and stroke), choosing one that blocks your best pot from the new cue position if it
+  can while leaving at least one open ("Mrrp! The cat moved into your way"). A second hit, or one over 900,
+  and it jumps down to its cushion by the table for the rest of the hole ("The cat's had enough"). Hitting only
+  the cat is a foul like hitting only a bumper ("Only hit the cat"). It hops up from its cushion as the hole
+  starts (`catAnim`; `drawCat` hides the room cat while it's on the table). Not saved mid-hole: a reload puts
+  it back where it started.
+- Intro and help text mention the three-ball cap and the features when it's on.
+- Testing (10 days, 60 holes): every hole had the right balls and its feature, a real opening pot, and was
+  clearable; generation 13 ms on average, 114 ms at worst. 280 random shots on cat holes (85 hit the cat):
+  no ball ended inside the cat, no NaN.
+- To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
+  saved run changes mid-round). Open questions: seven holes instead of six (`HOLES`), and par on feature holes.

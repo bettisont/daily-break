@@ -319,11 +319,20 @@ const pocketsOf = h => h.shape ? h.shape.pockets : POCKETS;
 // edge), a windmill (two crossed bars that turn while balls are rolling) or a one-way gate (a hinged flap
 // that swings open from one side and is solid from the other). All of it runs in the deterministic physics.
 const OBSTACLES_ON = false, OBST_KEYS = ['none', 'water', 'windmill', 'gate'];
-const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way gate' };
+const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way gate', sand: 'Sand bunker', cat: 'The cat' };
+// Shorter round (test; SHORT_ON is off in the live game, the test build turns it on): at most SHORT_MAX balls a
+// table, and holes 3-6 each get one feature, dealt for the day from water, windmill, gate, a sand bunker across
+// the best opening shot and the cat napping on the felt (one of the five sits out each day).
+const SHORT_ON = false, SHORT_FROM = '2026-11-15', SHORT_MAX = 3, FEATURE_KEYS = ['water', 'windmill', 'gate', 'sand', 'cat'];
+const shortSeed = seed => SHORT_ON && parSeed(seed) && (!isDailySeed(seed) || seed >= SHORT_FROM);
+const ballsFor = (seed, i) => Math.min(i + 1, shortSeed(seed) ? SHORT_MAX : MAX_BALLS);
+const featureName = h => h.obst ? OBST_NAMES[h.obst.type] : h.feature ? OBST_NAMES[h.feature] : '';
+const CAT_R = 30, CAT_E = 0.3;   // the cat on the felt: a big soft ball that soaks up most of a hit
 const BAR_T = 6, WM_W = 1.5, GATE_MAX = 1.45, GATE_BACK = 2.2;
 let obstacleOverride = null;   // the test build forces an obstacle here
 function obstFor(seed, i) {
   if (obstacleOverride) return obstacleOverride === 'none' ? null : obstacleOverride;
+  if (shortSeed(seed)) return i < 2 ? null : shuffle(rngFor(`${seed}:feature`), FEATURE_KEYS)[(i - 2) % FEATURE_KEYS.length];
   if (!OBSTACLES_ON || i < 2 || !parSeed(seed)) return null;
   const n = OBST_KEYS.length, c = Math.floor((i - 2) / n), deck = shuffle(rngFor(`${seed}:obst:${c}`), OBST_KEYS);
   const k = deck[(i - 2) % n];
@@ -361,11 +370,11 @@ const holeCache = new Map();
 function makeHole(seed, i) {
   const key = `${seed}:${i}:${shapeOverride || ''}:${obstacleOverride || ''}`;
   if (holeCache.has(key)) return holeCache.get(key);
-  const n = Math.min(i + 1, MAX_BALLS);
+  const n = ballsFor(seed, i), kind = obstFor(seed, i), needFeature = kind === 'sand' || kind === 'cat';
   let h = null, fallback = null;
   for (let attempt = 0; attempt < 60; attempt++) {
     h = buildHole(seed, i, attempt);
-    if (h.balls.length !== n || !openingPot(h)) continue;
+    if (h.balls.length !== n || needFeature && !h.feature || !openingPot(h)) continue;
     fallback = fallback || h;
     if (clearable(h)) { holeCache.set(key, h); return h; }
   }
@@ -383,7 +392,7 @@ function clearable(h) {
     if (!t.remaining()) return true;
     const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.45).sort((a, b) => b.q - a.q).slice(0, 4);
     let best = null;
-    search: for (const l of ls) for (const pw of [0.4, 0.3, 0.55]) for (const sp of [0, 0.6, -0.6]) {
+    search: for (const l of ls) for (const pw of h.feature === 'sand' ? [0.4, 0.3, 0.55, 0.75] : [0.4, 0.3, 0.55]) for (const sp of [0, 0.6, -0.6]) {
       const s = simulate(t, l.angle, pw, sp), b = s.balls[l.bi];
       if (s.shot.scratch || s.shot.splashes || s.shot.firstHit !== b || !s.shot.pots.some(p => p.ball === b)) continue;
       const v = s.remaining() ? leaveQ(s) : 9;
@@ -406,7 +415,7 @@ function leaveQ(t) {
 function openingPot(h) {
   const t = new Table(h);
   const ls = allLines(t).filter(l => !l.blocked && l.cos > 0.55).sort((a, b) => b.q - a.q).slice(0, 4);
-  for (const l of ls) for (const pw of [0.3, 0.42, 0.55]) {
+  for (const l of ls) for (const pw of h.feature === 'sand' ? [0.3, 0.42, 0.55, 0.7] : [0.3, 0.42, 0.55]) {
     const s = simulate(t, l.angle, pw, 0), b = s.balls[l.bi];
     if (!s.shot.scratch && !s.shot.splashes && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b)) return true;
   }
@@ -444,7 +453,7 @@ function buildHole(seed, i, attempt) {
     const o = place(() => [100 + rnd() * (W - 200), 160 + rnd() * (H - 420)], 18 + rnd() * 10, R * 2.5);
     if (o) bumpers.push({ x: o.x, y: o.y, r: o.r });
   }
-  const n = Math.min(i + 1, MAX_BALLS), nums = shuffle(rnd, Array.from({ length: 15 }, (_, k) => k + 1)), balls = [];
+  const n = ballsFor(seed, i), nums = shuffle(rnd, Array.from({ length: 15 }, (_, k) => k + 1)), balls = [];
   const spread = !isDailySeed(seed) || seed >= SPREAD_FROM;
   for (let k = 0; k < n; k++) {
     // From SPREAD_FROM (and on practice courses) no ball starts touching or crowding another: a ball-width-ish gap
@@ -459,13 +468,57 @@ function buildHole(seed, i, attempt) {
     if (o) balls.push({ x: o.x, y: o.y, n: nums[k] });
   }
   const patches = [];
-  if (haz(0.12 + hz * 0.05)) patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 60, ry: 45 + rnd() * 45, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
+  if (!shortSeed(seed) && haz(0.12 + hz * 0.05)) patches.push({ type: rnd() < 0.6 ? 'rough' : 'slick', x: 70 + rnd() * (W - 140), y: 90 + rnd() * (H - 180), rx: 60 + rnd() * 60, ry: 45 + rnd() * 45, rot: rnd() * Math.PI, seed: Math.floor(rnd() * 1e6) });
   let tilt = { x: 0, y: 0, mag: 0, dir: 0 };
   if (haz(0.1 + hz * 0.06)) {
     const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (6 + hz * 3), a = dir * Math.PI / 4;
     tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
-  return { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape, obst };
+  const h = { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape, obst };
+  if (kind === 'sand' || kind === 'cat') placeFeature(h, kind, rngFor(`${seed}:feature:${i}` + (attempt ? `:${attempt}` : '')));
+  return h;
+}
+// Sand and the cat go where they change the hole. Sand lies across the legs (cue ball to ghost ball, object ball
+// to pocket) of as many of the good opening pots as it can, so most ways of playing the hole go through it and
+// have to be hit harder. The cat naps on the cue ball's path to the best pot, so that one is blocked and you
+// need another (or a way round). makeHole then checks the hole still has a real opening pot and can be cleared.
+function placeFeature(h, kind, rr) {
+  const t = new Table(h), pks = pocketsOf(h);
+  const lines = allLines(t).filter(l => !l.blocked && l.cos > 0.55).sort((a, b) => b.q - a.q).slice(0, 3);
+  const onFelt = (x, y, m) => h.shape ? freeIn(h.shape, x, y, m) : x > m && x < W - m && y > m && y < H - m;
+  if (kind === 'sand') {
+    // try spots on both legs of the good pots, each lying across its leg, and keep the one that cuts across the
+    // most (weighted by how good each pot is), so most ways of playing the hole go through sand
+    const all = allLines(t).filter(l => !l.blocked && l.cos > 0.5).sort((a, b) => b.q - a.q).slice(0, 8), c = t.cue;
+    const legsOf = l => { const b = t.balls[l.bi], P = pocketAim(l.pocket, h); return [[c.x, c.y, l.ghost.x, l.ghost.y, l.d1], [b.x, b.y, P.x, P.y, l.d2]]; };
+    const crosses = (p, [ax, ay, bx, by]) => { for (let u = 0.05; u <= 0.95; u += 0.05) if (inPatch(p, ax + (bx - ax) * u, ay + (by - ay) * u)) return true; return false; };
+    let best = null;
+    for (const l of all) for (const [ax, ay, bx, by, len] of legsOf(l)) {
+      if (len < 170) continue;
+      for (const u of [0.35, 0.5, 0.65]) {
+        const x = ax + (bx - ax) * u, y = ay + (by - ay) * u, across = 70 + rr() * 25, along = 42 + rr() * 16;
+        const p = { type: 'rough', bunker: true, x, y, rx: across, ry: along, rot: Math.atan2(by - ay, bx - ax) + Math.PI / 2, seed: Math.floor(rr() * 1e6) };
+        if (pks.some(q => Math.hypot(q.x - x, q.y - y) < across + R * 2) || inPatch(p, c.x, c.y)) continue;
+        const score = all.reduce((a, m) => a + (legsOf(m).some(g => crosses(p, g)) ? m.q : 0), 0) + rr() * 0.01;
+        if (!best || score > best.score) best = { p, score };
+      }
+    }
+    if (best) { h.patches = [...h.patches, best.p]; h.feature = 'sand'; }
+    return;
+  }
+  for (const l of lines) {
+    const b = t.balls[l.bi], P = pocketAim(l.pocket, h), c = t.cue;
+    const legs = [[c.x, c.y, l.ghost.x, l.ghost.y, l.d1], [b.x, b.y, P.x, P.y, l.d2]];
+    const [ax, ay, bx, by, len] = legs[0];
+    if (len < 4 * CAT_R + 2 * R) continue;
+    for (let k = 0; k < 6; k++) {
+      const u = 0.35 + rr() * 0.3, x = ax + (bx - ax) * u, y = ay + (by - ay) * u;
+      if (!onFelt(x, y, CAT_R + 4) || pks.some(q => Math.hypot(q.x - x, q.y - y) < CAT_R + R * 3) ||
+        [c, ...t.balls].some(o => Math.hypot(o.x - x, o.y - y) < CAT_R + R + 8) ||
+        h.bumpers.some(o => Math.hypot(o.x - x, o.y - y) < o.r + CAT_R + 10)) continue;
+      h.cat = { x, y, r: CAT_R, cat: true, rot: rr() * TAU }; h.feature = 'cat'; return;
+    }
+  }
 }
 
 class Table {
@@ -475,6 +528,8 @@ class Table {
     this.balls = hole.balls.map(b => ({ ...b, vx: 0, vy: 0, m: 1, potted: false }));
     this.shot = null;
     this.pk = pocketsOf(hole);
+    this.cat = hole.cat ? { ...hole.cat } : null;
+    this.bumps = this.cat ? [...hole.bumpers, this.cat] : hole.bumpers;   // bumpers, plus the cat while it's on the felt
     this.wa = hole.obst?.a0 || 0;   // windmill angle
     this.gp = 0;                    // how far the gate is open
   }
@@ -549,13 +604,17 @@ class Table {
         if (s) s.splashes++;
         continue;
       }
-      for (const o of this.hole.bumpers) {
+      for (const o of this.bumps) {
         const dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy), min = o.r + R;
         if (d >= min || d === 0) continue;
         const nx = dx / d, ny = dy / d;
         b.x = o.x + nx * min; b.y = o.y + ny * min;
-        const vn = b.vx * nx + b.vy * ny;
-        if (vn < 0) { b.vx -= (1 + BUMPER_E) * vn * nx; b.vy -= (1 + BUMPER_E) * vn * ny; if (-vn > 40) this.ev('bumper', { o, speed: -vn }); }
+        const vn = b.vx * nx + b.vy * ny, e = o.cat ? CAT_E : BUMPER_E;
+        if (vn < 0) {
+          b.vx -= (1 + e) * vn * nx; b.vy -= (1 + e) * vn * ny;
+          if (o.cat && s) s.catHit = Math.max(s.catHit || 0, -vn);
+          if (-vn > 40) this.ev(o.cat ? 'cat' : 'bumper', { o, speed: -vn });
+        }
       }
       let potted = false;
       for (let i = 0; i < 6 && !potted; i++) {
@@ -653,7 +712,7 @@ class Table {
   respot(b, x, y) {
     const free = (px, py) => (this.hole.shape ? freeIn(this.hole.shape, px, py, R + 1) : px > R && px < W - R && py > R && py < H - R) &&
       this.live().every(o => o === b || Math.hypot(o.x - px, o.y - py) > 2 * R + 2) &&
-      this.hole.bumpers.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
+      this.bumps.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
       this.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4) &&
       (!this.hole.obst || (this.hole.obst.type === 'water' ? !inPond(this.hole.obst, px, py, R + 2) : obstBars(this).every(([ax, ay, bx, by]) => segDist(px, py, ax, ay, bx, by) > R + BAR_T + 2)));
     for (let rad = 0; rad < 600; rad += 4) {
@@ -670,6 +729,8 @@ function cloneTable(t) {
   const c = Object.assign(Object.create(Table.prototype), t);
   c.ev = () => {};
   c.cue = { ...t.cue };
+  c.cat = t.cat ? { ...t.cat } : null;
+  c.bumps = c.cat ? [...t.hole.bumpers, c.cat] : t.hole.bumpers;
   c.balls = t.balls.map(b => ({ ...b }));
   c.shot = t.shot ? { ...t.shot, pots: [...t.shot.pots] } : null;
   return c;
@@ -686,7 +747,7 @@ function pathBlocked(t, ax, ay, bx, by, skip) {
     else if (obstBars(t).some(([cx, cy, dx, dy]) => segSeg(ax, ay, bx, by, cx, cy, dx, dy) < R + BAR_T)) return true;
   }
   return t.balls.some(b => !b.potted && b !== skip && segDist(b.x, b.y, ax, ay, bx, by) < 2 * R - 0.5) ||
-    t.hole.bumpers.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R) ||
+    t.bumps.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R) ||
     // shaped tables: corners sticking into the felt, and islands, get in the way
     !!sh && (sh.reflex.some(([x, y]) => segDist(x, y, ax, ay, bx, by) < R) ||
       sh.islands.length > 0 && sh.segs.slice(sh.outer.length).some(g => segSeg(ax, ay, bx, by, g.ax, g.ay, g.bx, g.by) < R));
@@ -739,7 +800,7 @@ function trace(t, px, py, dx, dy, skip = null) {
   };
   let best = { t: Infinity };
   for (const b of t.balls) { if (b.potted || b === skip) continue; const s = ray(b.x, b.y, 2 * R); if (s < best.t) best = { t: s, ball: b }; }
-  for (const o of t.hole.bumpers) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
+  for (const o of t.bumps) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
   for (const [ax, ay, bx, by, solid] of obstBars(t)) { const s = rayBar(px, py, dx, dy, ax, ay, bx, by, BAR_T, solid); if (s < best.t) best = { t: s, wall: true }; }
   if (t.hole.shape) {
     for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true }; }
@@ -815,7 +876,7 @@ const PAR_ON = true, PAR_FROM = '2026-11-12', HOLES = 6;
 const parSeed = seed => PAR_ON && (!isDailySeed(seed) || seed >= PAR_FROM);
 const isPar = () => !!round?.par;
 const parKey = seed => 'dailybreak:par:' + seed;
-const parOf = i => i < 2 ? i + 1 : i + 2;
+const parOf = (i, seed = round?.seed) => shortSeed(seed) ? ballsFor(seed, i) + (i >= 2 ? 1 : 0) : i < 2 ? i + 1 : i + 2;
 const capOf = i => parOf(i) + 3;
 const toPar = n => n === 0 ? 'E' : n > 0 ? `+${n}` : `−${-n}`;
 const cardEmoji = d => d < 0 ? '🟦' : d === 0 ? '🟩' : d === 1 ? '🟨' : '🟥';
@@ -991,6 +1052,7 @@ function onEvent(type, e) {
     atX(e.x, () => sfx.spin(kind, amt)); buzz(kind === 'draw' ? [6, 30, 6] : 8);
     spinFx = { t: 0, kind, amt };
   }
+  else if (type === 'cat') { catFlash = 1; noise(0.12, 0.08, 500); buzz(10); }
   else if (type === 'bumper') { sfx.bumper(); e.o.flash = 1; ring(e.o.x, e.o.y, '230,190,100', 34, 0.5, e.o.r); }
   else if (type === 'splash') {
     atX(e.x, () => sfx.splash()); buzz([20, 30, 20]);
@@ -1046,13 +1108,15 @@ function startHole(i) {
   hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
   strokes = 0; levelMisses = 0;
+  // a cat hole: the cat hops up from its cushion onto the felt as the hole starts
+  catAnim = table.cat ? { from: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, to: { x: table.cat.x, y: table.cat.y, rot: table.cat.rot, sc: CAT_SC }, t: -0.9 } : null;
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
   fx.sinks = []; fx.confetti = [];
   lineUp();
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next level while this one plays
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
-  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${hole.obst ? `${OBST_NAMES[hole.obst.type]} · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life: hole.obst ? 2.3 : banner.life, max: hole.obst ? 2.3 : banner.max });
+  if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life: featureName(hole) ? 2.3 : banner.life, max: featureName(hole) ? 2.3 : banner.max });
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -1259,11 +1323,12 @@ function release() {
 }
 
 function resolveShot() {
+  catAfterShot();
   if (isPar()) return resolveParShot();
   const s = table.shot, c = table.cue;
   track('shot');
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
-  const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : s.splashes ? 'In the water' : null;
+  const foul = !s.firstHit ? (s.catHit ? 'Only hit the cat' : 'No contact') : s.scratch ? 'Scratch' : s.splashes ? 'In the water' : null;
   round.potted += shotLog.length;
   if ((foul || !shotLog.length) && round.level === 0) {
     // level 1 is a warm-up: a miss or foul there is free, so nobody loses a life in their first ten seconds
@@ -1310,7 +1375,7 @@ function resolveParShot() {
   const s = table.shot, c = table.cue;
   track('shot');
   const say = (t, y, col = '#b8553f', size = 18) => float(clamp(c.x, 80, W - 80), clamp(y, 40, H - 40), t, col, size, 1.8);
-  const foul = !s.firstHit ? 'No contact' : s.scratch ? 'Scratch' : null;
+  const foul = !s.firstHit ? (s.catHit ? 'Only hit the cat' : 'No contact') : s.scratch ? 'Scratch' : null;
   round.potted += shotLog.length;
   if (foul) {
     strokes++;   // the penalty stroke
@@ -1770,7 +1835,7 @@ function showIntro() {
     <div class="k mono">Daily Break · daily pool</div>
     ${parSeed(todayKey()) ? `<h2>Six holes. Fewest shots wins.</h2>
     <div class="howto">
-      <p>⛳ Pool scored like golf. Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.</p>
+      <p>⛳ Pool scored like golf. ${shortSeed(todayKey()) ? 'Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: sand, water, a windmill, a gate, or the cat.' : 'Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.'}</p>
       <p>🎱 Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>` : `<h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
@@ -1786,7 +1851,7 @@ function showHelp() {
     <h2>${isPar() ? 'Six holes. Fewest shots wins.' : 'How far can you get?'}</h2>
     <div class="howto">
       <p${isPar() ? ' hidden' : ''}>🎱 <b>Level 1</b> has one ball. Pot it and <b>level 2</b> has two, then three, and so on. Clear every ball to move up.</p>
-      ${isPar() ? `<p>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3. Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>` : ''}
+      ${isPar() ? `<p>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3${shortSeed(round?.seed) ? ' (at most three balls a hole)' : ''}. Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>` : ''}
       <p${isPar() ? ' hidden' : ''}>❤️ You have <b>4 lives</b>. A miss or a foul (scratch, or hitting nothing) costs one, except on level 1, which is a free warm-up. Clear a level without losing one and you <b>win a life back</b>. Lose them all and the run is over.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. To go for a different ball, <b>tap it on the table</b>.</p>
@@ -1795,7 +1860,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      <p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>
+      <p${OBSTACLES_ON || shortSeed(round?.seed) ? '' : ' hidden'}>💧 ${shortSeed(round?.seed) ? 'From hole 3 every hole has one thing in the way' : 'Some holes have an obstacle'}: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.${shortSeed(round?.seed) ? ' Or a <b>sand bunker</b> across the obvious shot (balls slow right down in sand), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.' : ''}</p>
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
@@ -2262,11 +2327,17 @@ function drawRecord(dt) {
   ctx.beginPath(); ctx.moveTo(x + 46, y - 36); ctx.lineTo(x + 40, y + 6); ctx.lineTo(x + 18, y + 24); ctx.stroke();
   ctx.fillStyle = '#6f7575'; ctx.beginPath(); ctx.arc(x + 46, y - 36, 6, 0, TAU); ctx.fill();
 }
+// The cat. Normally it sleeps by the table; on a short round's cat hole it naps on the felt instead. drawCatBody
+// draws it anywhere: rot turns it, sc scales it, awake opens its eyes.
 function drawCat(t) {
-  const { x, y } = DECOR.cat, br = 1 + Math.sin(t * 1.6) * 0.025;
+  if (table?.cat || catAnim) return;
+  drawCatBody(DECOR.cat.x, DECOR.cat.y, -0.3, 1, t, false);
+}
+function drawCatBody(x, y, rot, sc, t, awake) {
+  const br = 1 + Math.sin(t * 1.6) * 0.025;
   const flick = Math.max(0, Math.sin(t * 0.45)) ** 12;
-  ctx.drawImage(SOFT_SHADOW, x - 50, y - 38, 106, 86);
-  ctx.save(); ctx.translate(x, y); ctx.rotate(-0.3);
+  ctx.drawImage(SOFT_SHADOW, x - 50 * sc, y - 38 * sc, 106 * sc, 86 * sc);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sc, sc);
   ctx.strokeStyle = '#d98f45'; ctx.lineWidth = 9; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(-26, 10);
   const ta = 0.6 + flick * Math.sin(t * 14) * 0.5;
@@ -2279,8 +2350,68 @@ function drawCat(t) {
   ctx.beginPath(); ctx.moveTo(28, -4); ctx.lineTo(36, -10); ctx.lineTo(36, 2); ctx.fill();
   ctx.beginPath(); ctx.moveTo(18, -2); ctx.lineTo(18, -12); ctx.lineTo(28, -5); ctx.fill();
   ctx.strokeStyle = '#7a4a28'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(22, 10, 3, 0.2, 2.6); ctx.moveTo(31, 9); ctx.arc(29, 10, 3, 0.2, 2.6); ctx.stroke();
+  if (awake) {
+    ctx.fillStyle = '#9bbf4a'; ctx.beginPath(); ctx.ellipse(21, 9, 3.2, 2.6, 0, 0, TAU); ctx.ellipse(30, 9, 3.2, 2.6, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#24221f'; ctx.beginPath(); ctx.ellipse(21.5, 9, 1, 2.3, 0, 0, TAU); ctx.ellipse(30.5, 9, 1, 2.3, 0, 0, TAU); ctx.fill();
+  } else { ctx.beginPath(); ctx.arc(22, 10, 3, 0.2, 2.6); ctx.moveTo(31, 9); ctx.arc(29, 10, 3, 0.2, 2.6); ctx.stroke(); }
   ctx.restore();
+}
+// The cat on the felt: a big soft obstacle (CAT_R, CAT_E). Its eyes open when a ball rolls near. Hit it and,
+// once the balls stop, it hops somewhere else, choosing a spot that blocks your best pot if it can (seeded, so
+// everyone's cat does the same for the same shot). The second hit, or one hard knock, and it's had enough: it
+// jumps down to its cushion by the table for the rest of the hole.
+let catAnim = null, catFlash = 0;
+const CAT_SC = 0.85;
+function drawTableCat(t, dt) {
+  catFlash = Math.max(0, catFlash - dt * 3);
+  if (catAnim) {
+    catAnim.t += dt;
+    const k = clamp(catAnim.t / 0.7, 0, 1), e = k * k * (3 - 2 * k), hop = Math.sin(k * Math.PI), f = catAnim.from, to = catAnim.to;
+    drawCatBody(lerp(f.x, to.x, e), lerp(f.y, to.y, e) - hop * 70, lerp(f.rot, to.rot, e), lerp(f.sc, to.sc, e) * (1 + hop * 0.3), t, true);
+    if (k >= 1) catAnim = null;
+    return;
+  }
+  const c = table?.cat;
+  if (!c) return;
+  const near = table.live().some(b => (b.vx || b.vy) && Math.hypot(b.x - c.x, b.y - c.y) < 230);
+  drawCatBody(c.x, c.y, c.rot, CAT_SC * (1 + catFlash * 0.1), t, near || catFlash > 0);
+}
+function meow() { tone(560, 0.18, 0.05, 'triangle', 1.45, 0, 0.3); tone(810, 0.3, 0.045, 'triangle', 0.62, 0.14, 0.3); }
+function catSpotFree(t, x, y) {
+  return (t.hole.shape ? freeIn(t.hole.shape, x, y, CAT_R + 4) : x > CAT_R + 4 && x < W - CAT_R - 4 && y > CAT_R + 4 && y < H - CAT_R - 4) &&
+    t.live().every(o => Math.hypot(o.x - x, o.y - y) > CAT_R + R + 10) &&
+    t.hole.bumpers.every(o => Math.hypot(o.x - x, o.y - y) > o.r + CAT_R + 10) &&
+    t.pk.every(p => Math.hypot(p.x - x, p.y - y) > p.cap + CAT_R + R) &&
+    !t.hole.patches.some(p => inPatch(p, x, y));
+}
+function catAfterShot() {
+  const c = table.cat, hit = table.shot?.catHit;
+  if (!c || !hit) return;
+  c.hits = (c.hits || 0) + 1;
+  const from = { x: c.x, y: c.y, rot: c.rot, sc: CAT_SC }, say = (txt, col) => float(clamp(c.x, 90, W - 90), clamp(c.y - 55, 40, H - 40), txt, col, 19, 1.8);
+  meow();
+  if (c.hits >= 2 || hit > 900) {
+    say("The cat's had enough", '#b8553f');
+    table.cat = null; table.bumps = table.hole.bumpers;
+    catAnim = { from, to: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, t: 0 };
+    return;
+  }
+  // somewhere free, ideally in the way of the best pot from where the cue ball is now (but never blocking them all)
+  const rr = rngFor(`${round.seed}:cat:${round.level}:${strokes}`), x0 = c.x, y0 = c.y;
+  c.x = -999; c.y = -999;
+  const best = allLines(table).filter(l => !l.blocked).sort((a, b) => b.q - a.q)[0];
+  let pick = null;
+  for (let k = 0; k < 400 && !(pick && pick.blocks); k++) {
+    const x = 60 + rr() * (W - 120), y = 60 + rr() * (H - 120);
+    if (Math.hypot(x - x0, y - y0) < 90 || !catSpotFree(table, x, y)) continue;
+    c.x = x; c.y = y;
+    const open = allLines(table).filter(l => !l.blocked), blocks = !!best && open.length > 0 && !open.some(l => l.bi === best.bi && l.pocket === best.pocket);
+    if (open.length && (!pick || blocks)) pick = { x, y, blocks };
+  }
+  if (!pick) { c.x = x0; c.y = y0; return; }
+  c.x = pick.x; c.y = pick.y; c.rot = rr() * TAU;
+  say(pick.blocks ? 'Mrrp! The cat moved into your way' : 'Mrrp!', '#b88a2e');
+  catAnim = { from, to: { x: c.x, y: c.y, rot: c.rot, sc: CAT_SC }, t: 0 };
 }
 
 /* ----- obstacles ----- */
@@ -2744,6 +2875,7 @@ function draw(t, dt) {
   drawRecord(dt);
   drawCat(t);
   drawTable(t, dt);
+  drawTableCat(t, dt);
 
   for (const tr of trails) {
     ctx.fillStyle = `rgba(255,250,235,${tr === curTrail ? 0.85 : 0.35})`;
