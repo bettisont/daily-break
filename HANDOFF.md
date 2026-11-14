@@ -441,9 +441,11 @@ shot is identical to before, checked on five days × six holes):
   day and dropped: a ring that followed the pull, with "softer"/"harder" labels; and before that, a resting ring
   on the last shot's pace, which hid a good line after a hard shot.) An allowance for a slightly-off strike (pot at ±0.15°)
   was tried and dropped in favour of honest strike grades:
-- Strike grades (short rounds; `contact`, `PERFECT_CORE` 0.4, `GOOD_PUSH` 0.5°): the gold spot has a bright
+- Strike grades (short rounds; `contact`, `PERFECT_CORE` 0.4, `GOOD_PUSH` 0.15°): the gold spot has a bright
   bullseye. A tip in it is 'perfect' and plays exactly as aimed (so exactly as the guide shows); the rest of the
-  spot is 'clean' and pushes up to 0.5° (more the further out); 'near'/'off' carry on from 0.5°. Perfect gets
+  spot is 'clean' and pushes up to 0.15° (more the further out); 'near'/'off' carry on from there. (0.5° made
+  Clean too punishing: 27% on long pots. At 0.15°, Clean pots 95% / 73% / 44% of short / medium / long pots at
+  medium pace, against Perfect's 96% / 79% / 60%.) Perfect gets
   the most: PERFECT in the close-up, an extra two-note shimmer, a long buzz, a gold burst and ring, "Perfect
   strike!" and a warm edge glow; Clean is quieter (one soft note, a smaller sparkle). A higher tick sounds as
   the tip crosses the bullseye while you hold. Measured on 10 days (best pot, medium pace): letting go 0.2 s

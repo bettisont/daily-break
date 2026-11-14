@@ -1324,7 +1324,7 @@ const tipInCore = d => { const p = tipPos(d); return Math.hypot(p.x, p.y - aim.s
 // On a short round the spot has a perfect core (PERFECT_CORE of its radius): only a tip there plays exactly as
 // aimed ('perfect'). The rest of the spot is 'clean' but pushes the line a little (up to GOOD_PUSH degrees, more
 // the further out), and 'near' carries on from there, so the guide's promise holds only for a perfect strike.
-const PERFECT_CORE = 0.4, GOOD_PUSH = 0.5;
+const PERFECT_CORE = 0.4, GOOD_PUSH = 0.15;
 function contact(d) {
   const tip = tipPos(d), r = spotR(d), ex = tip.x, ey = tip.y - aim.spotY, dist = Math.hypot(ex, ey);
   if (generous()) {
