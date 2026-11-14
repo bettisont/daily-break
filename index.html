@@ -1153,7 +1153,6 @@ function startHole(i) {
 
 // Each shot starts lined up dead centre on the ball with the easiest pot.
 function lineUp() {
-  aimLines = null; aimRaw = null; aimSnap = null;
   phase = 'aim'; gimmes = isPar() ? findGimmes() : []; focusBall(bestBall(), true);
   if (firstShotEver() && strokes === 0) startOffTarget();
   updateUI();
@@ -1222,22 +1221,7 @@ function setAngle(a) {
   if (Math.round(aim.angle / TICK) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; sfx.tick(); buzz(2); }
   updateAimUI();
 }
-const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
-const SNAP = 0.35 * Math.PI / 180;
-let aimRaw = null, aimSnap = null, aimLines = null;
-function turnAim(da) {
-  if (!generous()) return setAngle(aim.angle + da);
-  // aimRaw is where your input has taken the aim; if something else moved the aim, start again from there
-  if (aimRaw == null || Math.abs(angDiff(aimRaw, aim.angle)) > SNAP * 3) aimRaw = aim.angle;
-  aimRaw = Math.atan2(Math.sin(aimRaw + da), Math.cos(aimRaw + da));
-  aimLines = aimLines || allLines(table).filter(l => !l.blocked);
-  let best = null, bd = SNAP;
-  for (const l of aimLines) { const d = Math.abs(angDiff(l.angle, aimRaw)); if (d < bd) { bd = d; best = l; } }
-  const key = best && `${best.bi}:${best.pocket}`;
-  if (best && key !== aimSnap) { tone(1568, 0.05, 0.05, 'sine', 1, 0, 0.3); buzz(6); }
-  aimSnap = key;
-  setAngle(best ? best.angle : aimRaw);
-}
+const turnAim = da => setAngle(aim.angle + da);
 // The aim offset from dead centre on the focused ball, in degrees (+ is right of centre, from behind the cue ball).
 function aimOffset() {
   // measured from the ball the line actually hits (not the one first targeted), so it never reads 115°
@@ -1293,9 +1277,14 @@ function contactDiff() {
   return clamp(0.05 + 0.75 * clamp((d1 + 0.6 * d2 - 150) / 1000, 0, 1) + Math.abs(aim.spin) * 0.12 + power * 0.1 + (lie === 'rough' ? 0.1 : 0), 0, 1);
 }
 // The gold spot is where you chose to hit the cue ball; it shrinks and the tip gets shakier as the shot gets harder.
-const spotR = d => lerp(0.22, 0.09, d);
+// A harder strike on a short round, where the aiming guide is generous: from hole 3 the gold spot shrinks, the
+// tip wobbles wider and faster, and an off-centre hit pushes the ball further off line. strikeK ramps 0 → 1 over
+// holes 3-5 (0 on holes 1-2 and on every other kind of round).
+const strikeK = () => isPar() && !!round && shortSeed(round.seed) ? clamp((round.level - 1) / 3, 0, 1) : 0;
+const spotR = d => lerp(0.22, 0.09, d) * (1 - SPOT_SHRINK * strikeK());
+const SPOT_SHRINK = 0.15, WOBBLE_GROW = 0.12, WOBBLE_FAST = 0.15, PUSH_MAX = 3, PUSH_EXTRA = 2;
 function tipPos(d) {
-  const A = lerp(0.16, 0.55, d), w = lerp(1.0, 2.5, d), t = swayT * w;
+  const k = strikeK(), A = lerp(0.16, 0.55, d) * (1 + WOBBLE_GROW * k), w = lerp(1.0, 2.5, d) * (1 + WOBBLE_FAST * k), t = swayT * w;
   let x = A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
   let y = aim.spotY + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
   const m = Math.hypot(x, y);
@@ -1311,7 +1300,7 @@ function contact(d) {
   if (dist <= r) return { tip, quality: 'clean', off: 0, spin: aim.spin, power };
   const over = dist - r;
   if (Math.abs(tip.x) > 0.6 || over > 0.45) return { tip, quality: 'miscue', off: -Math.sign(tip.x || 1) * 4 * Math.PI / 180, spin: 0, power: power * 0.35 };
-  const off = -clamp(ex / dist * over * 6, -3, 3) * Math.PI / 180;
+  const pmax = PUSH_MAX + PUSH_EXTRA * strikeK(), off = -clamp(ex / dist * over * 6 * pmax / PUSH_MAX, -pmax, pmax) * Math.PI / 180;
   const spin = lerp(aim.spin, spinFor(tip.y), clamp(over * 2.5, 0, 1));
   return { tip, quality: over < r ? 'near' : 'off', off, spin, power };
 }

@@ -370,8 +370,14 @@ shot is identical to before, checked on five days × six holes):
   line really pots into it at a soft, medium or firm pace (`guideSim`: three `simulate` runs, redone only when
   the aim moves, tilt and sand included). That's simulated because the geometric "heading into a pocket"
   test was right only ~70% of the time at any tolerance. Nothing shows where balls stop.
-- Aim snap (`turnAim`, short rounds only): aim moves (strip, arrows, felt drag) settle onto any open pot line
-  within 0.35° with a click and hold there for ~0.7° of turning, then let go (`aimRaw` tracks your input).
+- Harder strike (14 Nov; `strikeK`, short rounds only): with a generous guide the skill moves to the strike.
+  From hole 3 `strikeK` ramps 0 → 1 over holes 3–5 and the gold spot shrinks (`SPOT_SHRINK` 15%), the tip
+  wobbles wider (`WOBBLE_GROW` 12%) and faster (`WOBBLE_FAST` 15%), and an off-centre hit pushes up to 5°
+  instead of 3° (`PUSH_EXTRA`). Measured on holes 3–6 over 12 days (best pot, medium pace): letting go at a
+  random moment is clean 28% of the time (was 39%); waiting for the tip to reach the spot and letting go 0.2 s
+  later, 71–83% (was 84–88%); an off-centre hit's average push 0.5–0.9° (was 0.3–0.4°). A first try at 25% /
+  25% / 30% left the timed player at 48% on hole 6, too harsh. An aim snap (settling onto pot lines within
+  0.35°) was tried the same day and removed: with the glow it made aiming too easy.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
