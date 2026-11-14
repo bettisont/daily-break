@@ -565,8 +565,8 @@ class Table {
   shoot(angle, power, spin = 0) {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
-    for (const b of this.balls) b.cush = 0;
-    this.cue.cush = 0;
+    for (const b of this.balls) { b.cush = 0; b.wallPts = []; }
+    this.cue.cush = 0; this.cue.wallPts = [];
     this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false, splashes: 0 };
   }
 
@@ -603,7 +603,7 @@ class Table {
           const jmp = -(1 + BALL_E) * vn / inv;
           a.vx -= jmp * nx / a.m; a.vy -= jmp * ny / a.m; b.vx += jmp * nx / b.m; b.vy += jmp * ny / b.m;
           if (s && (cueA || cueB)) {
-            if (!s.firstHit) { s.firstHit = cueA ? b : a; s.kick = (this.cue.cush || 0) > 0; s.kickCush = this.cue.cush || 0; }
+            if (!s.firstHit) { s.firstHit = cueA ? b : a; s.kick = (this.cue.cush || 0) > 0; s.kickCush = this.cue.cush || 0; s.kickWalls = (this.cue.wallPts || []).length; }
             // spin takes hold on the first contact: follow carries on through, draw comes back
             if (!s.spinUsed) {
               s.spinUsed = true;
@@ -678,6 +678,7 @@ class Table {
       }
       // (on a short round a touch in a pocket's jaws doesn't count, so a pot that brushes the jaw isn't a 'bank')
       if (hitWall && (!shortSeed(this.hole.seed) || this.pk.every(p => Math.hypot(b.x - p.x, b.y - p.y) > p.cap + 2 * R))) b.cush = (b.cush || 0) + 1;
+      if (hitWall) b.wallPts = [...(b.wallPts || []), [b.x, b.y]];   // every cushion contact and where (for the guide)
       if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
     }
   }
@@ -703,7 +704,7 @@ class Table {
         const nx = d ? dx / d : 1, ny = d ? dy / d : 0;
         b.x = cx + nx * min; b.y = cy + ny * min;
         const vbx = -WM_W * (cy - o.y), vby = WM_W * (cx - o.x), vn = (b.vx - vbx) * nx + (b.vy - vby) * ny;
-        if (vn < 0) { b.vx -= 1.6 * vn * nx; b.vy -= 1.6 * vn * ny; if (-vn > 60) this.ev('cushion', { speed: -vn, x: b.x, y: b.y }); }
+        if (vn < 0) { b.vx -= 1.6 * vn * nx; b.vy -= 1.6 * vn * ny; b.wallPts = [...(b.wallPts || []), [b.x, b.y]]; if (-vn > 60) this.ev('cushion', { speed: -vn, x: b.x, y: b.y }); }
       }
     } else if (o.type === 'gate') {
       const hits = () => { const [[ax, ay, bx, by]] = obstBars(this); return live.filter(b => segDist(b.x, b.y, ax, ay, bx, by) < R + BAR_T); };
@@ -729,7 +730,7 @@ class Table {
         const mx = dd ? d2x / dd : nx, my = dd ? d2y / dd : ny;
         b.x = c2x + mx * (R + BAR_T); b.y = c2y + my * (R + BAR_T);
         const v2 = b.vx * mx + b.vy * my;
-        if (v2 < 0) { b.vx -= (1 + CUSHION_E) * v2 * mx; b.vy -= (1 + CUSHION_E) * v2 * my; if (-v2 > 60) this.ev('cushion', { speed: -v2, x: b.x, y: b.y }); }
+        if (v2 < 0) { b.vx -= (1 + CUSHION_E) * v2 * mx; b.vy -= (1 + CUSHION_E) * v2 * my; b.wallPts = [...(b.wallPts || []), [b.x, b.y]]; if (-v2 > 60) this.ev('cushion', { speed: -v2, x: b.x, y: b.y }); }
       }
     }
   }
@@ -1173,7 +1174,7 @@ function lineUp() {
 function guidePots(angle) {
   return GUIDE_PACES.some(pw => {
     const s = simulate(table, angle, pw, 0);
-    return !s.shot.scratch && !!s.shot.firstHit && (s.shot.kickCush || 0) <= GUIDE_CUSH && s.shot.pots.some(q => (q.ball.cush || 0) <= GUIDE_CUSH);
+    return !s.shot.scratch && !!s.shot.firstHit && (s.shot.kickWalls || 0) <= GUIDE_CUSH && s.shot.pots.some(q => guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH);
   });
 }
 function startUnpotted() {
@@ -2921,6 +2922,14 @@ function pocketAlong(px, py, ux, uy, maxT) {
   return best;
 }
 const guideSim = { key: null, pks: [], kick: null, obj: null, range: {}, nowKey: null, mid: null };
+// How many cushions a ball came off, as the guide counts them: every contact, except touches in the jaws of the
+// pocket it then dropped into (a pot that brushes the jaw is still a straight pot; a ball that comes back out of
+// a corner did come off a cushion).
+const jawOf = (t, pk, x, y) => Math.hypot(x - t.pk[pk].x, y - t.pk[pk].y) < t.pk[pk].cap + 2.5 * R;
+const guideWalls = (t, b, dropPk) => (b.wallPts || []).filter(([x, y]) => dropPk == null || !jawOf(t, dropPk, x, y)).length;
+// while a ball is still rolling: jaw touches count once it has left that pocket's jaws
+const rollingWalls = (t, b) => (b.wallPts || []).filter(([x, y]) => { const i = t.pk.findIndex((_, k) => jawOf(t, k, x, y)); return i < 0 || !jawOf(t, i, b.x, b.y); }).length;
+const GUIDE_OBJ_LEN = 5000;   // the object ball's simulated line runs to its second cushion, the pocket or a stop, pot or not
 const GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];   // the guide follows a ball off at most this many cushions; beyond that it's up to you
 // The first ball the cue ball hits, as it really travels after contact (same pace, no spin), up to 1400 units, until
 // it drops (and which pocket) or stops: drawn when its straight line would meet a cushion before a pocket.
@@ -2929,17 +2938,19 @@ function objectSimPath(pw, maxLen = 1400, sp = 0) {
   for (let n = 0; n < 6000 && s.moving() && !s.shot.firstHit; n++) s.step();
   const fb = s.shot.firstHit;
   if (!fb) return null;
+  // play it right out, noting where it came off its second cushion; then if it drops (a pot the guide shows) the
+  // whole path is drawn, and if not it's cut there (a ball that rattles out of the jaws and back in still drops)
   const pts = [[fb.x, fb.y]];
-  let len = 0, lx = fb.x, ly = fb.y;
-  for (let n = 0; n < 8000 && s.moving() && !fb.potted && len < maxLen; n++) {
+  let len = 0, lx = fb.x, ly = fb.y, cut = null;
+  for (let n = 0; n < 20000 && s.moving() && !fb.potted && len < maxLen; n++) {
     s.step();
     if (fb.potted) break;
-    if ((fb.cush || 0) > GUIDE_CUSH) { pts.push([fb.x, fb.y]); break; }
     len += Math.hypot(fb.x - lx, fb.y - ly); lx = fb.x; ly = fb.y;
     if (n % 3 === 0) pts.push([fb.x, fb.y]);
+    if (cut == null && rollingWalls(s, fb) > GUIDE_CUSH) { pts.push([fb.x, fb.y]); cut = pts.length; }
   }
-  const pot = fb.potted && (fb.cush || 0) <= GUIDE_CUSH ? s.shot.pots.find(q => q.ball === fb) : null;
-  return { bi: s.balls.indexOf(fb), pts, pocket: pot ? pot.pocket : null };
+  const q0 = fb.potted ? s.shot.pots.find(q => q.ball === fb) : null, pot = q0 && guideWalls(s, fb, q0.pocket) <= GUIDE_CUSH ? q0 : null;
+  return { bi: s.balls.indexOf(fb), pts: pot || cut == null ? pts : pts.slice(0, cut), pocket: pot ? pot.pocket : null };
 }
 // After a cushion the cue ball's line is drawn from a real simulation (no spin, at the pace that pots, or medium),
 // not geometry, so it's
@@ -2954,7 +2965,7 @@ function kickPath(pw, sp = 0) {
     len += Math.hypot(c.x - lx, c.y - ly); lx = c.x; ly = c.y;
     if (n % 3 === 0) pts.push([c.x, c.y]);
     if (s.shot.firstHit) return { pts: [...pts, [c.x, c.y]], ball: table.balls[s.balls.indexOf(s.shot.firstHit)], x: c.x, y: c.y };
-    if (c.potted || len > 1800 || (c.cush || 0) > GUIDE_CUSH) break;
+    if (c.potted || len > 1800 || rollingWalls(s, c) > GUIDE_CUSH) break;
   }
   return { pts, ball: null };
 }
@@ -3003,11 +3014,12 @@ function drawGuide(c, dx, dy, hit, t) {
       if (leg === 0 && o && table.balls[o.bi] === ball) {
         let pts = o.pts.filter(([x, y]) => Math.hypot(x - ball.x, y - ball.y) > R + 3 || o.pts.length < 3);
         if (o.pocket != null) { const p = table.pk[o.pocket], rr = ringRadius(p); pts = pts.filter(([x, y]) => Math.hypot(x - p.x, y - p.y) > rr); }
-        // solid into a pocket; otherwise fading out towards its end, like the straight lines
-        const all = [[px + ux * (R + 3), py + uy * (R + 3)], ...pts], fade = o.pocket == null;
+        // drawn the same whether or not it pots (so lining up a pot doesn't switch the line on): solid, and only
+        // where it runs out without a pocket does its last stretch fade
+        const all = [[px + ux * (R + 3), py + uy * (R + 3)], ...pts], fade = o.pocket == null, tail = all.length * 0.7;
         ctx.save(); ctx.lineWidth = 3; ctx.lineCap = 'round';
         for (let n = 1; n < all.length; n++) {
-          ctx.strokeStyle = `rgba(251,248,240,${0.85 * (fade ? 1 - 0.8 * n / all.length : 1)})`;
+          ctx.strokeStyle = `rgba(251,248,240,${0.85 * (fade && n > tail ? 1 - 0.85 * (n - tail) / (all.length - tail) : 1)})`;
           ctx.beginPath(); ctx.moveTo(all[n - 1][0], all[n - 1][1]); ctx.lineTo(all[n][0], all[n][1]); ctx.stroke();
         }
         ctx.restore();
@@ -3024,18 +3036,23 @@ function drawGuide(c, dx, dy, hit, t) {
   const sp = aim.spin;
   const shownPots = (a, pw) => {   // only pots the guide shows: cue ball and potted ball each off at most one cushion
     const s = simulate(table, a, pw, sp);
-    if (s.shot.scratch || !s.shot.firstHit || (s.shot.kickCush || 0) > GUIDE_CUSH) return [];
-    return s.shot.pots.filter(q => (q.ball.cush || 0) <= GUIDE_CUSH).map(q => q.pocket);
+    if (s.shot.scratch || !s.shot.firstHit || (s.shot.kickWalls || 0) > GUIDE_CUSH) return [];
+    return s.shot.pots.filter(q => guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
   };
   const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}:${sp.toFixed(2)}`;
   if (guideSim.key !== key) {
     guideSim.key = key; guideSim.range = {}; guideSim.nowKey = null;
-    for (const pw of GUIDE_PACES) for (const i of shownPots(aim.angle, pw)) {
-      const r = guideSim.range[i] = guideSim.range[i] || [pw, pw];
-      r[0] = Math.min(r[0], pw); r[1] = Math.max(r[1], pw);
+    let potPace = null;
+    for (const pw of GUIDE_PACES) {
+      const pk = shownPots(aim.angle, pw);
+      for (const i of pk) {
+        const r = guideSim.range[i] = guideSim.range[i] || [pw, pw];
+        r[0] = Math.min(r[0], pw); r[1] = Math.max(r[1], pw);
+      }
+      // the line is drawn at a pace that really pots (the one nearest medium), never at an untested pace in between
+      if (pk.length && (potPace == null || Math.abs(pw - 0.45) < Math.abs(potPace - 0.45))) potPace = pw;
     }
-    const rs = Object.values(guideSim.range);
-    guideSim.mid = rs.length ? (rs[0][0] + rs[0][1]) / 2 : null;
+    guideSim.mid = potPace;
   }
   if (guideSim.nowKey !== guideSim.key) {
     guideSim.nowKey = guideSim.key;
@@ -3044,7 +3061,7 @@ function drawGuide(c, dx, dy, hit, t) {
     // so the line shows where the ball heads, not how far a soft hit happens to run
     const pots = guideSim.mid != null, pw = pots ? guideSim.mid : 0.85;
     guideSim.kick = hit.ball ? null : kickPath(pw, sp);
-    guideSim.obj = objectSimPath(pw, pots ? 1400 : 650, sp);
+    guideSim.obj = objectSimPath(pw, GUIDE_OBJ_LEN, sp);
   }
   guideSim.pks.forEach(ringPocket);
   // the cue ball: straight to the first ball it meets, or (a kick) along its simulated path off the cushion to
