@@ -2827,8 +2827,13 @@ function bounceOff(px, py, ux, uy, h) {
   let nx = h.nx, ny = h.ny;
   if (h.bumper) { const d = Math.hypot(x - h.bumper.x, y - h.bumper.y) || 1; nx = (x - h.bumper.x) / d; ny = (y - h.bumper.y) / d; }
   if (nx == null) return null;   // a windmill or gate bar: the guide stops there
-  const k = ux * nx + uy * ny;
-  return { x: x + nx * 0.5, y: y + ny * 0.5, ux: ux - 2 * k * nx, uy: uy - 2 * k * ny };
+  // in a pocket's jaws the rounded knuckles send a ball anywhere, so the guide stops there too
+  if (!h.bumper && table.pk.some(p => Math.hypot(p.x - x, p.y - y) < p.cap + R * 2.5)) return null;
+  // as the physics does it: the speed into the cushion drops to e of itself, the speed along it is kept, so the
+  // ball comes off at a flatter angle than a mirror would (cushions 0.78, bumpers 0.9, the cat 0.3)
+  const k = ux * nx + uy * ny, e = h.bumper ? (h.bumper.cat ? CAT_E : BUMPER_E) : CUSHION_E;
+  const rx = ux - (1 + e) * k * nx, ry = uy - (1 + e) * k * ny, rl = Math.hypot(rx, ry) || 1;
+  return { x: x + nx * 0.5, y: y + ny * 0.5, ux: rx / rl, uy: ry / rl };
 }
 // the open pocket a ball's centre would drop into along (ux, uy) before travelling maxT (plus the pocket's reach)
 function pocketAlong(px, py, ux, uy, maxT) {

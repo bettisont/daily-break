@@ -365,8 +365,13 @@ shot is identical to before, checked on five days × six holes):
 - Generous guide (14 Nov; `generous`, `drawGuide`, short rounds only): the idea is less squinting at a line
   and more imagining the shot. The cue ball's line carries on once off a cushion or bumper to the next ball
   (kicks), and the object ball's line goes to the pocket, or once off a cushion (banks), or to the next ball,
-  whose line it also shows (combinations). The lines are geometry only (`bounceOff` mirrors off the cushion
-  normal that `trace` now returns; bars stop them). A pocket glows green when a clean centre-ball hit on this
+  whose line it also shows (combinations). The lines are geometry only (`bounceOff` bounces off the cushion
+  normal that `trace` now returns the way the physics does: the speed into the cushion drops to `CUSHION_E`
+  (0.78; bumpers 0.9, the cat 0.3) and the speed along it is kept, so balls come off flatter than a mirror;
+  bars stop the line, and so do pocket jaws, within 2.5 ball radii of a pocket, where the knuckles make a
+  bounce unpredictable). Checked against the real cue ball path on the classic, hexagon, octagon and L tables
+  (204 shots, cue ball alone, no tilt): 151 within 3° (a mirror was off by a median 6°), 52 stop at the jaws,
+  1 off by 10° (an inside corner of the L). A pocket glows green when a clean centre-ball hit on this
   line really pots into it at a soft, medium or firm pace (`guideSim`: three `simulate` runs, redone only when
   the aim moves, tilt and sand included). That's simulated because the geometric "heading into a pocket"
   test was right only ~70% of the time at any tolerance. Nothing shows where balls stop.
