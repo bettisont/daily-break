@@ -477,7 +477,15 @@ shot is identical to before, checked on five days × six holes):
   Checked over 1,546 ringed aims (14–21 Nov): every one whose first ball drops ends its line in a ringed pocket
   (1,148); the other 398 are combinations, where another ball drops.
 
-## Release: the short round goes live (from the 15 Nov 2026 game)
+## Release: the short round goes live (brought forward to the 14 Nov 2026 game)
+
+14 Nov ~17:30 UTC: on request `SHORT_FROM` was moved from 2026-11-15 to 2026-11-14, so today's game switched to the
+short round mid-day. Rounds already finished today keep their old-format result and card (today's results mix
+the two formats); a round in progress carries on, with unfinished holes on the new tables (a saved hole whose ball
+count no longer matches starts fresh). Days up to 13 Nov are unchanged (checked). The notes below were written
+for the original 15 Nov start.
+
+### Originally (from the 15 Nov 2026 game)
 
 Merged 14 Nov at ~16:45 UTC. `SHORT_ON` is true and `SHORT_FROM` is 2026-11-15, so days up to 14 Nov (and saved
 rounds and results for them) are exactly as before (checked: 11–14 Nov identical to the previous build). From 15 Nov

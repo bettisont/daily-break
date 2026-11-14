@@ -323,7 +323,7 @@ const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way
 // Shorter round (test; SHORT_ON is off in the live game, the test build turns it on): at most SHORT_MAX balls a
 // table, and holes 3-6 each get one feature, dealt for the day from a gate, a sand bunker and the cat (so one
 // comes up twice), each placed where it gets in the way of the good pots (placeFeature). No water or windmill.
-const SHORT_ON = true, SHORT_FROM = '2026-11-15', SHORT_MAX = 3, FEATURE_KEYS = ['gate', 'sand', 'cat'];
+const SHORT_ON = true, SHORT_FROM = '2026-11-14', SHORT_MAX = 3, FEATURE_KEYS = ['gate', 'sand', 'cat'];
 // trick shots are replayed; TRICK_STARS also gives them a call-out and ⭐ on the scorecard and share text (off)
 const TRICK_STARS = false;
 const shortSeed = seed => SHORT_ON && parSeed(seed) && (!isDailySeed(seed) || seed >= SHORT_FROM);
