@@ -378,6 +378,13 @@ shot is identical to before, checked on five days × six holes):
   line really pots into it at a soft, medium or firm pace (`guideSim`: three `simulate` runs, redone only when
   the aim moves, tilt and sand included). That's simulated because the geometric "heading into a pocket"
   test was right only ~70% of the time at any tolerance. Nothing shows where balls stop.
+- Guide lines from the simulation where geometry fails (14 Nov): after a cushion, the cue ball's line is its
+  simulated path (`kickPath`, no spin, at the pace that pots or medium) to the first ball, off as many cushions
+  as it takes (1800 units max); and when the object ball's straight line would meet a cushion before a pocket,
+  its line is its simulated path (`objectSimPath`) into the pocket's ring or until it stops. Straight pots keep
+  the geometric line to the pocket's edge. This replaced a "stop the bounce line near pocket jaws" rule that hid
+  half the line on kicks that really went in (the ring showed the pot, the line stopped). Of 55 potting kicks
+  that bounce near a pocket, all now draw through to the ball.
 - Harder strike (14 Nov; `strikeK`, short rounds only): with a generous guide the skill moves to the strike.
   From hole 3 `strikeK` ramps 0 → 1 over holes 3–5 and the gold spot shrinks (`SPOT_SHRINK` 15%), the tip
   wobbles wider (`WOBBLE_GROW` 12%) and faster (`WOBBLE_FAST` 15%), and an off-centre hit pushes up to 5°

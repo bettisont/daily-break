@@ -2892,7 +2892,42 @@ function pocketAlong(px, py, ux, uy, maxT) {
   });
   return best;
 }
-const guideSim = { key: null, pks: [] };
+const guideSim = { key: null, pks: [], kick: null, obj: null };
+// The first ball the cue ball hits, as it really travels after contact (same pace, no spin), up to 1400 units, until
+// it drops (and which pocket) or stops: drawn when its straight line would meet a cushion before a pocket.
+function objectSimPath(pw) {
+  const s = cloneTable(table); s.shoot(aim.angle, pw, 0);
+  for (let n = 0; n < 6000 && s.moving() && !s.shot.firstHit; n++) s.step();
+  const fb = s.shot.firstHit;
+  if (!fb) return null;
+  const pts = [[fb.x, fb.y]];
+  let len = 0, lx = fb.x, ly = fb.y;
+  for (let n = 0; n < 8000 && s.moving() && !fb.potted && len < 1400; n++) {
+    s.step();
+    if (fb.potted) break;
+    len += Math.hypot(fb.x - lx, fb.y - ly); lx = fb.x; ly = fb.y;
+    if (n % 3 === 0) pts.push([fb.x, fb.y]);
+  }
+  const pot = s.shot.pots.find(q => q.ball === fb);
+  return { bi: s.balls.indexOf(fb), pts, pocket: pot ? pot.pocket : null };
+}
+// After a cushion the cue ball's line is drawn from a real simulation (no spin, at the pace that pots, or medium),
+// not geometry, so it's
+// right near pocket jaws and with tilt: its path from the strike to its first ball (off as many cushions as it
+// takes, up to 1800 units; or until it drops or stops), and where it meets that ball.
+function kickPath(pw) {
+  const s = cloneTable(table); s.shoot(aim.angle, pw, 0);
+  const c = s.cue, pts = [[c.x, c.y]];
+  let len = 0, lx = c.x, ly = c.y;
+  for (let n = 0; n < 6000 && s.moving(); n++) {
+    s.step();
+    len += Math.hypot(c.x - lx, c.y - ly); lx = c.x; ly = c.y;
+    if (n % 3 === 0) pts.push([c.x, c.y]);
+    if (s.shot.firstHit) return { pts: [...pts, [c.x, c.y]], ball: table.balls[s.balls.indexOf(s.shot.firstHit)], x: c.x, y: c.y };
+    if (c.potted || len > 1800) break;
+  }
+  return { pts, ball: null };
+}
 function drawGuide(c, dx, dy, hit, t) {
   const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = `rgba(251,248,240,${a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
   const ghost = (x, y, a) => { ctx.strokeStyle = `rgba(251,248,240,${a})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.stroke(); };
@@ -2918,17 +2953,28 @@ function drawGuide(c, dx, dy, hit, t) {
   };
   // the object ball: to a pocket (which lights up), to another ball (a combination: its line too), or off one cushion
   const objectPath = (ball, gx, gy) => {
-    let px = ball.x, py = ball.y, ux = (ball.x - gx) / (2 * R), uy = (ball.y - gy) / (2 * R);
+    const gd = Math.hypot(ball.x - gx, ball.y - gy) || 1;
+    let px = ball.x, py = ball.y, ux = (ball.x - gx) / gd, uy = (ball.y - gy) / gd;
     for (let leg = 0; leg < 2; leg++) {
       const h = trace(table, px, py, ux, uy, ball), pk = pocketAlong(px, py, ux, uy, h.t), end = pk ? toRim(px, py, ux, uy, pk) : Math.min(h.t, 900);
       const a0 = leg ? 0.6 : 0.9, from = leg ? 0 : R + 3;
-      solid(px + ux * from, py + uy * from, px + ux * end, py + uy * end, a0, pk ? a0 : a0 * 0.35);
+      const simTakesOver = !pk && !h.ball && leg === 0 && guideSim.obj && table.balls[guideSim.obj.bi] === ball;
+      if (!simTakesOver) solid(px + ux * from, py + uy * from, px + ux * end, py + uy * end, a0, pk ? a0 : a0 * 0.35);
       if (pk) return;
       if (h.ball) {
         const cx = px + ux * h.t, cy = py + uy * h.t, b2 = h.ball, nx = (b2.x - cx) / (2 * R), ny = (b2.y - cy) / (2 * R);
         ghost(cx, cy, 0.6);
         const h2 = trace(table, b2.x, b2.y, nx, ny, b2), p2 = pocketAlong(b2.x, b2.y, nx, ny, h2.t), e2 = p2 ? toRim(b2.x, b2.y, nx, ny, p2) : Math.min(h2.t, 160);
         solid(b2.x + nx * (R + 3), b2.y + ny * (R + 3), b2.x + nx * e2, b2.y + ny * e2, 0.6, p2 ? 0.6 : 0.1, 2.5);
+        return;
+      }
+      // off a cushion: the rest is drawn from the simulation, so it bends the way the ball really goes
+      const o = guideSim.obj;
+      if (leg === 0 && o && table.balls[o.bi] === ball) {
+        let pts = o.pts.filter(([x, y]) => Math.hypot(x - ball.x, y - ball.y) > R + 3 || o.pts.length < 3);
+        if (o.pocket != null) { const p = table.pk[o.pocket], rr = ringRadius(p); pts = pts.filter(([x, y]) => Math.hypot(x - p.x, y - p.y) > rr); }
+        ctx.save(); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(px + ux * (R + 3), py + uy * (R + 3)); for (const [x, y] of pts) ctx.lineTo(x, y); ctx.stroke(); ctx.restore();
         return;
       }
       const bo = bounceOff(px, py, ux, uy, h);
@@ -2940,25 +2986,32 @@ function drawGuide(c, dx, dy, hit, t) {
   // in full, tilt and sand included, but only when the aim moves), so a lit pocket means it can go in
   const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}`;
   if (guideSim.key !== key) {
-    guideSim.key = key; guideSim.pks = [];
+    guideSim.key = key; guideSim.pks = []; let potPace = null;
     for (const pw of [0.3, 0.42, 0.6]) {
       const s = simulate(table, aim.angle, pw, 0);
       if (s.shot.scratch || !s.shot.firstHit) continue;
+      if (s.shot.pots.length && potPace == null) potPace = pw;
       for (const q of s.shot.pots) if (!guideSim.pks.includes(q.pocket)) guideSim.pks.push(q.pocket);
     }
+    guideSim.kick = hit.ball ? null : kickPath(potPace ?? 0.42);
+    guideSim.obj = objectSimPath(potPace ?? 0.42);
   }
   guideSim.pks.forEach(ringPocket);
-  // the cue ball: to the first thing it meets, or once off a cushion and on to whatever it meets next
-  let px = c.x, py = c.y, ux = dx, uy = dy, h = hit;
-  for (let leg = 0; leg < 2; leg++) {
-    const ex = px + ux * Math.min(h.t, 1200), ey = py + uy * Math.min(h.t, 1200), a = leg ? 0.6 : 0.85;
-    dash(px + ux * (leg ? 0 : R), py + uy * (leg ? 0 : R), ex, ey, a);
-    ghost(ex, ey, h.ball ? a : 0.4);
-    if (h.ball) { objectPath(h.ball, ex, ey); return; }
-    const bo = leg ? null : bounceOff(px, py, ux, uy, h);
-    if (!bo) return;
-    px = bo.x; py = bo.y; ux = bo.ux; uy = bo.uy; h = trace(table, px, py, ux, uy);
+  // the cue ball: straight to the first ball it meets, or (a kick) along its simulated path off the cushion to
+  // the ball it reaches next
+  if (hit.ball) {
+    const ex = c.x + dx * hit.t, ey = c.y + dy * hit.t;
+    dash(c.x + dx * R, c.y + dy * R, ex, ey, 0.85); ghost(ex, ey, 0.85); objectPath(hit.ball, ex, ey);
+    return;
   }
+  const k = guideSim.kick;
+  if (!k) return;
+  ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  k.pts.forEach(([x, y], n) => { if (!n) ctx.moveTo(x + dx * R, y + dy * R); else ctx.lineTo(x, y); });
+  ctx.stroke(); ctx.restore();
+  if (k.ball) { ghost(k.x, k.y, 0.75); objectPath(k.ball, k.x, k.y); }
+  else { const [x, y] = k.pts[k.pts.length - 1]; ghost(x, y, 0.4); }
 }
 // Gimmes glow green with a "Tap in" label; tapping one pots it for a stroke.
 function drawGimmes(t) {
