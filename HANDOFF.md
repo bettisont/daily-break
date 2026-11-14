@@ -196,7 +196,8 @@ seven before any repeat, never the same twice running), the same for everyone, f
 Shapes (`SHAPES`, built by `mkShape`; each fits the 500 × 1000 box and has six pockets): ⬡ Hexagon (a
 pocket at each corner), ⯃ Octagon (pockets on the four diagonals plus two sides), ⌐ L-shape, ⧗ Hourglass
 (two chambers joined by a waist half the table's width; pockets on the two waist points), ⬭ Oval (pockets round the rim) and ⊡ Island (a classic
-table with a walnut block in the middle).
+table with a walnut block in the middle; from 14 Nov it's drawn as a raised block, with a drop shadow, a dark
+cushion, a bevelled grained top and cream sights, because players read the flat version as a mat, not a wall).
 
 - Physics: a shaped table's cushions are segments (`sh.segs`, with normals into the felt). A ball overlapping
   one is pushed off its nearest point and bounces off that normal (`Table.step`), which also rounds corners.
@@ -314,3 +315,163 @@ About half the phones that open the game never take a shot. Three changes aimed 
   "Spin keeps it out!", and the shot plays with that spin. Once ever (`dailybreak:scratchSaved`).
 - The level/hole 3 spin tip and its pulse are gone; the spin ball still pulses when the pull-back path shows a
   scratch. The "Tap a ball to target it" tip moved from level/hole 2 to 3 so it doesn't clash with the demo.
+
+## Short round with a feature on every hole (test, 14 Nov 2026; `SHORT_ON` is off in the live game)
+
+Feedback: the round is too long, and it needs obstacles. The quick-shot prototype was scrapped the same day (its
+three commits are reverted, so it's in the history). With `SHORT_ON` true, par days from `SHORT_FROM` (and
+practice courses) change like this; other days and the live game are untouched (with it off, every hole and
+shot is identical to before, checked on five days × six holes):
+- At most `SHORT_MAX` (3) balls a table (`ballsFor`): holes have 1, 2, 3, 3, 3, 3 balls. Par is still the
+  number of balls, +1 from hole 3 (`parOf` now takes the seed): 1, 2, 4, 4, 4, 4 = 19. Still six holes.
+- Holes 3–6 each get one feature, dealt for the day from `FEATURE_KEYS` (windmill, gate, sand, cat; all four
+  every day, shuffled; `obstFor`). No water: players found it annoying. The random rough/slick felt patches are
+  off on these days; tilt, bumpers and closed pockets still appear.
+- Placement (`placeFeature`, after the balls; 14 Nov): every feature goes where it gets in the way. Candidate
+  spots lie on both legs (cue ball → ghost ball, object ball → pocket) of the 8 best open pots, at 35/50/65%
+  along, and each is scored by the pots it affects weighted by `q`: sand by the legs crossing its ellipse
+  (85–110 across, 48–62 along, lying across the leg; never over a pocket mouth or under the cue ball), the
+  windmill by legs passing through its sweep, the cat and the gate (flap tried across the leg both ways and
+  ±0.6 rad) by pots they block outright, which must leave at least one open. Every spot keeps clear of balls,
+  pockets and bumpers. Share of the 4 best opening pots each one gets in the way of (15 days): sand 93%,
+  windmill 69%, gate 62%, cat 60%. When the windmill and gate were dropped at random they managed 29% and 10%.
+  `openingPot` and `clearable` try a harder pace (0.7 / 0.75) on sand holes.
+- The cat (`placeFeature`, `Table.cat`, `Table.bumps`): it naps where it blocks the most good pots (as many
+  as it can while leaving one open) as a big soft bumper (`CAT_R` 30, restitution `CAT_E` 0.3). `Table.bumps` is the hole's
+  bumpers plus the cat, and physics, `trace`, `pathBlocked` and `respot` use it. Its eyes open when a ball
+  rolls within 230 px. After a shot that hit it (`shot.catHit`, `catAfterShot`), it meows and hops to a new
+  spot (seeded by day, hole and stroke), choosing one that blocks your best pot from the new cue position if it
+  can while leaving at least one open ("Mrrp! The cat moved into your way"). A second hit, or one over 900,
+  and it jumps down to its cushion by the table for the rest of the hole ("The cat's had enough"). Hitting only
+  the cat is a foul like hitting only a bumper ("Only hit the cat"). It hops up from its cushion as the hole
+  starts (`catAnim`; `drawCat` hides the room cat while it's on the table). Not saved mid-hole: a reload puts
+  it back where it started.
+- Intro and help text mention the three-ball cap and the features when it's on.
+- Testing (15 days, 60 feature holes): every hole had its feature, a real opening pot, and was clearable;
+  generation 11 ms on average, 40 ms at worst. 280 random shots on cat holes (85 hit the cat):
+  no ball ended inside the cat, no NaN.
+- Golden pocket (14 Nov; `goldHole`, holes 2–6): one pocket glows gold (`pickGold`, seeded by day and hole):
+  never the pocket of the easiest pot, and one that some open pot goes into where possible (58% of holes in
+  testing; the rest need a bank, combo or position). The first pot into it, on a shot without a foul, takes a
+  stroke off the hole (`holeBonus`; "Golden pocket! −1 stroke") and the glow goes. No tap-in gimmes into it.
+- Trick shots (14 Nov; `trickKinds`, any hole on a short round): a pot on a shot without a foul that's a
+  Double/Triple (two or three balls), a Kick (the cue ball hit a cushion before its first ball: `shot.kick`,
+  from `cue.cush` when `firstHit` is set), a Bank (a potted ball hit a cushion first; touches in a pocket's jaws
+  don't count on a short round, so brushing the jaw isn't a bank) or a Combo (a single pot of a ball the cue
+  ball didn't hit first). Each earns ⭐ ("Bank + Double! ⭐") with confetti and the slow-motion finish (the
+  pre-shot simulation spots it). Until 14 Nov the first on a hole also took a stroke off; with the generous guide
+  that made scores too low (a playtest round went −9 with up to two strokes back a hole), so now it's ⭐ only. Stars per hole go on the
+  scorecard and the share text ("⭐×2 trick shots"). Of 335 ordinary direct pots, 3 were flagged (as banks).
+  A trick-shot hole (a layout with a lined-up double on hole 6) was tried the same day and dropped: too easy,
+  and trick shots should count on every hole.
+- Generous guide (14 Nov; `generous`, `drawGuide`, short rounds only): the idea is less squinting at a line
+  and more imagining the shot. The cue ball's line carries on once off a cushion or bumper to the next ball
+  (kicks), and the object ball's line goes to the pocket, or once off a cushion (banks), or to the next ball,
+  whose line it also shows (combinations). The lines are geometry only (`bounceOff` bounces off the cushion
+  normal that `trace` now returns the way the physics does: the speed into the cushion drops to `CUSHION_E`
+  (0.78; bumpers 0.9, the cat 0.3) and the speed along it is kept, so balls come off flatter than a mirror;
+  bars stop the line, and so do pocket jaws, within 2.5 ball radii of a pocket, where the knuckles make a
+  bounce unpredictable). Checked against the real cue ball path on the classic, hexagon, octagon and L tables
+  (204 shots, cue ball alone, no tilt): 151 within 3° (a mirror was off by a median 6°), 52 stop at the jaws,
+  1 off by 10° (an inside corner of the L). The object ball's line stops at the pocket's edge, and a pocket
+  gets a bold, slowly turning dashed white ring (`ringPocket`, cap + 10; it replaced a green glow that read as the
+  golden pocket's) when a clean centre-ball hit on this
+  line really pots into it at a soft, medium or firm pace (`guideSim`: three `simulate` runs, redone only when
+  the aim moves, tilt and sand included). That's simulated because the geometric "heading into a pocket"
+  test was right only ~70% of the time at any tolerance. Nothing shows where balls stop.
+- Guide lines from the simulation where geometry fails (14 Nov): after a cushion, the cue ball's line is its
+  simulated path (`kickPath`, no spin, at the pace that pots or medium) to the first ball, off as many cushions
+  as it takes (1800 units max); and when the object ball's straight line would meet a cushion before a pocket,
+  its line is its simulated path (`objectSimPath`) into the pocket's ring or until it stops. Straight pots keep
+  the geometric line to the pocket's edge. This replaced a "stop the bounce line near pocket jaws" rule that hid
+  half the line on kicks that really went in (the ring showed the pot, the line stopped). When nothing pots, the paths
+  are simulated at a firm pace (0.85; the object ball's cut to 650 units, fading out) rather than medium, so the
+  line doesn't jump from long to short when a hair's aim change stops it potting.
+- One cushion at most (`GUIDE_CUSH` = 1, 14 Nov): the guide follows the cue ball and the object ball off one
+  cushion each, then stops; and the ring only lights for pots the guide shows (cue ball off ≤ 1 cushion before
+  its first ball, from `shot.kickCush`; potted ball off ≤ 1). Two-cushion shots are left to the player (they
+  still count as trick shots). Checked: ring on 103/103 straight pots, 54/54 one-cushion banks, 187/187
+  one-cushion kicks; 0/25 two-cushion banks and 0/123 two-cushion kicks. Of 55 potting kicks
+  that bounce near a pocket, all now draw through to the ball.
+- Harder strike (14 Nov; `strikeK`, short rounds only): with a generous guide the skill moves to the strike.
+  From hole 3 `strikeK` ramps 0 → 1 over holes 3–5 and the gold spot shrinks (`SPOT_SHRINK` 15%), the tip
+  wobbles wider (`WOBBLE_GROW` 12%) and faster (`WOBBLE_FAST` 15%), and an off-centre hit pushes up to 5°
+  instead of 3° (`PUSH_EXTRA`). Measured on holes 3–6 over 12 days (best pot, medium pace): letting go at a
+  random moment is clean 28% of the time (was 39%); waiting for the tip to reach the spot and letting go 0.2 s
+  later, 71–83% (was 84–88%); an off-centre hit's average push 0.5–0.9° (was 0.3–0.4°). A first try at 25% /
+  25% / 30% left the timed player at 48% on hole 6, too harsh. An aim snap (settling onto pot lines within
+  0.35°) was tried the same day and removed: with the glow it made aiming too easy.
+- Animation (14 Nov; short rounds only, all gated on `generous()`):
+  - Ball on the lip (`lip`, in `frame`): when an object ball rolls slowly (20–330) towards an open pocket from
+    within 2.6 ball radii, the rest of the shot is played out on a copy (once per ball and pocket per shot). If
+    it drops, or stops within 1.5 radii of the pocket, the table goes to slow motion with a push-in and a
+    heartbeat until it settles: "It dropped!" (confetti) or "So close!" (a groan, the jaws shiver: `p.wobble`,
+    and the cat flinches). It came up once in ~100 auto-played shots.
+  - Instant replay (`shotRec`, `startReplay`, `drawReplay`, phase `'replay'`): every frame of a shot is recorded
+    with its physics time (`shotSteps` × `DT`). A trick shot (`trickKinds`) is replayed on that clock at one
+    steady pace (45%, faster if needed to stay under ~5.5 s), blending between frames, rolling copies of the
+    balls (`updateSpin` on proxies) and sinking them into their pockets, up to 0.7 s after the last pot; the
+    edges darken like slow motion and the live trail is hidden. Titled "REPLAY · tap to skip" and the
+    trick's name; the shot is scored after it (`replayed` stops it replaying twice). A tap skips it. (A first
+    version stepped through recorded frames, so it sped up and slowed down with the live shot and looked off.)
+  - Follow-through (`follow`, `drawCue(..., at, through)`): after the strike the cue drives on through where
+    the cue ball was (up to 70 px at full power), eases back and fades over 0.5 s; the camera pushes in a
+    little on the strike. Balls meeting harder than 250 flash, sized by speed (`fx.flashes`).
+  - Ball tray (`drawTray`, `trayFly`, `trayDone`): a slot per ball down the right-hand edge; a potted ball
+    flies there from its pocket once it has dropped and lands with a rising click. A resumed hole fills it.
+  - The cat (`catLook`, `catStartle`): its head turns towards the nearest rolling ball (room cat when a ball
+    is fast or it's startled; table cat when a ball is near), and hard hits or a ball stopping on the lip
+    make it flinch with its ears flat.
+  - Table slides between holes were tried and removed the same day (the playtester didn't like them).
+- Windmill while aiming (short rounds): it keeps turning during aim and strike at its in-play speed
+  (`WM_W` × `PLAY`, 1.1 rad/s), so it reads as alive and shots can be timed through a gap; the aim line, glow and
+  path hint follow it. It waits while any ball rests inside its sweep, so it never turns into a resting ball.
+- Freeze fix (14 Nov): a trick shot on a hole where a ball had been potted on an earlier shot made the replay
+  sink that ball from a position it never had (NaN); the canvas threw and the frame loop died, freezing the game
+  mid slow-motion. The replay now only sinks balls that drop during the shot, `drawBall` skips non-finite
+  positions, and `frame` wraps `draw` in try/catch so a drawing error can never stop the loop again (this
+  safety net is on for every round, not just short ones). 9 auto-played rounds afterwards: no errors.
+- Carrying on after a reload (14 Nov): a playtester thought a table restarted; it was the test page being
+  republished mid-game, which reloads it, and the round carrying on from its save (with the since-removed
+  slide-in). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat goes
+  back to where it started the hole.
+- The ring (14 Nov): for a perfect strike with your spin. Before you pull, a pocket is ringed if the shot pots into
+  it at some pace (`GUIDE_PACES`, 0.15–0.95; `guideSim.range` keeps each pocket's potting range). It doesn't change
+  with how hard you pull: the guide assumes the right pace, and judging it is the player's job. (Tried the same
+  day and dropped: a ring that followed the pull, with "softer"/"harder" labels; and before that, a resting ring
+  on the last shot's pace, which hid a good line after a hard shot.) An allowance for a slightly-off strike (pot at ±0.15°)
+  was tried and dropped in favour of honest strike grades:
+- Strike grades (short rounds; `contact`, `PERFECT_CORE` 0.4, `GOOD_PUSH` 0.15°): the gold spot has a bright
+  bullseye. A tip in it is 'perfect' and plays exactly as aimed (so exactly as the guide shows); the rest of the
+  spot is 'clean' and pushes up to 0.15° (more the further out); 'near'/'off' carry on from there. (0.5° made
+  Clean too punishing: 27% on long pots. At 0.15°, Clean pots 95% / 73% / 44% of short / medium / long pots at
+  medium pace, against Perfect's 96% / 79% / 60%.) Perfect gets
+  the most: PERFECT in the close-up, an extra two-note shimmer, a long buzz, a gold burst and ring, "Perfect
+  strike!" and a warm edge glow; Clean is quieter (one soft note, a smaller sparkle). A higher tick sounds as
+  the tip crosses the bullseye while you hold. Measured on 10 days (best pot, medium pace): letting go 0.2 s
+  after the tip reaches the spot gives Perfect 12–18%, Clean 56–71%; letting go 0.15 s after it reaches the
+  bullseye gives Perfect 30–70%.
+- No pot lined up at the start (14 Nov; `startUnpotted`, `guidePots`, in `lineUp`, short rounds): each shot still
+  starts dead centre on the ball with the easiest pot, but if that would light a pocket's ring it's turned by the
+  smallest step (0.5°, up to 10° either way) that still hits that ball and doesn't pot. 90 holes checked: none
+  start lined up; 13 were nudged, 1.5° at most; 3 ms on average.
+- Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
+  run in progress (with `holeStars`).
+- To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's
+  saved run changes mid-round). Open questions: seven holes instead of six (`HOLES`), and par on feature holes.
+
+## Release: the short round goes live (from the 15 Nov 2026 game)
+
+Merged 14 Nov at ~16:45 UTC. `SHORT_ON` is true and `SHORT_FROM` is 2026-11-15, so days up to 14 Nov (and saved
+rounds and results for them) are exactly as before (checked: 11–14 Nov identical to the previous build). From 15 Nov
+the daily game is the short round described above, with two changes from the playtest build:
+- No windmill: `FEATURE_KEYS` is gate, sand and cat, so holes 3–6 get one each and one comes up twice a day.
+- `TRICK_STARS` is false: trick shots still get the instant replay (titled with the shot, no ⭐), but no call-out,
+  no stars on the scorecard and nothing in the share text. Set it true to bring the stars back.
+Released with it: the raised island, the freeze safety net, golden pockets, the generous guide (one cushion,
+pocket ring, never starting lined up), the strike changes (harder from hole 3, Perfect bullseye, gentle Clean),
+and the animations (lip, replay, follow-through, flashes, tray, cat). Practice courses on random seeds use the short
+round straight away. Players already on 15 Nov in time zones ahead of UTC when this deployed could have seen their
+tables change mid-round (a resumed run whose ball count no longer matches starts the hole fresh).
+Checked before merging: 15–28 Nov all generate (84 holes, every feature placed, opener and clearable, golden pocket
+from hole 2, 10 ms average, 108 ms worst); full rounds of 15 and 16 Nov play through with no errors.
