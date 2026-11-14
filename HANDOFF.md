@@ -435,12 +435,19 @@ shot is identical to before, checked on five days × six holes):
   republished mid-game, which reloads it, and the round carrying on from its save (with the since-removed
   slide-in). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat goes
   back to where it started the hole.
-- The ring is for your shot (14 Nov; `GUIDE_SLOP`): it used to light if a perfect centre hit potted at any of
-  three paces, and a playtester's thin cut along a rail lit up and then missed. Now it uses the pace you're
-  pulling back to (before you pull, your last shot's: `lastPower`), your spin, and must pot at the aim and at
-  0.15° either side. Measured on 10 days' holes, with a realistic go (pace ±0.05, aim ±0.2°): a lit ring meant a
-  pot 96% of the time (was 62%); 10% of unlit aims still went in. (0.3° slop: 98% but it lit far less.) While you
-  pull, the ring comes and goes with the pace, e.g. lit only between 30% and 50% on a sample shot.
+- The ring is for your shot (14 Nov): it used to light if a perfect centre hit potted at any of three paces, and a
+  playtester's thin cut along a rail lit up and then missed. Now it uses the pace you're pulling back to (before
+  you pull, your last shot's: `lastPower`) and your spin, struck perfectly; while you pull, it comes and goes with
+  the pace (lit only between 30% and 50% on a sample shot). An allowance for a slightly-off strike (pot at ±0.15°)
+  was tried and dropped in favour of honest strike grades:
+- Strike grades (short rounds; `contact`, `PERFECT_CORE` 0.4, `GOOD_PUSH` 0.5°): the gold spot has a bright
+  bullseye. A tip in it is 'perfect' and plays exactly as aimed (so exactly as the guide shows); the rest of the
+  spot is 'clean' and pushes up to 0.5° (more the further out); 'near'/'off' carry on from 0.5°. Perfect gets
+  the most: PERFECT in the close-up, an extra two-note shimmer, a long buzz, a gold burst and ring, "Perfect
+  strike!" and a warm edge glow; Clean is quieter (one soft note, a smaller sparkle). A higher tick sounds as
+  the tip crosses the bullseye while you hold. Measured on 10 days (best pot, medium pace): letting go 0.2 s
+  after the tip reaches the spot gives Perfect 12–18%, Clean 56–71%; letting go 0.15 s after it reaches the
+  bullseye gives Perfect 30–70%.
 - No pot lined up at the start (14 Nov; `startUnpotted`, `guidePots`, in `lineUp`, short rounds): each shot still
   starts dead centre on the ball with the easiest pot, but if that would light a pocket's ring it's turned by the
   smallest step (0.5°, up to 10° either way) that still hits that ball and doesn't pot. 90 holes checked: none
