@@ -415,6 +415,10 @@ shot is identical to before, checked on five days × six holes):
   mid slow-motion. The replay now only sinks balls that drop during the shot, `drawBall` skips non-finite
   positions, and `frame` wraps `draw` in try/catch so a drawing error can never stop the loop again (this
   safety net is on for every round, not just short ones). 9 auto-played rounds afterwards: no errors.
+- Carrying on after a reload (14 Nov): `resumeRun` clears `slide`, so a resumed hole doesn't slide in like a new
+  one (a playtester read that as the table restarting; it happened when the test page was republished mid-game
+  and reloaded). Note: a reload mid-shot drops that shot (the save is made when a shot is scored), and the cat
+  goes back to where it started the hole.
 - Card strokes are `max(1, strokes − holeBonus)`; `holeBonus`, `goldUsed` and `trickDone` are saved with a
   run in progress (with `holeStars`).
 - To go live: set `SHORT_ON` true and `SHORT_FROM` to the first day it should apply (a future day, so nobody's

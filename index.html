@@ -1596,6 +1596,7 @@ function resumeRun() {
   else Object.assign(round, { lives: r.lives, potted: r.potted, results: r.results || [], bestStreak: r.bestStreak || 0 });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
   startHole(r.level);
+  slide = null;   // carrying on after a reload: the table is just there, it doesn't slide in like a new hole
   if (r.balls && r.balls.length === table.balls.length) {
     r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));
     if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
