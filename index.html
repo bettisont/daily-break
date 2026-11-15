@@ -1530,6 +1530,25 @@ function skewGeom(angle) {
   const len = pk ? Math.max(0, pk.s - table.pk[pk.i].cap) : Math.min(isFinite(h2.t) ? h2.t : 300, 300);
   return Object.assign(g, { ball: b, bx: b.x, by: b.y, ux, uy, len });
 }
+// Where the camera sits while aiming: framing the cue ball, the point of contact and where the object ball heads
+// (to its pocket, or 220 along), with room round them, zoomed in up to AIM_ZOOM (never out past the whole table).
+const AIM_ZOOM = 1.6;
+function aimCam() {
+  const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), h = trace(table, c.x, c.y, dx, dy);
+  const pts = [[c.x, c.y]];
+  if (isFinite(h.t)) {
+    const gx = c.x + dx * h.t, gy = c.y + dy * h.t; pts.push([gx, gy]);
+    if (h.ball) {
+      const b = h.ball, ux = (b.x - gx) / (2 * R), uy = (b.y - gy) / (2 * R), h2 = trace(table, b.x, b.y, ux, uy, b), pk = pocketAlong(b.x, b.y, ux, uy, h2.t);
+      const L = pk ? pk.s : Math.min(isFinite(h2.t) ? h2.t : 220, 220);
+      pts.push([clamp(b.x + ux * L, 0, W), clamp(b.y + uy * L, 0, H)]);
+    }
+  }
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), m = 90;
+  const x0 = Math.min(...xs) - m, x1 = Math.max(...xs) + m, y0 = Math.min(...ys) - m, y1 = Math.max(...ys) + m;
+  const k = clamp(Math.min(view.cw / view.s / (x1 - x0), view.ch / view.s / (y1 - y0)), 1, AIM_ZOOM);
+  return { k, x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+}
 function drawSkew(dt) {
   if (!skew) return;
   if (phase !== 'strike' && phase !== 'moving') { skew = null; return; }
@@ -2288,7 +2307,8 @@ function feedbackHref() {
 let view = { s: 1, ox: 0, oy: 0, dpr: 1, cw: 1, ch: 1 };
 function toWorld(e) {
   const r = canvas.getBoundingClientRect();
-  return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
+  const S = view.s * cam.k;   // through the camera, so taps land on what you see when it's zoomed in
+  return { x: (e.clientX - r.left - (view.cw / 2 - cam.x * S)) / S, y: (e.clientY - r.top - (view.ch / 2 - cam.y * S)) / S };
 }
 // On the table: tap a ball to target it, or drag anywhere to turn the cue. The drag is relative and
 // geared down, so your thumb can stay well away from the line it's adjusting.
@@ -3518,8 +3538,8 @@ function draw(t, dt) {
   const sx = (Math.random() - 0.5) * fx.shake, sy = (Math.random() - 0.5) * fx.shake;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // the camera can push in on a point (cam.x, cam.y) for the slow-motion finish
-  const S = s * cam.k, OX = ox + cam.x * s * (1 - cam.k), OY = oy + cam.y * s * (1 - cam.k);
+  // the camera: zoom cam.k with the world point (cam.x, cam.y) at the middle of the table area (aiming, slow motion)
+  const S = s * cam.k, OX = cw / 2 - cam.x * S, OY = ch / 2 - cam.y * S;
   ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
   const x0 = -OX / S - 20, y0 = -OY / S - 20, x1 = (cw - OX) / S + 20, y1 = (ch - OY) / S + 20;
 
@@ -3734,8 +3754,10 @@ function frame(now) {
       }
     }
   }
-  // Slow motion and a push-in as the rack's last ball heads for the pocket.
+  // Slow motion and a push-in as the rack's last ball heads for the pocket. While aiming, the camera closes in on
+  // the shot (aimCam); once the balls roll it pulls back to the whole table.
   let slow = false, tk = 1, tx = W / 2, ty = H / 2;
+  if (generous() && (phase === 'aim' || phase === 'strike') && !spinDemo) ({ k: tk, x: tx, y: ty } = aimCam());
   if (cine) {
     const b = table.balls.find(o => o.n === cine.n), p = table.pk[cine.pocket], px = clamp(p.x, 0, W), py = clamp(p.y, 0, H);
     if (cine.hold > 0) { cine.hold -= dt; slow = true; tk = 1.35; tx = px; ty = py; }
@@ -3784,7 +3806,10 @@ function frame(now) {
   const creeping = phase === 'moving' && movingT > 2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 35);
   const want = slow ? 0.25 : phase === 'replay' ? 0.45 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
-  const ck = Math.min(1, dt * 5);
+  // keep the view on the table (no more than a little of the room past its rail)
+  const hw = view.cw / view.s / (2 * tk), hh = view.ch / view.s / (2 * tk), mx = RAIL + 30;
+  tx = hw * 2 >= W + 2 * mx ? W / 2 : clamp(tx, hw - mx, W + mx - hw); ty = hh * 2 >= H + 2 * mx ? H / 2 : clamp(ty, hh - mx, H + mx - hh);
+  const ck = Math.min(1, dt * (phase === 'moving' ? 3 : 4));
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
   if (phase === 'moving') {
     if (hitStop > 0) hitStop -= dt;   // a blink of freeze on big moments

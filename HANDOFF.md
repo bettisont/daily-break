@@ -651,3 +651,12 @@ ahead of UTC were already on it when this shipped. Checked: 11–16 Nov identica
 56 feature holes (20 sand, 22 cat, 14 tunnel), every one with a real opening pot and clearable, every tunnel shot pots
 in simulation. Intro and help text mention tunnels on those days. Also shipped with this: the toned-down Perfect
 strike and the wider, flared tunnel openings.
+
+## Aim camera (15 Nov 2026)
+
+On a short round, while aiming (and through the strike) the camera closes in on the shot (`aimCam`): it frames the
+cue ball, the point of contact and where the object ball heads (its pocket, or 220 along), with 90 of room, zoomed up
+to `AIM_ZOOM` (1.6) and never out past the whole table. As the balls roll it eases back to the whole table (the
+slow-motion finish still pushes in). The camera now centres on (cam.x, cam.y) instead of zooming about a fixed point,
+and is kept on the table (at most a little of the room past the rail). `toWorld` goes through the camera, so taps
+land on what you see when zoomed (checked: tapping a ball while zoomed targets it).
