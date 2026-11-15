@@ -624,8 +624,8 @@ off one side of an arcade screen and on at the other). They're an optional route
 - Edge: on a Perfect strike's shot (`table.shot.perfect`) every pocket takes balls 12% further from its centre
   (`PERFECT_POCKET`) and lets them in 15% faster (`PERFECT_POCKET_PACE`). Same shots (16–25 Nov holes, every open
   pot at ±1.2° and three paces): 568 balls potted normally, 717 with the edge. The guide's ring doesn't assume it.
-- Feel: a gold flash, a rising four-note arpeggio over a low thump, a bigger sparkle burst and rings, the first
-  `PERFECT_SLOW` (0.4 s) of the roll in slow motion, and a gold comet trail behind the cue ball (`perfectFx`).
+- Feel (toned down the same evening; the flash, slow motion and gold trail were too much): a small gold sparkle and
+  ring, "Perfect strike!", and a soft two-note lift on top of the strike's own chime.
 
 ## Release (15 Nov 2026, evening)
 
@@ -636,3 +636,18 @@ aimed, the Perfect edge and feel, and the pocket clunk. From the 16 Nov game (an
 the cat only) and more forgiving pockets (rattle-out above 1700, was 1050). Days up to 15 Nov keep their layouts
 (checked identical). Tunnels are not in the daily game: they're only on the `?tunnels` test course. To add them to
 the rotation, put `'tunnel'` into the feature list with a new start date (not on oval holes; see `obstFor`).
+- Diagonal entries (15 Nov, after release): tunnel openings are wider (`TUN_HALF` 2.4 R, was 1.5 R) with a flared
+  mouth: a ball coming in at an angle is caught up to R further along (`tunReach`, by the sine of its angle off
+  straight-on), drawn as a slot that widens where it meets the felt. Target width across the line of the shot
+  (averaged over test holes): straight on 81 px; 30° 73 px; 45° 52 px; 60° 37 px (was 60/41/27 with only the wider
+  opening). Random shots going through: 110 → 247 of 1,020. Holes still all clearable, every tunnel shot pots.
+
+## Tunnels join the daily game (from 17 Nov 2026)
+
+The `?tunnels` test course is gone. From `TUNNELS_FROM` (2026-11-17), and on practice courses, holes 3–6 are dealt from
+sand, the cat and a tunnel (`featureKeys`; one of the three comes up twice). An oval hole that's dealt a tunnel takes
+the next feature in the day's deck instead (`obstFor`). 16 Nov stays sand and the cat, since players in time zones
+ahead of UTC were already on it when this shipped. Checked: 11–16 Nov identical to the previous release; 17–30 Nov:
+56 feature holes (20 sand, 22 cat, 14 tunnel), every one with a real opening pot and clearable, every tunnel shot pots
+in simulation. Intro and help text mention tunnels on those days. Also shipped with this: the toned-down Perfect
+strike and the wider, flared tunnel openings.
