@@ -586,3 +586,6 @@ off one side of an arcade screen and on at the other). They're an optional route
   now runs into a tunnel opening and carries on out of the far one (the far end glows), to a pocket or a short stub.
   It also stops at a ringed pocket it passes even when the straight line only clips the pocket's mouth (on the
   hourglass the line ran on through the ringed waist pocket to the far corner).
+- Fainter guide (15 Nov): every guide line is scaled by `GUIDE_A` (0.55) and thinner (dashes 1.5 px, object line 2 px,
+  ghost 1.25 px); the pocket ring is softer too (3 px, ~0.6 opacity) but still the strongest mark. Set `GUIDE_A` to 1
+  for the old look.

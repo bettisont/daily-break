@@ -3120,23 +3120,25 @@ const guideWalls = (t, b, dropPk) => (b.wallPts || []).filter(([x, y]) => dropPk
 // while a ball is still rolling: jaw touches count once it has left that pocket's jaws
 const rollingWalls = (t, b) => (b.wallPts || []).filter(([x, y]) => { const i = t.pk.findIndex((_, k) => jawOf(t, k, x, y)); return i < 0 || !jawOf(t, i, b.x, b.y); }).length;
 // The ring only lights for straight pots: no cushion for the cue ball before its first ball, or for the potted ball.
+const GUIDE_A = 0.55;   // how strong the guide's lines are (1 was the old, bolder look)
 const GUIDE_CUSH = 0, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
 // a path point where the line jumps (the ball came out of a tunnel): move there without drawing
 const gapPt = (x, y) => Object.assign([x, y], { gap: true });
 function drawGuide(c, dx, dy, hit, t) {
-  const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = `rgba(251,248,240,${a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
-  const ghost = (x, y, a) => { ctx.strokeStyle = `rgba(251,248,240,${a})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.stroke(); };
-  const solid = (ax, ay, bx, by, a0, a1, w = 3) => {
-    const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, `rgba(251,248,240,${a0})`); g.addColorStop(1, `rgba(251,248,240,${a1})`);
+  // kept subtle (GUIDE_A scales every line): a hint on the cloth, not the brightest thing on the table
+  const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([5, 8]); ctx.strokeStyle = `rgba(251,248,240,${a * GUIDE_A})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
+  const ghost = (x, y, a) => { ctx.strokeStyle = `rgba(251,248,240,${a * GUIDE_A})`; ctx.lineWidth = 1.25; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.stroke(); };
+  const solid = (ax, ay, bx, by, a0, a1, w = 2) => {
+    const g = ctx.createLinearGradient(ax, ay, bx, by); g.addColorStop(0, `rgba(251,248,240,${a0 * GUIDE_A})`); g.addColorStop(1, `rgba(251,248,240,${a1 * GUIDE_A})`);
     ctx.strokeStyle = g; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
   };
   // "it's in": a bold white ring round the pocket's edge, turning slowly (the same for every pocket, golden or not)
   const ringRadius = p => p.cap + 10;
   const ringPocket = i => {
-    const p = table.pk[i], k = 0.8 + 0.2 * Math.sin(t * 4), rr = ringRadius(p);
+    const p = table.pk[i], k = 0.6 + 0.15 * Math.sin(t * 4), rr = ringRadius(p);
     ctx.save();
-    ctx.strokeStyle = 'rgba(40,30,20,.35)'; ctx.lineWidth = 7.5; ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = `rgba(255,253,245,${k})`; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(40,30,20,.2)'; ctx.lineWidth = 5.5; ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,253,245,${k})`; ctx.lineWidth = 3; ctx.lineCap = 'round';
     ctx.setLineDash([rr * 0.55, rr * 0.3]); ctx.lineDashOffset = -t * 18;
     ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, TAU); ctx.stroke();
     ctx.restore();
