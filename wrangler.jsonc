@@ -1,5 +1,5 @@
 // Cloudflare hosting for Daily Break at https://dailybreak.app.
-// The deploy copies only index.html and static/ into ./dist, so HANDOFF.md and .git stay private.
+// The deploy (tools/build.sh) copies only index.html, js/ and static/ into ./dist, so HANDOFF.md and .git stay private.
 // src/worker.js runs first on every request and redirects other hosts (workers.dev, www) to dailybreak.app.
 {
   "name": "daily-break",

@@ -6,8 +6,8 @@ A daily pool game for the browser: a ladder of levels, the same for everyone
 each day. Level 1 has one ball, level 2 two, and so on; you have four lives,
 and your score is how far you get. One ranked run a day of about two to four
 minutes (daily puzzles like the NYT Mini take a few minutes; that's the
-target), with a shareable emoji result. Single file: `index.html` (no build, open it in a
-browser).
+target), with a shareable emoji result. `index.html` (CSS and HTML) plus the game's scripts in `js/`
+(no build step: open `index.html` in a browser).
 
 ## The game (as of 2026-11-10): the ladder
 
@@ -51,14 +51,26 @@ The rain-and-vinyl hiss under everything was removed on 10 Nov 2026 (it read as 
 
 ## Code layout
 
-- Top half of the script, no DOM: seeded RNG, `makeHole`, `Table`
-  physics, `trace`, `potLine`/`allLines` (used to guarantee an opening pot)
-  and `simulate`.
-- Bottom half: audio, events (`onEvent` scores each pot as it drops),
-  run/level flow (`newRound`, `startHole`, `lineUp`, `bestBall`, `nextBall`, `setAngle`, `setSpot`,
-  `setPower`, `shoot`, `resolveShot`, `finishHole`), UI, input (table drag,
-  aim strip, spin ball, pull-back cue, keys) and the canvas renderer
-  (`drawAim`, `drawAimLabels`).
+`index.html` holds the CSS and HTML and loads the game as plain classic scripts from `js/`, in this order (they
+share one global scope, so a top-level name in one file is visible in all of them; code that runs at load time
+must only use what earlier files define). Each file's header says what it holds and what it relies on.
+
+- `js/core.js`, no DOM: `RULES` (the date switches), constants, seeded RNG, table shapes, features and hole
+  generation (`makeHole`, `buildHole`, `placeFeature`, `clearable`, `openingPot`).
+- `js/physics.js`, no DOM: `Table` physics, `cloneTable`, `trace`, `potLine`/`allLines` (used to guarantee an
+  opening pot), `simulate` and the guide's fast `guidePotsAt`.
+- `js/state.js`: DOM helpers (`$`, `ls`), the canvas, scoring constants and the shared game state.
+- `js/audio.js`: Web Audio effects and music.
+- `js/game.js`: events (`onEvent` scores each pot as it drops), round/hole flow (`newRound`, `startHole`,
+  `lineUp`, `bestBall`, `nextBall`, `setAngle`, `setSpot`, `setPower`, `release`, `resolveShot`, `finishHole`),
+  the final card, saved runs and tracking.
+- `js/ui.js`: the header, spin ball, lessons and demos, cards (intro, help, results), practice and sharing.
+- `js/input.js`: table drag, aim strip, spin ball, pull-back cue, keys, `resize`.
+- `js/render.js`: the canvas renderer (`draw`, every `draw*`, the guide, the scenery cache).
+- `js/main.js`: the frame loop (`frame`) and startup.
+
+`tools/build.sh` copies `index.html`, `static/` and `js/` into `dist/` and stamps each script tag with
+`?v=<hash of the file>`, so a cached old script is never mixed with a new page after a deploy.
 
 ## Next ideas
 
@@ -74,11 +86,11 @@ The rain-and-vinyl hiss under everything was removed on 10 Nov 2026 (it read as 
 Live at https://dailybreak.app (bought 10 Nov 2026 through Cloudflare Registrar). Cloudflare Worker `daily-break` (static assets, `wrangler.jsonc`) with custom domains `dailybreak.app` and `www.dailybreak.app`; `src/worker.js` redirects every other host (www, the old daily-break.timbuilds.workers.dev) to dailybreak.app. Every push
 to `main` deploys via `.github/workflows/deploy.yml` (needs the repo secret
 `CLOUDFLARE_API_TOKEN`); it can also be run by hand from the Actions tab.
-By hand: `mkdir -p dist && cp index.html static/* dist/ && npx wrangler deploy`.
+By hand: `tools/build.sh && npx wrangler deploy`.
 
 `static/` holds the link-preview card (`og.png`, 1200×630), app icons and
 `manifest.webmanifest` (Add to Home Screen opens it standalone). The meta tags
-and `SITE_URL` in `index.html` use https://dailybreak.app/;
+(`index.html`) and `SITE_URL` (`js/ui.js`) use https://dailybreak.app/;
 change them together with `HOST` in `src/worker.js` if the domain ever changes. The share button uses the
 phone's share sheet (`navigator.share`) and falls back to copying; the shared
 text ends with the game's URL (with `?seed=` for non-daily courses).
