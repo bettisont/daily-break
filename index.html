@@ -2506,6 +2506,7 @@ function glowSprite(size, stops) {
 const SOFT_SHADOW = glowSprite(128, [[0, 'rgba(40,25,10,.55)'], [0.55, 'rgba(40,25,10,.25)'], [1, 'rgba(40,25,10,0)']]);
 const CLOUD = glowSprite(256, [[0, 'rgba(50,40,30,.10)'], [0.6, 'rgba(50,40,30,.05)'], [1, 'rgba(50,40,30,0)']]);
 const LAMP = glowSprite(256, [[0, 'rgba(255,238,200,.22)'], [0.55, 'rgba(255,238,200,.08)'], [1, 'rgba(255,238,200,0)']]);
+const CLOUD_BUF = document.createElement('canvas');   // the cloud shadows, drawn small (see draw())
 const MOTE = glowSprite(16, [[0, 'rgba(255,248,225,.9)'], [1, 'rgba(255,248,225,0)']]);
 function noisePattern(size, alpha) {
   const c = document.createElement('canvas'); c.width = c.height = size;
@@ -3730,10 +3731,19 @@ function draw(t, dt) {
   drawBanner(dt);
   drawStamp(dt);
 
+  // cloud shadows: three huge, very soft sprites, each stretched over most of the screen, which cost more than the
+  // rest of the room put together. They're drawn into a canvas at a quarter of the resolution and that is stretched
+  // over the screen once: the same soft shapes for a third of the work.
+  const cb = CLOUD_BUF, cq = 4;
+  if (cb.width !== Math.ceil(canvas.width / cq) || cb.height !== Math.ceil(canvas.height / cq)) { cb.width = Math.ceil(canvas.width / cq); cb.height = Math.ceil(canvas.height / cq); }
+  const cg = cb.getContext('2d');
+  cg.setTransform(1, 0, 0, 1, 0, 0); cg.clearRect(0, 0, cb.width, cb.height);
+  cg.setTransform(S * dpr / cq, 0, 0, S * dpr / cq, (OX + sx) * dpr / cq, (OY + sy) * dpr / cq);
   for (const c of clouds) {
     c.x += c.v * dt; if (c.x - c.r > x1 + 400) c.x = x0 - c.r - 200;
-    ctx.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
+    cg.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
   }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(cb, 0, 0, cb.width * cq, cb.height * cq); ctx.restore();
   ctx.globalCompositeOperation = 'lighter';
   for (const m of motes) {
     const mx = m.x + Math.sin(t * 0.13 * m.s + m.p) * 40, my = m.y + Math.cos(t * 0.1 * m.s + m.p) * 30 - (t * 4 * m.s) % 60;
