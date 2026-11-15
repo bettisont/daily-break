@@ -609,3 +609,4 @@ off one side of an arcade screen and on at the other). They're an optional route
   moment the guide locks on (`guideLock`) the line and ring flare for 0.6 s, a few sparkles burst at the pocket and a
   soft two-note tick plays (at most every 0.25 s, so sweeping the aim doesn't chatter).
   The whole path glows when it ends in a pot, banks and tunnel legs included (`objPath` collects the segments, `onTargetPath` draws them, with one shimmer travelling the whole path).
+  The lock-on burst, flare and tick now wait until the aim has stayed on a pot for 0.5 s (`guideLock.since`/`fired`), and the shimmer is slower (one pass about every 1.8 s).
