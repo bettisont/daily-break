@@ -1339,7 +1339,7 @@ function lineUp() {
 function guidePots(angle) {
   return GUIDE_PACES.some(pw => {
     const s = simulate(table, angle, pw, 0);
-    return !s.shot.scratch && !!s.shot.firstHit && (s.shot.kickWalls || 0) <= GUIDE_CUSH && s.shot.pots.some(q => guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH);
+    return !s.shot.scratch && !!s.shot.firstHit && (s.shot.kickWalls || 0) <= GUIDE_KICK && s.shot.pots.some(q => guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH);
   });
 }
 function startUnpotted() {
@@ -3128,9 +3128,10 @@ const jawOf = (t, pk, x, y) => Math.hypot(x - t.pk[pk].x, y - t.pk[pk].y) < t.pk
 const guideWalls = (t, b, dropPk) => (b.wallPts || []).filter(([x, y]) => dropPk == null || !jawOf(t, dropPk, x, y)).length;
 // while a ball is still rolling: jaw touches count once it has left that pocket's jaws
 const rollingWalls = (t, b) => (b.wallPts || []).filter(([x, y]) => { const i = t.pk.findIndex((_, k) => jawOf(t, k, x, y)); return i < 0 || !jawOf(t, i, b.x, b.y); }).length;
-// The ring only lights for straight pots: no cushion for the cue ball before its first ball, or for the potted ball.
+// The ring lights for pots the lines show: the cue ball straight to its first ball (GUIDE_KICK cushions), and the
+// potted ball off at most GUIDE_CUSH cushions.
 const GUIDE_A = 0.55;   // how strong the guide's lines are (1 was the old, bolder look)
-const GUIDE_CUSH = 0, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
+const GUIDE_KICK = 0, GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
 // a path point where the line jumps (the ball came out of a tunnel): move there without drawing
 const gapPt = (x, y) => Object.assign([x, y], { gap: true });
 function drawGuide(c, dx, dy, hit, t) {
@@ -3167,7 +3168,7 @@ function drawGuide(c, dx, dy, hit, t) {
   const sp = aim.spin;
   const shownPots = (a, pw) => {   // only pots the guide shows: cue ball and potted ball each off at most one cushion
     const s = simulate(table, a, pw, sp);
-    if (s.shot.scratch || !s.shot.firstHit || (s.shot.kickWalls || 0) > GUIDE_CUSH) return [];
+    if (s.shot.scratch || !s.shot.firstHit || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
     return s.shot.pots.filter(q => guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
   };
   const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}:${sp.toFixed(2)}`;
@@ -3202,7 +3203,7 @@ function drawGuide(c, dx, dy, hit, t) {
   };
   // The object ball's line from (px, py): to the pocket it drops into (a ringed pocket it passes counts, even where
   // the straight line only clips the pocket's mouth), or into a tunnel and on out of the far end, or a short fading stub.
-  const objLine = (px, py, ux, uy, skip, from, depth) => {
+  const objLine = (px, py, ux, uy, skip, from, depth, leg = 0) => {
     const h = trace(table, px, py, ux, uy, skip);
     let pk = null;
     for (const i of guideSim.pks) {
@@ -3210,15 +3211,27 @@ function drawGuide(c, dx, dy, hit, t) {
       if (sAt > 0 && perp < p.cap + R && sAt <= h.t + p.cap + R && (!pk || sAt < pk.s)) pk = { i, s: sAt };
     }
     pk = pk || pocketAlong(px, py, ux, uy, h.t);
-    if (pk) { const e = toRim(px, py, ux, uy, pk); solid(px + ux * from, py + uy * from, px + ux * e, py + uy * e, 0.9, 0.9); return; }
+    const a = leg ? 0.65 : 0.9;
+    if (pk) { const e = toRim(px, py, ux, uy, pk); solid(px + ux * from, py + uy * from, px + ux * e, py + uy * e, a, a); return; }
     if (h.tunnel != null && depth < 1 && isFinite(h.t)) {
-      solid(px + ux * from, py + uy * from, px + ux * h.t, py + uy * h.t, 0.9, 0.9);
+      solid(px + ux * from, py + uy * from, px + ux * h.t, py + uy * h.t, a, a);
       tunAimWant = true; tunAimFrom = h.tunnel;
       const o = tunExit(tunMouths(hole)[1 - h.tunnel]);
-      objLine(o.x, o.y, ux, uy, skip, 0, depth + 1);
+      objLine(o.x, o.y, ux, uy, skip, 0, depth + 1, leg);
       return;
     }
-    const e = Math.min(h.t, 150); solid(px + ux * from, py + uy * from, px + ux * e, py + uy * e, 0.85, 0);
+    if (!isFinite(h.t)) return;
+    // a full line to the first thing it meets; off a cushion (or bumper) it carries on for one more leg, then stops
+    const x = px + ux * h.t, y = py + uy * h.t;
+    solid(px + ux * from, py + uy * from, x, y, a, a);
+    if (leg > 0 || h.ball) return;
+    let nx = h.nx, ny = h.ny;
+    if (h.bumper) { const d = Math.hypot(x - h.bumper.x, y - h.bumper.y) || 1; nx = (x - h.bumper.x) / d; ny = (y - h.bumper.y) / d; }
+    if (nx == null || table.pk.some(p => Math.hypot(p.x - x, p.y - y) < p.cap + R * 2.5)) return;   // a bar, or a pocket's jaws
+    // off the cushion as the physics does it: the speed into it drops to e of itself, the speed along it is kept
+    const k = ux * nx + uy * ny, e = h.bumper ? (h.bumper.cat ? CAT_E : BUMPER_E) : CUSHION_E;
+    const rx = ux - (1 + e) * k * nx, ry = uy - (1 + e) * k * ny, rl = Math.hypot(rx, ry) || 1;
+    objLine(x + nx * 0.5, y + ny * 0.5, rx / rl, ry / rl, skip, 0, depth, leg + 1);
   };
   if (hit.tunnel != null) {
     // into a tunnel: the line stops at the mouth, the far end glows, and the line carries on out of it on the same

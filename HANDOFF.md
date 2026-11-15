@@ -599,3 +599,8 @@ off one side of an arcade screen and on at the other). They're an optional route
   with a real opening pot and are clearable.
 - Sound: `sfx.drop` is now a deep wooden clunk as the ball lands in the pocket (low thud, hollow knock), then a short
   roll down the pocket.
+- Object ball line off one cushion (15 Nov): the object ball's line runs in full to the first thing it meets (no more
+  150 px stub); off a cushion or bumper it carries on for one more leg (a little fainter, bent as the physics bends it:
+  speed into the cushion × e), then stops at the next cushion, ball or pocket. It stops at a pocket's jaws or a bar.
+  The ring now also lights for one-cushion banks of the object ball (`GUIDE_CUSH` 1); the cue ball must still go
+  straight to its first ball (`GUIDE_KICK` 0).
