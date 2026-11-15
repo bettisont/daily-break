@@ -328,9 +328,10 @@ const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way
 // table, and holes 3-6 each get one feature, dealt for the day from a gate, a sand bunker and the cat (so one
 // comes up twice), each placed where it gets in the way of the good pots (placeFeature). No water or windmill.
 const SHORT_ON = true, SHORT_FROM = '2026-11-14', SHORT_MAX = 3, FEATURE_KEYS = ['gate', 'sand', 'cat'];
-// From NO_GATE_FROM (and on practice courses) the one-way gate is gone: holes 3-6 get sand and the cat, two each.
-const NO_GATE_FROM = '2026-11-16';
-const featureKeys = seed => isDailySeed(seed) && seed < NO_GATE_FROM ? FEATURE_KEYS : FEATURE_KEYS.filter(k => k !== 'gate');
+// From NO_GATE_FROM the one-way gate is gone: holes 3-6 get sand and the cat, two each. From TUNNELS_FROM (and on
+// practice courses) tunnels join them: sand, the cat and a tunnel, one of them twice.
+const NO_GATE_FROM = '2026-11-16', TUNNELS_FROM = '2026-11-17';
+const featureKeys = seed => !isDailySeed(seed) || seed >= TUNNELS_FROM ? ['sand', 'cat', 'tunnel'] : seed < NO_GATE_FROM ? FEATURE_KEYS : ['sand', 'cat'];
 // trick shots are replayed; TRICK_STARS also gives them a call-out and ⭐ on the scorecard and share text (off)
 const TRICK_STARS = false;
 const shortSeed = seed => SHORT_ON && parSeed(seed) && (!isDailySeed(seed) || seed >= SHORT_FROM);
@@ -341,12 +342,10 @@ const featureName = h => h.obst ? OBST_NAMES[h.obst.type] : h.feature ? OBST_NAM
 const CAT_R = 30, CAT_E = 0.3;   // the cat on the felt: a big soft ball that soaks up most of a hit
 const BAR_T = 6, WM_W = 1.5, GATE_MAX = 1.45, GATE_BACK = 2.2;
 let obstacleOverride = null;   // the test build forces an obstacle here
-// Tunnels (test: only with ?tunnels in the address, which starts a practice course where holes 3-6 each have
-// one). Two openings built into facing cushions, joined under the table: a ball that rolls into one comes back in
+// Tunnels (in the daily rotation from TUNNELS_FROM). Two openings built into facing cushions, joined under the table: a ball that rolls into one comes back in
 // through the other, heading the same way (it wraps round, like going off one side of an arcade screen and on at the
 // other), a little slower. They sit on the cushions, out of the way, as an optional route; placement always sets up
 // a real pot through them.
-const TUNNEL_TEST = (() => { try { return new URLSearchParams(location.search).has('tunnels'); } catch { return false; } })();
 const TUN_HALF = R * 2.4, TUN_KEEP = 0.92, TUN_T = 0.35;   // half the opening's width, pace kept, time under the table
 const tunMouths = h => h.tunnel ? [h.tunnel.a, h.tunnel.b] : [];
 // where a ball comes back onto the felt from mouth m: just off the cushion, in the middle of the opening
@@ -364,10 +363,14 @@ function tunRails(h) {
 }
 function obstFor(seed, i) {
   if (obstacleOverride) return obstacleOverride === 'none' ? null : obstacleOverride;
-  // (the oval has no straight facing cushions, so an oval hole gets the day's usual feature instead)
-  if (TUNNEL_TEST && shortSeed(seed) && i >= 2 && !tunRails({ shape: shapeFor(seed, i) }).some((g, k, all) => all.some(o => g.nx * o.nx + g.ny * o.ny < -0.98))) { const ks = featureKeys(seed); return shuffle(rngFor(`${seed}:feature`), ks)[(i - 2) % ks.length]; }
-  if (TUNNEL_TEST && shortSeed(seed)) return i < 2 ? null : 'tunnel';
-  if (shortSeed(seed)) { const ks = featureKeys(seed); return i < 2 ? null : shuffle(rngFor(`${seed}:feature`), ks)[(i - 2) % ks.length]; }
+  if (shortSeed(seed)) {
+    if (i < 2) return null;
+    const ks = featureKeys(seed), deck = shuffle(rngFor(`${seed}:feature`), ks);
+    // the oval has no straight facing cushions for a tunnel, so an oval tunnel hole takes the next feature in the deck
+    const canTunnel = tunRails({ shape: shapeFor(seed, i) }).some((g, k, all) => all.some(o => g.nx * o.nx + g.ny * o.ny < -0.98));
+    for (let k = 0; k < deck.length; k++) { const f = deck[(i - 2 + k) % deck.length]; if (f !== 'tunnel' || canTunnel) return f; }
+    return null;
+  }
   if (!OBSTACLES_ON || i < 2 || !parSeed(seed)) return null;
   const n = OBST_KEYS.length, c = Math.floor((i - 2) / n), deck = shuffle(rngFor(`${seed}:obst:${c}`), OBST_KEYS);
   const k = deck[(i - 2) % n];
@@ -2189,7 +2192,7 @@ function showIntro() {
     <div class="k mono">Daily Break · daily pool</div>
     ${parSeed(todayKey()) ? `<h2>Six holes. Fewest shots wins.</h2>
     <div class="howto">
-      <p>⛳ Pool scored like golf. ${shortSeed(todayKey()) ? `Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: ${featureKeys(todayKey()).includes('gate') ? 'sand, a gate or the cat' : 'sand or the cat'}. Pot into the glowing golden pocket for a stroke back.` : 'Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.'}</p>
+      <p>⛳ Pool scored like golf. ${shortSeed(todayKey()) ? `Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: ${featureKeys(todayKey()).includes('gate') ? 'sand, a gate or the cat' : featureKeys(todayKey()).includes('tunnel') ? 'sand, the cat or a tunnel' : 'sand or the cat'}. Pot into the glowing golden pocket for a stroke back.` : 'Hole 1 has one ball, hole 2 two, and so on, on tables of all shapes.'}</p>
       <p>🎱 Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>` : `<h2>How far can you get?</h2>
     <div class="howto">
       <p>🎱 Pot every ball to clear a level. Level 1 has one ball, level 2 two, and so on.</p>
@@ -2214,7 +2217,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${TUNNEL_TEST ? '<p>🕳️ Tunnel test: holes 3 to 6 each have a <b>tunnel</b>: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. ${TRICK_STARS ? '<b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first).' : 'Trick shots (two in one, a bank, a combination or a kick) get an instant replay.'}</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
+      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${featureKeys(round?.seed).includes('tunnel') ? '<p>🕳️ Some holes have a <b>tunnel</b> instead: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. ${TRICK_STARS ? '<b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first).' : 'Trick shots (two in one, a bank, a combination or a kick) get an instant replay.'}</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
@@ -3820,8 +3823,7 @@ resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
 const firstVisit = !ls('dailybreak:seenHelp');
-if (TUNNEL_TEST) newRound(seedParam || 'tunnels-' + Math.random().toString(36).slice(2, 7), false);
-else if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
+if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
 // the first time the page is hidden before today's first shot: how long they'd been here and on which screen
 // (some come back and play later; this is one event per device per day)
 document.addEventListener('visibilitychange', () => {
