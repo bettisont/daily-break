@@ -100,8 +100,14 @@ cue down the right.
    desktop (arrows adjust power while held). While you hold, a close-up of the cue ball sits in the bottom-left
    (`contactPanel`, `drawContact`) with the gold spot and the tip wobbling over it (`tipPos`), labelled Short shot /
    Medium shot / Long shot · shaky. A tick sounds as the tip enters the spot, a higher one in the bullseye.
-6. **Contact** (`contactDiff`, `contact`, `js/game.js`). Difficulty d is mostly distance (cue ball to first ball,
-   plus 0.6 x that ball's run on), plus spin, power and +0.1 on sand. The spot radius is `spotR` = lerp(0.22, 0.09, d);
+6. **Contact** (`contactDiff`, `contact`, `js/game.js`). Difficulty d, from 17 Nov (`RULES.SHOT_READ_FROM`):
+   `readShot` simulates a perfect strike along the aim at the first of `READ_PACES` where a ball drops (cached per
+   aim, spin and table) and `trickiness` scores it: distance (cue ball's run to the first ball + 0.7 x the potted
+   ball's run to its pocket), the cut angle (free up to 15°, full at 70°), +0.09 per cushion (object-ball bank or
+   cue-ball kick, up to two) and +0.08 for a combination (the potted ball isn't the one first hit); weights in
+   `TRICK`. If nothing drops, the old straight-line reading (`shotGeom`). The close-up's label names it
+   (`shotWord`: "Tricky bank shot", "Shaky combination", "Tricky thin cut"...). Before 17 Nov: mostly distance (cue
+   ball to first ball, plus 0.6 x that ball's run to the cushion). Either way, plus spin, power and +0.1 on sand. The spot radius is `spotR` = lerp(0.22, 0.09, d);
    the wobble grows with d. Harder strike from hole 3: `strikeK` ramps 0 -> 1 over holes 3-5, shrinking the spot
    `SPOT_SHRINK` 15%, widening the wobble `WOBBLE_GROW` 12% and speeding it `WOBBLE_FAST` 15%, and raising the maximum
    push from `PUSH_MAX` 3° by `PUSH_EXTRA` 2°. Why: the guide makes aiming easy, so the skill sits in the strike. Grades:

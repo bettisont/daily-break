@@ -246,18 +246,81 @@ function act() {
   updateUI();
 }
 
-// How hard is it to strike this one cleanly? Mostly distance: the cue ball's run to the first ball
-// and that ball's run on towards the cushion (and any error grows with distance on the table too).
-// Spin and a hard hit make it harder; so does rough felt under the cue ball.
+// How hard is it to strike this one cleanly? Before 17 Nov (RULES.SHOT_READ_FROM) mostly distance: the cue ball's run
+// to the first ball and that ball's run on towards the cushion. Spin and a hard hit make it harder; so does rough
+// felt under the cue ball. From 17 Nov it reads the shot actually lined up (readShot): how far the cue ball travels
+// to the object ball, how far the potted ball then travels to its pocket, how thin the cut is, and whether it's a
+// bank, a kick or a combination. Players asked for tricky shots to feel tricky, not just long ones.
+// (This only shapes the strike, never the course: holes are generated without it.)
 function contactDiff() {
+  const lie = lieAt(hole, table.cue.x, table.cue.y), extra = Math.abs(aim.spin) * 0.12 + power * 0.1 + (lie === 'rough' ? 0.1 : 0);
+  if (!round || !ruleOn(round.seed, RULES.SHOT_READ_FROM)) {
+    const g = shotGeom();
+    return clamp(0.05 + 0.75 * clamp((g.d1 + 0.6 * g.d2 - 150) / 1000, 0, 1) + extra, 0, 1);
+  }
+  return clamp(trickiness(readShot()) + extra, 0, 1);
+}
+// the old reading: straight along the aim to the first ball, and that ball's run to the cushion
+function shotGeom() {
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), hit = trace(table, c.x, c.y, dx, dy);
-  let d1 = Math.min(hit.t, 1100), d2 = 0;
+  let d1 = Math.min(hit.t, 1100), d2 = 0, cut = 0;
   if (hit.ball) {
     const gx = c.x + dx * hit.t, gy = c.y + dy * hit.t, nx = (hit.ball.x - gx) / (2 * R), ny = (hit.ball.y - gy) / (2 * R);
     d2 = Math.min(trace(table, hit.ball.x, hit.ball.y, nx, ny, hit.ball).t, 1000);
+    cut = Math.acos(clamp(dx * nx + dy * ny, -1, 1));
   }
-  const lie = lieAt(hole, c.x, c.y);
-  return clamp(0.05 + 0.75 * clamp((d1 + 0.6 * d2 - 150) / 1000, 0, 1) + Math.abs(aim.spin) * 0.12 + power * 0.1 + (lie === 'rough' ? 0.1 : 0), 0, 1);
+  return { d1, d2, cut, kick: 0, bank: 0, combo: false, pots: false };
+}
+// The weights (17 Nov). Distance still matters most; a thin cut, each cushion (the object ball's bank or the cue
+// ball's kick, up to two) and a combination (the potted ball isn't the one the cue ball hits) each add on top.
+// Tuned on every aim of 17-22 Nov's holes (old -> new, average): straight pots 0.20 -> 0.18, cuts over 60° 0.31 ->
+// 0.46, banks 0.25 -> 0.50, combinations 0.18 -> 0.55, kicks 0.14 -> 0.58.
+const TRICK = { BASE: 0.02, DIST: 0.48, CUT: 0.26, CUSHION: 0.09, COMBO: 0.08 };
+function trickiness(r) {
+  const dist = clamp((r.d1 + 0.7 * r.d2 - 150) / 1300, 0, 1), cutK = clamp((r.cut * 180 / Math.PI - 15) / 55, 0, 1);
+  return TRICK.BASE + TRICK.DIST * dist + TRICK.CUT * cutK ** 1.3 + TRICK.CUSHION * Math.min(r.bank + r.kick, 2) + (r.combo ? TRICK.COMBO : 0);
+}
+// What happens if this aim is struck perfectly? A quick simulation at the first of a few paces where a ball drops
+// (pace barely changes what kind of shot it is, and a fixed set keeps the spot from jumping as they pull). If nothing
+// drops at any of them, the old straight-line reading. Cached per aim, spin and table.
+const READ_PACES = [0.45, 0.3, 0.6, 0.2, 0.75, 0.9];
+const readMemo = { key: null, r: null };
+function readShot() {
+  const key = `${round.level}|${strokes}|${aim.angle.toFixed(4)}|${aim.spin.toFixed(2)}|${table.cue.x.toFixed(1)},${table.cue.y.toFixed(1)}`;
+  if (readMemo.key === key && readMemo.of === table) return readMemo.r;
+  let r = null;
+  for (const pw of READ_PACES) if ((r = readAt(pw))) break;
+  readMemo.key = key; readMemo.of = table; readMemo.r = r || shotGeom();
+  return readMemo.r;
+}
+function readAt(pw) {
+  const s = cloneTable(table), all = [s.cue, ...s.balls], run = all.map(() => 0);
+  s.shoot(aim.angle, pw, aim.spin);
+  let d1 = 0, cut = 0;
+  for (let n = 0; n < 2400 && s.moving(); n++) {
+    const px = all.map(b => b.x), py = all.map(b => b.y), cvx = s.cue.vx, cvy = s.cue.vy, had = s.shot.firstHit;
+    s.step();
+    // (a tunnel moves a ball across the table in one step: that jump isn't rolling)
+    all.forEach((b, i) => { const m = Math.hypot(b.x - px[i], b.y - py[i]); if (m < 60) run[i] += m; });
+    const fh = s.shot.firstHit;
+    if (!had && fh) {
+      d1 = run[0];
+      const u = Math.hypot(cvx, cvy), v = Math.hypot(fh.vx, fh.vy);
+      cut = u && v ? Math.acos(clamp((cvx * fh.vx + cvy * fh.vy) / (u * v), -1, 1)) : 0;
+    }
+    if (s.shot.scratch) return null;
+    const q = s.shot.pots[0];
+    if (q) return { d1, d2: run[all.indexOf(q.ball)], cut, kick: s.shot.kickWalls || 0, bank: guideWalls(s, q.ball, q.pocket), combo: q.ball !== fh, pots: true };
+  }
+  return null;
+}
+// the close-up's label: how long, and what makes it tricky
+function shotWord(d) {
+  const len = d < 0.3 ? 'Short shot' : d < 0.6 ? 'Medium shot' : 'Long shot · shaky';
+  if (!round || !ruleOn(round.seed, RULES.SHOT_READ_FROM)) return len;
+  const r = readShot(), base = d < 0.3 ? 'Easy' : d < 0.6 ? 'Tricky' : 'Shaky';
+  const kind = r.combo ? 'combination' : r.kick ? 'kick shot' : r.bank ? 'bank shot' : r.cut > 50 * Math.PI / 180 ? 'thin cut' : null;
+  return kind ? `${base} ${kind}` : len;
 }
 // The gold spot is where you chose to hit the cue ball; it shrinks and the tip gets shakier as the shot gets harder.
 // A harder strike as the round goes on (the aiming guide is generous): from hole 3 the gold spot shrinks, the

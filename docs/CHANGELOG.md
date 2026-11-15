@@ -4,6 +4,17 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 15 Nov 2026 (evening): the strike reads the whole shot (from 17 Nov)
+
+- **Strike difficulty follows how tricky the shot is, not just how long** (`RULES.SHOT_READ_FROM` 2026-11-17;
+  `readShot`, `trickiness`, `shotWord` in `js/game.js`). A quick perfect-strike simulation along the aim finds the shot
+  being played: the cue ball's run to the object ball, the potted ball's run to its pocket, the cut angle, any bank
+  (object ball) or kick (cue ball) off a cushion, and whether it's a combination. Before, the object ball's run was
+  measured to the cushion and none of the rest counted. Average d over every aim on 17-22 Nov: straight pots 0.20 ->
+  0.18, cuts over 60° 0.31 -> 0.46, banks 0.25 -> 0.50, combinations 0.18 -> 0.55, kicks 0.14 -> 0.58. The close-up's
+  label says why ("Tricky bank shot", "Shaky combination", "Tricky thin cut"). It never touches generation: all
+  course snapshots unchanged. Gated so 15 and 16 Nov stay comparable for everyone who's played them.
+
 ## 15 Nov 2026 (afternoon cleanup)
 
 - **Code split into `js/*.js`**: the one inline script cut verbatim, in order, into core, physics, state, audio, game,
