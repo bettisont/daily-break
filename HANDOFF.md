@@ -608,3 +608,4 @@ off one side of an arcade screen and on at the other). They're an optional route
   warm and bright with a soft glow, and a white shimmer runs along it towards the pocket (`onTargetLine`). The
   moment the guide locks on (`guideLock`) the line and ring flare for 0.6 s, a few sparkles burst at the pocket and a
   soft two-note tick plays (at most every 0.25 s, so sweeping the aim doesn't chatter).
+  The whole path glows when it ends in a pot, banks and tunnel legs included (`objPath` collects the segments, `onTargetPath` draws them, with one shimmer travelling the whole path).

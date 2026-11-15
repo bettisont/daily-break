@@ -3203,17 +3203,22 @@ function drawGuide(c, dx, dy, hit, t) {
   // On target: the object ball's line into a pocket that really pots lights up warm and bright with a soft glow, and a
   // shimmer runs along it towards the pocket. The moment it locks on, it flares (wider, brighter) and ticks.
   const lockK = clamp((t - guideLock.at) / 0.6, 0, 1), flare = guideLock.on ? (1 - lockK) ** 2 : 0;
-  const onTargetLine = (ax, ay, bx, by) => {
-    ctx.save(); ctx.lineCap = 'round';
+  const onTargetPath = segs => {
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(255,210,120,1)'; ctx.shadowBlur = (14 + 22 * flare) * view.s * view.dpr;
     ctx.strokeStyle = `rgba(255,246,222,${0.9 + 0.1 * flare})`; ctx.lineWidth = 3.5 + 4 * flare;
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    for (let n = 0; n < 2; n++) { ctx.beginPath(); for (const [ax, ay, bx, by] of segs) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); } ctx.stroke(); }
     ctx.shadowBlur = 0;
-    const ph = (t * 1.1) % 1, g = ctx.createLinearGradient(ax, ay, bx, by);
-    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(Math.max(0, ph - 0.12), 'rgba(255,255,255,0)');
-    g.addColorStop(ph, 'rgba(255,255,255,.95)'); g.addColorStop(Math.min(1, ph + 0.06), 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.strokeStyle = g; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    // the shimmer: one bright band travelling the whole path towards the pocket
+    const lens = segs.map(([ax, ay, bx, by]) => Math.hypot(bx - ax, by - ay)), total = lens.reduce((x, y) => x + y, 0) || 1, at = ((t * 1.1) % 1) * total;
+    let start = 0;
+    segs.forEach(([ax, ay, bx, by], n) => {
+      const L = lens[n] || 1, ph = (at - start) / L; start += L;
+      if (ph < -0.15 * total / L || ph > 1 + 0.08 * total / L) return;
+      const g = ctx.createLinearGradient(ax, ay, bx, by), w0 = 0.12 * total / L, w1 = 0.06 * total / L, st = (o, c) => g.addColorStop(clamp(o, 0, 1), c);
+      st(0, 'rgba(255,255,255,0)'); st(ph - w0, 'rgba(255,255,255,0)'); st(ph, 'rgba(255,255,255,.95)'); st(ph + w1, 'rgba(255,255,255,0)'); st(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = g; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    });
     ctx.restore();
   };
   // from (sx, sy): the dashed line to the first thing it meets, a ghost ball there, and the object ball's straight line
@@ -3224,11 +3229,13 @@ function drawGuide(c, dx, dy, hit, t) {
     if (!h.ball) { ghost(gx, gy, 0.45); return; }
     ghost(gx, gy, 0.85);
     const ball = h.ball;
-    objLine(ball.x, ball.y, (ball.x - gx) / (2 * R), (ball.y - gy) / (2 * R), ball, R + 3, 0);
+    objLine(ball.x, ball.y, (ball.x - gx) / (2 * R), (ball.y - gy) / (2 * R), ball, R + 3);
   };
   // The object ball's line from (px, py): to the pocket it drops into (a ringed pocket it passes counts, even where
   // the straight line only clips the pocket's mouth), or into a tunnel and on out of the far end, or a short fading stub.
-  const objLine = (px, py, ux, uy, skip, from, depth, leg = 0) => {
+  // The object ball's path as segments [ax, ay, bx, by, leg], ending in a pocket (pk) or not. Drawn after, so a pot
+  // lights the whole path up, not just its last leg.
+  const objPath = (px, py, ux, uy, skip, from, depth, leg, segs) => {
     const h = trace(table, px, py, ux, uy, skip);
     let pk = null;
     for (const i of guideSim.pks) {
@@ -3236,31 +3243,29 @@ function drawGuide(c, dx, dy, hit, t) {
       if (sAt > 0 && perp < p.cap + R && sAt <= h.t + p.cap + R && (!pk || sAt < pk.s)) pk = { i, s: sAt };
     }
     pk = pk || pocketAlong(px, py, ux, uy, h.t);
-    const a = leg ? 0.65 : 0.9;
-    if (pk) {
-      const e = toRim(px, py, ux, uy, pk), ax = px + ux * from, ay = py + uy * from, bx = px + ux * e, by = py + uy * e;
-      if (guideSim.pks.includes(pk.i)) onTargetLine(ax, ay, bx, by); else solid(ax, ay, bx, by, a, a);
-      return;
-    }
-    if (h.tunnel != null && depth < 1 && isFinite(h.t)) {
-      solid(px + ux * from, py + uy * from, px + ux * h.t, py + uy * h.t, a, a);
+    if (pk) { const e = toRim(px, py, ux, uy, pk); segs.push([px + ux * from, py + uy * from, px + ux * e, py + uy * e, leg]); return pk.i; }
+    if (!isFinite(h.t)) return null;
+    const x = px + ux * h.t, y = py + uy * h.t;
+    segs.push([px + ux * from, py + uy * from, x, y, leg]);
+    if (h.tunnel != null && depth < 1) {
       tunAimWant = true; tunAimFrom = h.tunnel;
       const o = tunExit(tunMouths(hole)[1 - h.tunnel]);
-      objLine(o.x, o.y, ux, uy, skip, 0, depth + 1, leg);
-      return;
+      return objPath(o.x, o.y, ux, uy, skip, 0, depth + 1, leg, segs);
     }
-    if (!isFinite(h.t)) return;
     // a full line to the first thing it meets; off a cushion (or bumper) it carries on for one more leg, then stops
-    const x = px + ux * h.t, y = py + uy * h.t;
-    solid(px + ux * from, py + uy * from, x, y, a, a);
-    if (leg > 0 || h.ball) return;
+    if (leg > 0 || h.ball || h.tunnel != null) return null;
     let nx = h.nx, ny = h.ny;
     if (h.bumper) { const d = Math.hypot(x - h.bumper.x, y - h.bumper.y) || 1; nx = (x - h.bumper.x) / d; ny = (y - h.bumper.y) / d; }
-    if (nx == null || table.pk.some(p => Math.hypot(p.x - x, p.y - y) < p.cap + R * 2.5)) return;   // a bar, or a pocket's jaws
+    if (nx == null || table.pk.some(p => Math.hypot(p.x - x, p.y - y) < p.cap + R * 2.5)) return null;   // a bar, or a pocket's jaws
     // off the cushion as the physics does it: the speed into it drops to e of itself, the speed along it is kept
     const k = ux * nx + uy * ny, e = h.bumper ? (h.bumper.cat ? CAT_E : BUMPER_E) : CUSHION_E;
     const rx = ux - (1 + e) * k * nx, ry = uy - (1 + e) * k * ny, rl = Math.hypot(rx, ry) || 1;
-    objLine(x + nx * 0.5, y + ny * 0.5, rx / rl, ry / rl, skip, 0, depth, leg + 1);
+    return objPath(x + nx * 0.5, y + ny * 0.5, rx / rl, ry / rl, skip, 0, depth, leg + 1, segs);
+  };
+  const objLine = (px, py, ux, uy, skip, from) => {
+    const segs = [], end = objPath(px, py, ux, uy, skip, from, 0, 0, segs);
+    if (end != null && guideSim.pks.includes(end)) onTargetPath(segs);
+    else for (const [ax, ay, bx, by, leg] of segs) { const a = leg ? 0.65 : 0.9; solid(ax, ay, bx, by, a, a); }
   };
   if (hit.tunnel != null) {
     // into a tunnel: the line stops at the mouth, the far end glows, and the line carries on out of it on the same
