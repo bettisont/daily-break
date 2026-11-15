@@ -624,8 +624,8 @@ off one side of an arcade screen and on at the other). They're an optional route
 - Edge: on a Perfect strike's shot (`table.shot.perfect`) every pocket takes balls 12% further from its centre
   (`PERFECT_POCKET`) and lets them in 15% faster (`PERFECT_POCKET_PACE`). Same shots (16–25 Nov holes, every open
   pot at ±1.2° and three paces): 568 balls potted normally, 717 with the edge. The guide's ring doesn't assume it.
-- Feel: a gold flash, a rising four-note arpeggio over a low thump, a bigger sparkle burst and rings, the first
-  `PERFECT_SLOW` (0.4 s) of the roll in slow motion, and a gold comet trail behind the cue ball (`perfectFx`).
+- Feel (toned down the same evening; the flash, slow motion and gold trail were too much): a small gold sparkle and
+  ring, "Perfect strike!", and a soft two-note lift on top of the strike's own chime.
 
 ## Release (15 Nov 2026, evening)
 
