@@ -556,3 +556,6 @@ paths (`bounceOff`, `kickPath`, `objectSimPath` removed). The ring still comes f
 pots (`GUIDE_CUSH` 0: no cushion for the cue ball first or for the potted ball); `guidePots`/`startUnpotted` use the
 same rule. The spin path hint while pulling back is unchanged. Tunnels: the line stops at the mouth and the far end
 glows where the ball will come out (the copper exit line and lit pipe are gone); the ring still shows a pot through it.
+- Exit guide (15 Nov): aiming into a tunnel, the guide carries on out of the far mouth on the same heading with the
+  same style as any shot (`cueLeg` in `drawGuide`): dashed line, ghost ball, object ball's line to the ring. It's exact
+  geometry, since the ball always leaves the far mouth's centre on the heading it went in with.

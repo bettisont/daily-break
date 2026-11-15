@@ -3147,20 +3147,29 @@ function drawGuide(c, dx, dy, hit, t) {
   }
   if (guideSim.nowKey !== guideSim.key) { guideSim.nowKey = guideSim.key; guideSim.pks = guideSim.ringed; }
   guideSim.pks.forEach(ringPocket);
+  // from (sx, sy): the dashed line to the first thing it meets, a ghost ball there, and the object ball's straight line
+  const cueLeg = (sx, sy, h, off) => {
+    if (!isFinite(h.t)) return;
+    const gx = sx + dx * h.t, gy = sy + dy * h.t;
+    dash(sx + dx * off, sy + dy * off, gx, gy, 0.85);
+    if (!h.ball) { ghost(gx, gy, 0.45); return; }
+    ghost(gx, gy, 0.85);
+    const ball = h.ball, ux = (ball.x - gx) / (2 * R), uy = (ball.y - gy) / (2 * R);
+    const h2 = trace(table, ball.x, ball.y, ux, uy, ball), pk = pocketAlong(ball.x, ball.y, ux, uy, h2.t);
+    if (pk) { const e = toRim(ball.x, ball.y, ux, uy, pk); solid(ball.x + ux * (R + 3), ball.y + uy * (R + 3), ball.x + ux * e, ball.y + uy * e, 0.9, 0.9); }
+    else { const e = Math.min(h2.t, 150); solid(ball.x + ux * (R + 3), ball.y + uy * (R + 3), ball.x + ux * e, ball.y + uy * e, 0.85, 0); }
+  };
   if (hit.tunnel != null) {
-    // into a tunnel: the line stops at the mouth, and the far end glows where the ball will come out
+    // into a tunnel: the line stops at the mouth, the far end glows, and the line carries on out of it on the same
+    // heading (the ball always leaves the far mouth heading the way it went in)
     dash(c.x + dx * R, c.y + dy * R, ex, ey, 0.85);
     tunAimWant = true; tunAimFrom = hit.tunnel;
+    const o = tunMouths(hole)[1 - hit.tunnel], sx = o.x + dx * (TUN_R + 2), sy = o.y + dy * (TUN_R + 2), h2 = trace(table, sx, sy, dx, dy);
+    if (h2.tunnel == null) cueLeg(sx, sy, h2, 0);
+    else dash(sx, sy, sx + dx * h2.t, sy + dy * h2.t, 0.85);
     return;
   }
-  if (!isFinite(hit.t)) return;
-  dash(c.x + dx * R, c.y + dy * R, ex, ey, 0.85);
-  if (!hit.ball) { ghost(ex, ey, 0.45); return; }
-  ghost(ex, ey, 0.85);
-  const ball = hit.ball, ux = (ball.x - ex) / (2 * R), uy = (ball.y - ey) / (2 * R);
-  const h = trace(table, ball.x, ball.y, ux, uy, ball), pk = pocketAlong(ball.x, ball.y, ux, uy, h.t);
-  if (pk) solid(ball.x + ux * (R + 3), ball.y + uy * (R + 3), ball.x + ux * toRim(ball.x, ball.y, ux, uy, pk), ball.y + uy * toRim(ball.x, ball.y, ux, uy, pk), 0.9, 0.9);
-  else { const end = Math.min(h.t, 150); solid(ball.x + ux * (R + 3), ball.y + uy * (R + 3), ball.x + ux * end, ball.y + uy * end, 0.85, 0); }
+  cueLeg(c.x, c.y, hit, R);
 }
 // Gimmes glow green with a "Tap in" label; tapping one pots it for a stroke.
 function drawGimmes(t) {
