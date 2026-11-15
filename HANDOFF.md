@@ -617,3 +617,4 @@ off one side of an arcade screen and on at the other). They're an optional route
   that), the object ball's line swings over 0.25 s from the aimed line (left faint and dashed) to the one it really
   took, gold if it still drops and amber if it now misses, then fades after ~1.4 s. A Clean that no longer drops says
   "Clean, but pushed left/right" (the other grades already say they pushed it).
+- Clean strikes (15 Nov): a Clean now plays exactly as aimed, like a Perfect (`contact`); only Nearly, Off-centre and Miscue push the line.

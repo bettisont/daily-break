@@ -1490,15 +1490,15 @@ const tipInCore = d => { const p = tipPos(d); return Math.hypot(p.x, p.y - aim.s
 // cue ball off line (up to 3°, which costs more the further it has to travel); too high or low
 // changes the spin; right out at the edge is a miscue.
 // On a short round the spot has a perfect core (PERFECT_CORE of its radius): only a tip there plays exactly as
-// aimed ('perfect'). The rest of the spot is 'clean' but pushes the line a little (up to GOOD_PUSH degrees, more
-// the further out), and 'near' carries on from there, so the guide's promise holds only for a perfect strike.
+// aimed ('perfect'). Since 15 Nov the rest of the spot ('clean') plays exactly as aimed too (it used to push up to
+// GOOD_PUSH degrees, and players couldn't see why a Clean missed); 'near' still starts its push from GOOD_PUSH.
 const PERFECT_CORE = 0.4, GOOD_PUSH = 0.15;
 function contact(d) {
   const tip = tipPos(d), r = spotR(d), ex = tip.x, ey = tip.y - aim.spotY, dist = Math.hypot(ex, ey);
   if (generous()) {
     const rc = r * PERFECT_CORE;
     if (dist <= rc) return { tip, quality: 'perfect', off: 0, spin: aim.spin, power };
-    if (dist <= r) return { tip, quality: 'clean', off: -(ex / dist) * ((dist - rc) / (r - rc)) * GOOD_PUSH * Math.PI / 180, spin: aim.spin, power };
+    if (dist <= r) return { tip, quality: 'clean', off: 0, spin: aim.spin, power };   // a Clean goes exactly where you aimed (15 Nov)
   }
   if (dist <= r) return { tip, quality: 'clean', off: 0, spin: aim.spin, power };
   const over = dist - r;
