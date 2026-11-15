@@ -534,8 +534,9 @@ holes for 14–28 Nov were checked identical to the build before (90 holes).
 
 ### Tunnel polish and no gate (15 Nov 2026)
 
-- Look: the mouths are raised copper pipe ends (collar, rivets, dark bore, drop shadow) so they never read as
-  pockets, each with a spout pointing at the other end; the buried pipe shows as a soft ridge in the cloth.
+- Look: the mouths are putting-green cups sunk into the cloth (a thin cream liner round a dark hole; the copper
+  pipe ends were dropped on feedback), so they never read as
+  pockets, each with a small cream chevron pointing at the other end; the buried pipe shows as a soft ridge.
 - The trip: the ball swirls and shrinks into the mouth (`fx.sinks`), a bulge and glow run along the ridge, and it
   pops out with a hop and bounce (`tunPop`, `drawLiveBall`) and a puff of dust.
 - Sound: a hollow drop going in, a low rumble that pans from one end to the other for the time underground

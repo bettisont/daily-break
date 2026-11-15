@@ -2742,12 +2742,11 @@ function drawObstacle(o, t) {
   }
 }
 
-// A tunnel: two raised copper pipe ends set in the felt (so they never read as pockets), joined by a pipe buried
+// A tunnel: two putting-green cups sunk into the felt (cream liners, so they never read as pockets), joined by a pipe buried
 // underneath that shows as a faint ridge. Each end has a spout pointing at the other. A ball underground is a
 // bulge and a glow travelling along the ridge. While the aim goes through the tunnel the pipe lights up.
 const tunPop = new Map();   // balls popping out of a tunnel: how far through the hop
 let tunAimLit = 0;          // the aim goes into the tunnel this frame (the pipe glows)
-const COPPER_HI = '#f4c08a', COPPER = '#c27a43', COPPER_LO = '#7c4523';
 function drawTunnel(tn, t, dt) {
   const A = tn.a, B = tn.b, ang = Math.atan2(B.y - A.y, B.x - A.x), len = Math.hypot(B.x - A.x, B.y - A.y);
   tunAimLit = lerp(tunAimLit, tunAimWant ? 1 : 0, Math.min(1, dt * 8));
@@ -2769,33 +2768,21 @@ function drawTunnel(tn, t, dt) {
   }
   for (const [m, o] of [[A, B], [B, A]]) {
     m.flash = Math.max(0, (m.flash || 0) - dt * 2.5);
-    const rr = TUN_R + 2, ro = rr + 9, sa = Math.atan2(o.y - m.y, o.x - m.x);
+    const rr = TUN_R + 2, ro = rr + 3, sa = Math.atan2(o.y - m.y, o.x - m.x);
     // aiming into the other end: this one glows where the ball will come out
     if (tunAimLit > 0.02 && m === (tunAimFrom === 0 ? B : A)) { const gl = ctx.createRadialGradient(m.x, m.y, ro, m.x, m.y, ro + 22); gl.addColorStop(0, `rgba(255,214,140,${0.6 * tunAimLit})`); gl.addColorStop(1, 'rgba(255,214,140,0)'); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(m.x, m.y, ro + 22, 0, TAU); ctx.fill(); }
-    // raised: a shadow down and to the right
-    ctx.fillStyle = 'rgba(25,30,20,.35)'; ctx.beginPath(); ctx.arc(m.x + 3, m.y + 6, ro + 1, 0, TAU); ctx.fill();
-    // the spout pointing along the pipe to the other end
+    // a putting-green cup sunk into the cloth: a thin cream liner round a dark hole, shaded where the near edge
+    // overhangs, and a small cream chevron on the cloth pointing along the pipe to the other end
     ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(sa);
-    ctx.fillStyle = COPPER_LO; ctx.beginPath(); ctx.moveTo(ro - 3, -9); ctx.lineTo(ro + 9, 0); ctx.lineTo(ro - 3, 9); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = COPPER; ctx.beginPath(); ctx.moveTo(ro - 4, -6.5); ctx.lineTo(ro + 6, 0); ctx.lineTo(ro - 4, 6.5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(251,248,240,.7)'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(ro + 4, -5); ctx.lineTo(ro + 10, 0); ctx.lineTo(ro + 4, 5); ctx.stroke();
     ctx.restore();
-    // the copper collar
-    const cg = ctx.createLinearGradient(m.x - ro, m.y - ro, m.x + ro, m.y + ro);
-    cg.addColorStop(0, COPPER_HI); cg.addColorStop(0.5, COPPER); cg.addColorStop(1, COPPER_LO);
-    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(m.x, m.y, ro, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,235,200,.55)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(m.x, m.y, ro - 1, Math.PI * 1.05, Math.PI * 1.7); ctx.stroke();
-    // rivets
-    for (let k = 0; k < 4; k++) {
-      const a = Math.PI / 4 + k * Math.PI / 2, x = m.x + Math.cos(a) * (rr + 4.5), y = m.y + Math.sin(a) * (rr + 4.5);
-      ctx.fillStyle = COPPER_LO; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, TAU); ctx.fill();
-      ctx.fillStyle = 'rgba(255,230,190,.8)'; ctx.beginPath(); ctx.arc(x - 0.6, y - 0.6, 0.9, 0, TAU); ctx.fill();
-    }
-    // the inner lip and the dark bore, with the far wall catching a little light
-    ctx.fillStyle = COPPER_LO; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 0.5, 0, TAU); ctx.fill();
-    const g = ctx.createRadialGradient(m.x, m.y + 4, 2, m.x, m.y, rr);
-    g.addColorStop(0, '#040302'); g.addColorStop(0.7, '#140c07'); g.addColorStop(1, '#3d2414');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(m.x, m.y, rr - 1.5, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(244,192,138,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, rr - 3, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+    ctx.fillStyle = 'rgba(25,45,32,.25)'; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 4, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#efe8d6'; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 2, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(m.x, m.y + 5, 2, m.x, m.y, rr);
+    g.addColorStop(0, '#0b0f0c'); g.addColorStop(0.75, '#1a221d'); g.addColorStop(1, '#3a4a40');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(m.x, m.y, rr - 0.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(m.x, m.y - 3, rr - 1, Math.PI * 1.05, Math.PI * 1.95); ctx.arc(m.x, m.y, rr - 1, Math.PI * 1.95, Math.PI * 1.05, true); ctx.fill();
     if (m.flash > 0) { ctx.strokeStyle = `rgba(255,214,140,${m.flash})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, m.y, ro + 4 + (1 - m.flash) * 14, 0, TAU); ctx.stroke(); }
   }
   ctx.restore();
