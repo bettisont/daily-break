@@ -2131,7 +2131,7 @@ let stripOff = 0;
 function updateAimUI() {
   $('stripFace').style.backgroundPosition = `${stripOff}px 0`;
   const lesson = phase === 'strike' && strike?.t < 0, o = phase === 'aim' || lesson ? aimOffset() : 0, a = Math.abs(o);
-  $('stripVal').innerHTML = phase !== 'aim' && !lesson ? 'Aim' : `${a < 0.05 ? 'Centre' : `${a.toFixed(1)}° ${o > 0 ? 'right' : 'left'}`}<small>swipe to aim</small>`;
+  $('stripVal').innerHTML = phase !== 'aim' && !lesson ? 'Aim' : `${a < 0.005 ? 'Centre' : `${a.toFixed(2)}° ${o > 0 ? 'right' : 'left'}`}<small>swipe to aim</small>`;
 }
 
 // What gets shared is always today's ranked result, never a practice run, and the link is always
@@ -2327,23 +2327,29 @@ stage.addEventListener('pointerup', e => {
 });
 stage.addEventListener('pointercancel', () => { drag = null; });
 
-// The aim strip: swipe left or right like a scroll wheel. Slow swipes are fine (0.04° a pixel);
-// fast swipes gear up to 6× for big turns. A tap near either end nudges 0.1°.
+// The aim strip: swipe left or right like a scroll wheel. Slow swipes are very fine (AIM_FINE, 0.01° a pixel, so
+// a thumb can place a long pot exactly); faster swipes gear up smoothly to AIM_GEAR_MAX× for big turns. A tap near
+// either end nudges AIM_NUDGE. When the thumb lifts, the last few pixels of drift (a finger rolls as it comes off the
+// glass) are undone, so the aim stays where it was set. (Was 0.04° a pixel and 0.1° a tap until 15 Nov 2026: too
+// coarse for long pots.)
+const AIM_FINE = 0.01, AIM_GEAR_MAX = 24, AIM_NUDGE = 0.02, LIFT_MS = 60, LIFT_PX = 3;
+const aimGear = speed => AIM_FINE * Math.min(AIM_GEAR_MAX, 1 + (Math.max(0, speed - 120) / 120) ** 1.5);
 const stripEl = $('strip');
 let stripDrag = null;
 stripEl.addEventListener('pointerdown', e => {
   e.preventDefault(); ensureAudio();
   if (phase !== 'aim') return;
-  stripDrag = { id: e.pointerId, x: e.clientX, t: e.timeStamp, t0: e.timeStamp, moved: 0 };
+  stripDrag = { id: e.pointerId, x: e.clientX, t: e.timeStamp, t0: e.timeStamp, moved: 0, recent: [] };
   try { stripEl.setPointerCapture(e.pointerId); } catch {}
 });
 stripEl.addEventListener('pointermove', e => {
   const d = stripDrag;
   if (!d || e.pointerId !== d.id) return;
   const dx = e.clientX - d.x, speed = Math.abs(dx) / Math.max(0.008, (e.timeStamp - d.t) / 1000);
-  const gear = 0.04 * Math.PI / 180 * (1 + clamp((speed - 250) / 250, 0, 5));
+  const da = dx * aimGear(speed) * Math.PI / 180;
   d.x = e.clientX; d.t = e.timeStamp; d.moved += Math.abs(dx);
-  stripOff += dx; turnAim(dx * gear);
+  d.recent.push({ t: e.timeStamp, dx, da }); while (d.recent.length && e.timeStamp - d.recent[0].t > LIFT_MS) d.recent.shift();
+  stripOff += dx; turnAim(da);
 });
 const endStrip = e => {
   const d = stripDrag;
@@ -2351,7 +2357,13 @@ const endStrip = e => {
   stripDrag = null;
   if (e.type === 'pointerup' && d.moved < 4 && e.timeStamp - d.t0 < 350) {
     const r = stripEl.getBoundingClientRect(), side = e.clientX - (r.left + r.width / 2);
-    if (Math.abs(side) > r.width * 0.2) { stripOff += Math.sign(side) * 6; turnAim(Math.sign(side) * 0.1 * Math.PI / 180); }
+    if (Math.abs(side) > r.width * 0.2) { stripOff += Math.sign(side) * 6; turnAim(Math.sign(side) * AIM_NUDGE * Math.PI / 180); }
+    return;
+  }
+  // lift-off drift: a few pixels in the moment before the thumb came up are the finger rolling off, not a turn
+  const tail = d.recent.filter(m => e.timeStamp - m.t <= LIFT_MS), px = tail.reduce((a, m) => a + Math.abs(m.dx), 0);
+  if (e.type === 'pointerup' && tail.length && px <= LIFT_PX && d.moved > px) {
+    stripOff -= tail.reduce((a, m) => a + m.dx, 0); turnAim(-tail.reduce((a, m) => a + m.da, 0));
   }
 };
 stripEl.addEventListener('pointerup', endStrip);
@@ -2438,7 +2450,7 @@ actBtn.addEventListener('pointerdown', e => { e.preventDefault(); if (actBtn.cla
 addEventListener('keyup', e => { if (e.code === 'Space' && hold?.kb) { e.preventDefault(); letGo(true); } });
 addEventListener('keydown', e => {
   if ($('overlay').classList.contains('show')) return;
-  const deg = (e.shiftKey ? 1 : 0.1) * Math.PI / 180;
+  const deg = (e.shiftKey ? 1 : AIM_NUDGE) * Math.PI / 180;
   if (e.code === 'Space' || e.key === 'Enter') {
     e.preventDefault();
     if (e.repeat) return;
@@ -3175,7 +3187,7 @@ function pocketAlong(px, py, ux, uy, maxT) {
   });
   return best;
 }
-const guideSim = { key: null, pks: [], kick: null, obj: null, range: {}, nowKey: null, mid: null };
+const guideSim = { key: null, pks: [], potsInto: new Set() };   // potsInto: pockets the followed ball drops into at some pace
 // How many cushions a ball came off, as the guide counts them: every contact, except touches in the jaws of the
 // pocket it then dropped into (a pot that brushes the jaw is still a straight pot; a ball that comes back out of
 // a corner did come off a cushion).
@@ -3222,42 +3234,22 @@ function drawGuide(c, dx, dy, hit, t) {
   // shot pots at some pace (GUIDE_PACES), the pocket it goes into at the pace nearest medium that pots is ringed. It doesn't depend on how hard you pull:
   // the guide shows where the shot goes, assuming the right pace; judging the pace is up to you.
   const sp = aim.spin;
+  // Only pots of the ball the line follows (the first ball the cue ball meets) count. A second ball knocked in by
+  // it, or by the cue ball, isn't on any line, so it never lights anything (it used to flicker rings round pockets
+  // the line didn't go near while you aimed).
   const shownPots = (a, pw) => {   // only pots the guide shows: cue ball and potted ball each off at most one cushion
-    const s = simulate(table, a, pw, sp);
-    if (s.shot.scratch || !s.shot.firstHit || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
-    return s.shot.pots.filter(q => guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
+    const s = simulate(table, a, pw, sp), b = s.shot.firstHit;
+    if (s.shot.scratch || !b || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
+    return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
   };
   const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}:${sp.toFixed(2)}`;
   if (guideSim.key !== key) {
-    guideSim.key = key; guideSim.range = {}; guideSim.nowKey = null;
-    let potPace = null; const at = {};
-    for (const pw of GUIDE_PACES) {
-      const pk = at[pw] = shownPots(aim.angle, pw);
-      for (const i of pk) {
-        const r = guideSim.range[i] = guideSim.range[i] || [pw, pw];
-        r[0] = Math.min(r[0], pw); r[1] = Math.max(r[1], pw);
-      }
-      // the line is drawn at a pace that really pots (the one nearest medium), never at an untested pace in between
-      if (pk.length && (potPace == null || Math.abs(pw - 0.45) < Math.abs(potPace - 0.45))) potPace = pw;
-    }
-    guideSim.mid = potPace;
-    // ring only what the line shows: the pocket(s) it pots into at that pace (a freak pot at a very hard or soft
-    // pace, say off a jaw into the next pocket, doesn't get a ring of its own)
-    guideSim.ringed = potPace == null ? [] : at[potPace];
+    guideSim.key = key; guideSim.potsInto = new Set();
+    for (const pw of GUIDE_PACES) for (const i of shownPots(aim.angle, pw)) guideSim.potsInto.add(i);
   }
-  if (guideSim.nowKey !== guideSim.key) { guideSim.nowKey = guideSim.key; guideSim.pks = guideSim.ringed; }
-  // landing on a pot flares straight away, but at most once a second, so a quick sweep across several pots sets
-  // off one burst, not a string of them (no sound: it got tiresome)
-  const onNow = guideSim.pks.length > 0;
-  if (!onNow) guideLock.on = false;
-  else if (!guideLock.on) {
-    guideLock.on = true;
-    if (t - guideLock.at > 1) {
-      guideLock.at = t; guideLock.fired = true;
-      for (const i of guideSim.pks) { const p = table.pk[i], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H); sparkle(x, y, '#ffe6a8', 12, 110); ring(x, y, '255,230,170', 34, 0.45, p.cap); }
-    }
-  }
-  guideSim.pks.forEach(ringPocket);
+  // The ring and the bright line are one signal, decided once the line is drawn (finishGuide, below): they light
+  // only when the pocket the line goes into is one the ball really drops into at some pace.
+  guideSim.pks = [];
   // On target: the object ball's line into a pocket that really pots lights up warm and bright with a soft glow, and a
   // shimmer runs along it towards the pocket. The moment it locks on, it flares (wider, brighter) and ticks.
   const lockK = clamp((t - guideLock.at) / 0.6, 0, 1), flare = guideLock.fired ? (1 - lockK) ** 2 : 0;
@@ -3296,7 +3288,7 @@ function drawGuide(c, dx, dy, hit, t) {
   const objPath = (px, py, ux, uy, skip, from, depth, leg, segs) => {
     const h = trace(table, px, py, ux, uy, skip);
     let pk = null;
-    for (const i of guideSim.pks) {
+    for (const i of guideSim.potsInto) {
       const p = table.pk[i], sAt = (p.x - px) * ux + (p.y - py) * uy, perp = Math.abs((p.x - px) * uy - (p.y - py) * ux);
       if (sAt > 0 && perp < p.cap + R && sAt <= h.t + p.cap + R && (!pk || sAt < pk.s)) pk = { i, s: sAt };
     }
@@ -3322,8 +3314,27 @@ function drawGuide(c, dx, dy, hit, t) {
   };
   const objLine = (px, py, ux, uy, skip, from) => {
     const segs = [], end = objPath(px, py, ux, uy, skip, from, 0, 0, segs);
-    if (end != null && guideSim.pks.includes(end)) onTargetPath(segs);
-    else for (const [ax, ay, bx, by, leg] of segs) { const a = leg ? 0.65 : 0.9; solid(ax, ay, bx, by, a, a); }
+    if (end != null && guideSim.potsInto.has(end)) { guideSim.pks = [end]; onTargetPath(segs); return; }
+    // The line points into a pocket the ball doesn't actually drop into (it clips the jaws, or a bank comes off the
+    // cushion a little differently): fade it out short of the pocket, so it never looks like it goes in unlit.
+    if (end != null && segs.length) {
+      const [ax, ay, bx, by] = segs[segs.length - 1], L = Math.hypot(bx - ax, by - ay), k = Math.max(0, L - 2.5 * R) / (L || 1);
+      segs[segs.length - 1] = [ax, ay, ax + (bx - ax) * k, ay + (by - ay) * k, segs[segs.length - 1][4], true];
+    }
+    for (const [ax, ay, bx, by, leg, fade] of segs) { const a = leg ? 0.65 : 0.9; solid(ax, ay, bx, by, a, fade ? 0 : a); }
+  };
+  // after the lines: ring the pocket the lit line goes into, and flare when the aim first lands on a pot (at most
+  // once a second, so a quick sweep across several pots sets off one burst, not a string of them; no sound)
+  const finishGuide = () => {
+    if (!guideSim.pks.length) guideLock.on = false;
+    else if (!guideLock.on) {
+      guideLock.on = true;
+      if (t - guideLock.at > 1) {
+        guideLock.at = t; guideLock.fired = true;
+        for (const i of guideSim.pks) { const p = table.pk[i], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H); sparkle(x, y, '#ffe6a8', 12, 110); ring(x, y, '255,230,170', 34, 0.45, p.cap); }
+      }
+    }
+    guideSim.pks.forEach(ringPocket);
   };
   if (hit.tunnel != null) {
     // into a tunnel: the line stops at the mouth, the far end glows, and the line carries on out of it on the same
@@ -3333,9 +3344,8 @@ function drawGuide(c, dx, dy, hit, t) {
     const { x: sx, y: sy } = tunExit(tunMouths(hole)[1 - hit.tunnel]), h2 = trace(table, sx, sy, dx, dy);
     if (h2.tunnel == null) cueLeg(sx, sy, h2, 0);
     else dash(sx, sy, sx + dx * h2.t, sy + dy * h2.t, 0.85);
-    return;
-  }
-  cueLeg(c.x, c.y, hit, R);
+  } else cueLeg(c.x, c.y, hit, R);
+  finishGuide();
 }
 // Gimmes glow green with a "Tap in" label; tapping one pots it for a stroke.
 function drawGimmes(t) {
