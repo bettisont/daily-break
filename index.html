@@ -186,6 +186,10 @@
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
 const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1050;
+// From FORGIVE_FROM (and on practice courses) pockets are more forgiving: a ball only rattles out above
+// POT_MAX_FORGIVING (a real smash), so far fewer good shots are lost to pace. Earlier days keep 1050.
+const FORGIVE_FROM = '2026-11-16', POT_MAX_FORGIVING = 1700;
+const potMax = h => /^\d{4}-\d{2}-\d{2}$/.test(h.seed) && h.seed < FORGIVE_FROM ? POT_MAX_SPEED : POT_MAX_FORGIVING;
 const LIVES = 4, MAX_BALLS = 15, PX_PER_IN = 10;
 // 0 is the cue ball; 1-8 solids, 9-15 stripes (a level can hold up to 15 balls).
 const COLORS = ['#f4efe2', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b', '#24221f', '#e2b13c', '#3b5ea6', '#c4472f', '#6a4b8c', '#dc7a30', '#3d8758', '#86372b'];
@@ -747,7 +751,7 @@ class Table {
         const pk = this.pk[i], dx = b.x - pk.x, dy = b.y - pk.y, d = Math.hypot(dx, dy);
         if (d >= pk.cap) continue;
         const sp = Math.hypot(b.vx, b.vy);
-        if (sp > POT_MAX_SPEED) {
+        if (sp > potMax(this.hole)) {
           // too hot: it rattles in the jaws and spits back out
           const nx = dx / (d || 1), ny = dy / (d || 1), vn = b.vx * nx + b.vy * ny;
           if (vn < 0) { b.vx = (b.vx - 2 * vn * nx) * 0.4; b.vy = (b.vy - 2 * vn * ny) * 0.4; }
@@ -1140,7 +1144,12 @@ const sfx = {
   // the cushion: a padded thud, with a rubbery bounce on a hard hit
   cushion(v) { v = Math.min(1, v / 2000); if (v < 0.03) return; noise(0.09, 0.35 * v, 380); tone(95, 0.12, 0.18 * v, 'sine', 0.7, 0, 0); if (v > 0.35) tone(210, 0.08, 0.06 * v, 'sine', 1.6, 0.01, 0); },
   // into the pocket: a deep leathery thunk, then the ball rolling away down the return
-  drop() { tone(110, 0.18, 0.3, 'sine', 0.55, 0.05, 0.05); noise(0.12, 0.3, 420, 'lowpass', 0.05); for (let k = 0; k < 4; k++) tone(300 + Math.random() * 120, 0.03, 0.035 * (1 - k / 5), 'triangle', 0.9, 0.22 + k * 0.07 + Math.random() * 0.02, 0); },
+  // the ball dropping into the pocket: a deep wooden clunk as it lands, then a short roll down the pocket
+  drop() {
+    tone(78, 0.22, 0.5, 'sine', 0.6, 0.04, 0.05); tone(160, 0.09, 0.22, 'triangle', 0.7, 0.04, 0.1);
+    noise(0.07, 0.45, 950, 'bandpass', 0.04, 3.5); noise(0.16, 0.25, 300, 'lowpass', 0.05);
+    for (let k = 0; k < 3; k++) tone(260 + Math.random() * 90, 0.03, 0.03 * (1 - k / 4), 'triangle', 0.9, 0.24 + k * 0.08 + Math.random() * 0.02, 0);
+  },
   // the cue tip on the ball: a clean strike is a solid "thock"; a miscue skids
   thock(p) { tone(190, 0.09, 0.22 + 0.15 * p, 'sine', 0.6, 0, 0.05); noise(0.025, 0.4 + 0.3 * p, 1800, 'bandpass', 0, 1.2); tone(1250, 0.03, 0.06, 'triangle', 1, 0, 0.1); },
   miscue() { noise(0.16, 0.35, 3400, 'highpass', 0, 0.8); tone(520, 0.14, 0.06, 'sawtooth', 0.5, 0, 0.1); },

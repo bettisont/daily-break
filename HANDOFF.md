@@ -590,3 +590,12 @@ off one side of an arcade screen and on at the other). They're an optional route
   ghost 1.25 px); the pocket ring is softer too (3 px, ~0.6 opacity) but still the strongest mark. Set `GUIDE_A` to 1
   for the old look.
 - Cue ball trail (15 Nov): the dotted trail of where the cue ball has been is no longer drawn (clutter).
+
+### Forgiving pockets and a clunk (15 Nov 2026)
+
+- Rattles: from `FORGIVE_FROM` (2026-11-16) and on practice courses a ball only rattles out of a pocket above
+  `POT_MAX_FORGIVING` (1700, was 1050; `potMax`). Same 36 holes (10–15 Nov), every open pot at four firm paces: pots
+  160 → 300, rattle-outs 217 → 73. Days up to 15 Nov keep 1050 (layouts checked identical); 16–30 Nov all generate
+  with a real opening pot and are clearable.
+- Sound: `sfx.drop` is now a deep wooden clunk as the ball lands in the pocket (low thud, hollow knock), then a short
+  roll down the pocket.
