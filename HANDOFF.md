@@ -636,3 +636,8 @@ aimed, the Perfect edge and feel, and the pocket clunk. From the 16 Nov game (an
 the cat only) and more forgiving pockets (rattle-out above 1700, was 1050). Days up to 15 Nov keep their layouts
 (checked identical). Tunnels are not in the daily game: they're only on the `?tunnels` test course. To add them to
 the rotation, put `'tunnel'` into the feature list with a new start date (not on oval holes; see `obstFor`).
+- Diagonal entries (15 Nov, after release): tunnel openings are wider (`TUN_HALF` 2.4 R, was 1.5 R) with a flared
+  mouth: a ball coming in at an angle is caught up to R further along (`tunReach`, by the sine of its angle off
+  straight-on), drawn as a slot that widens where it meets the felt. Target width across the line of the shot
+  (averaged over test holes): straight on 81 px; 30° 73 px; 45° 52 px; 60° 37 px (was 60/41/27 with only the wider
+  opening). Random shots going through: 110 → 247 of 1,020. Holes still all clearable, every tunnel shot pots.

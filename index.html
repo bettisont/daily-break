@@ -347,12 +347,15 @@ let obstacleOverride = null;   // the test build forces an obstacle here
 // other), a little slower. They sit on the cushions, out of the way, as an optional route; placement always sets up
 // a real pot through them.
 const TUNNEL_TEST = (() => { try { return new URLSearchParams(location.search).has('tunnels'); } catch { return false; } })();
-const TUN_HALF = R * 1.5, TUN_KEEP = 0.92, TUN_T = 0.35;   // half the opening's width, pace kept, time under the table
+const TUN_HALF = R * 2.4, TUN_KEEP = 0.92, TUN_T = 0.35;   // half the opening's width, pace kept, time under the table
 const tunMouths = h => h.tunnel ? [h.tunnel.a, h.tunnel.b] : [];
 // where a ball comes back onto the felt from mouth m: just off the cushion, in the middle of the opening
 const tunExit = m => ({ x: m.x + m.nx * (R + 3), y: m.y + m.ny * (R + 3) });
 // how far a ball centre at (x, y) is along mouth m's cushion (from its middle) and out from it into the felt
 const tunLocal = (m, x, y) => ({ along: (x - m.x) * -m.ny + (y - m.y) * m.nx, out: (x - m.x) * m.nx + (y - m.y) * m.ny });
+// The opening's mouth is flared: a ball coming in at an angle is caught up to R further along (sin of its angle off
+// straight-on), so a diagonal shot gets a fair target. (vx, vy) is its heading, any length.
+const tunReach = (m, vx, vy) => { const v = Math.hypot(vx, vy) || 1, c = Math.abs(vx * m.nx + vy * m.ny) / v; return TUN_HALF + R * Math.sqrt(Math.max(0, 1 - c * c)); };
 // the straight cushions a tunnel can open in: the table's outer cushions long enough for one (the four sides of the
 // classic table)
 function tunRails(h) {
@@ -734,7 +737,7 @@ class Table {
         const m = mouths[k];
         // into the opening: within its width, up against the cushion, and heading into it
         const q = tunLocal(m, b.x, b.y);
-        if (Math.abs(q.along) >= TUN_HALF || q.out >= R + 1 || b.vx * m.nx + b.vy * m.ny >= 0) continue;
+        if (q.out >= R + 1 || b.vx * m.nx + b.vy * m.ny >= 0 || Math.abs(q.along) >= tunReach(m, b.vx, b.vy)) continue;
         // down the tunnel: it travels underground at a steady pace and keeps most of its own
         const o = mouths[1 - k], sp = Math.hypot(b.vx, b.vy), fx0 = b.x, fy0 = b.y;
         b.uVx = b.vx * TUN_KEEP; b.uVy = b.vy * TUN_KEEP; b.uTo = 1 - k;
@@ -892,9 +895,9 @@ function pathBlocked(t, ax, ay, bx, by, skip) {
 function tunCrosses(m, ax, ay, bx, by) {
   const p = tunLocal(m, ax, ay), q = tunLocal(m, bx, by);
   let s0 = 0, s1 = 1;
-  const da = q.along - p.along;
-  if (Math.abs(da) < 1e-9) { if (Math.abs(p.along) >= TUN_HALF) return false; }
-  else { const u0 = (-TUN_HALF - p.along) / da, u1 = (TUN_HALF - p.along) / da; s0 = Math.max(0, Math.min(u0, u1)); s1 = Math.min(1, Math.max(u0, u1)); if (s0 > s1) return false; }
+  const da = q.along - p.along, w = tunReach(m, bx - ax, by - ay);
+  if (Math.abs(da) < 1e-9) { if (Math.abs(p.along) >= w) return false; }
+  else { const u0 = (-w - p.along) / da, u1 = (w - p.along) / da; s0 = Math.max(0, Math.min(u0, u1)); s1 = Math.min(1, Math.max(u0, u1)); if (s0 > s1) return false; }
   return Math.min(p.out + (q.out - p.out) * s0, p.out + (q.out - p.out) * s1) < R;
 }
 // shortest distance between two segments
@@ -952,7 +955,7 @@ function trace(t, px, py, dx, dy, skip = null) {
     const p = tunLocal(m, px, py), vn = dx * m.nx + dy * m.ny;
     if (vn >= -1e-6) return;
     const s = Math.max(0, (p.out - R) / -vn), al = p.along + (dx * -m.ny + dy * m.nx) * s;
-    if (Math.abs(al) < TUN_HALF && s <= bt.t + 0.5) bt = { t: s, tunnel: k };
+    if (Math.abs(al) < tunReach(m, dx, dy) && s <= bt.t + 0.5) bt = { t: s, tunnel: k };
   }); return bt; };
   for (const [ax, ay, bx, by, solid] of obstBars(t)) { const s = rayBar(px, py, dx, dy, ax, ay, bx, by, BAR_T, solid); if (s < best.t) best = { t: s, wall: true }; }
   if (t.hole.shape) {
@@ -2863,14 +2866,17 @@ function drawTunnel(tn, t, dt) {
     const sh = ctx.createLinearGradient(0, 0, 14, 0); sh.addColorStop(0, 'rgba(15,25,18,.4)'); sh.addColorStop(1, 'rgba(15,25,18,0)');
     ctx.fillStyle = sh; ctx.fillRect(0, -w, 14, 2 * w);
     // the cream liner, then the dark slot running back under the rail
-    ctx.fillStyle = '#efe8d6'; ctx.beginPath(); ctx.roundRect(-depth - 3, -w - 3, depth + 3, 2 * w + 6, [8, 0, 0, 8]); ctx.fill();
+    // flared: wider where it meets the felt (the mouth catches angled shots), narrowing back into the rail
+    const slot = (grow, fw) => { ctx.beginPath(); ctx.moveTo(2, -fw - grow); ctx.quadraticCurveTo(-8, -w - grow, -14, -w - grow); ctx.lineTo(-depth - grow + 6, -w - grow); ctx.quadraticCurveTo(-depth - grow, -w - grow, -depth - grow, -w - grow + 6);
+      ctx.lineTo(-depth - grow, w + grow - 6); ctx.quadraticCurveTo(-depth - grow, w + grow, -depth - grow + 6, w + grow); ctx.lineTo(-14, w + grow); ctx.quadraticCurveTo(-8, w + grow, 2, fw + grow); ctx.closePath(); };
+    ctx.fillStyle = '#efe8d6'; slot(3, w + R * 0.8); ctx.fill();
     const g = ctx.createLinearGradient(0, 0, -depth, 0); g.addColorStop(0, '#2b3530'); g.addColorStop(0.45, '#0f1411'); g.addColorStop(1, '#050706');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(-depth, -w, depth, 2 * w, [6, 0, 0, 6]); ctx.fill();
+    ctx.fillStyle = g; slot(0, w + R * 0.8); ctx.fill();
     // a little light on the far wall of the slot
     ctx.strokeStyle = 'rgba(239,232,214,.25)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-depth + 4, -w + 4); ctx.lineTo(-depth + 4, w - 4); ctx.stroke();
     // chevrons on the rail either side: this way in
     ctx.strokeStyle = 'rgba(239,232,214,.55)'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
-    for (const sy of [-1, 1]) { const y0 = sy * (w + 12); ctx.beginPath(); ctx.moveTo(-10, y0 - 5); ctx.lineTo(-16, y0); ctx.lineTo(-10, y0 + 5); ctx.stroke(); }
+    for (const sy of [-1, 1]) { const y0 = sy * (w + R * 0.8 + 12); ctx.beginPath(); ctx.moveTo(-10, y0 - 5); ctx.lineTo(-16, y0); ctx.lineTo(-10, y0 + 5); ctx.stroke(); }
     if (m.flash > 0) { ctx.fillStyle = `rgba(255,214,140,${0.5 * m.flash})`; ctx.beginPath(); ctx.roundRect(-depth, -w, depth, 2 * w, [6, 0, 0, 6]); ctx.fill(); }
     ctx.restore();
   });
