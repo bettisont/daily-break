@@ -503,15 +503,3 @@ round straight away. Players already on 15 Nov in time zones ahead of UTC when t
 tables change mid-round (a resumed run whose ball count no longer matches starts the hole fresh).
 Checked before merging: 15–28 Nov all generate (84 holes, every feature placed, opener and clearable, golden pocket
 from hole 2, 10 ms average, 108 ms worst); full rounds of 15 and 16 Nov play through with no errors.
-
-## First visit without the intro card (15 Nov 2026)
-
-Most players who left before their first shot left on the intro card. Now a first visit (no `dailybreak:seenHelp`)
-gets no card (`showWelcome`): hole 1 is ready to play, the hand demo shows the pull, and one line over the table
-("A new pool game every day. Pot the balls in as few shots as you can.") goes on the first touch anywhere, which
-sets `seenHelp` and sends the `intro` funnel step (the Results report now calls it "Closed the intro / first touch").
-The rules come up once each, the first time they matter (`tipOnce`, `contextTips`, flags `dailybreak:tip:*`): after
-hole 1 is cleared "Scored like golf: every shot counts, par is the target"; on the first hole with a golden pocket,
-by the pocket; and for sand, the cat and the gate the first time each appears, by it. The full guide is still on ?.
-Returning players see no change. Tested: first visit (strip, demo, no card), first touch (strip goes, `intro` sent),
-tips for par, golden pocket and gate, and a returning visit (nothing shown).
