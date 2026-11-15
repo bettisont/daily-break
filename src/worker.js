@@ -11,6 +11,10 @@
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
 //                   so the result card can say "better than X% of today's players". With &mode=par:
 //                   { players, scores: { "<score to par>": count } }.
+// Rate limits (Workers Rate Limiting, keyed on the client IP, which is never logged or stored here):
+//                   /api/result 5 per minute (else 429 {error: 'slow down'}), /api/event 30 per minute (else
+//                   429, no body). A real player sends one result and ~10 events a day. If the binding is
+//                   missing (local dev) or fails, the request is allowed.
 import { DurableObject } from 'cloudflare:workers';
 
 const HOST = 'dailybreak.app';
@@ -59,6 +63,11 @@ async function recordEvent(request, env) {
   env.EVENTS?.writeDataPoint({ indexes: [e.day], blobs: [e.day, e.step], doubles: [1] });
   return new Response(null, { status: 204 });
 }
+// true unless the limiter positively says this client is over its limit
+async function allowed(limiter, request) {
+  if (!limiter) return true;
+  try { return (await limiter.limit({ key: request.headers.get('cf-connecting-ip') || 'none' })).success !== false; } catch { return true; }
+}
 const counter = env => env.DAYS.get(env.DAYS.idFromName('all'));
 
 async function recordResult(request, env) {
@@ -85,10 +94,12 @@ export default {
     }
     if (url.pathname === '/api/result') {
       if (request.method !== 'POST') return new Response('POST only', { status: 405, headers: { allow: 'POST' } });
+      if (!(await allowed(env.RESULT_LIMIT, request))) return json({ error: 'slow down' }, 429);
       return recordResult(request, env);
     }
     if (url.pathname === '/api/event') {
       if (request.method !== 'POST') return new Response('POST only', { status: 405, headers: { allow: 'POST' } });
+      if (!(await allowed(env.EVENT_LIMIT, request))) return new Response(null, { status: 429 });
       return recordEvent(request, env);
     }
     if (url.pathname === '/api/day') {
