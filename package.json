@@ -1,0 +1,12 @@
+{
+  "name": "daily-break",
+  "private": true,
+  "description": "Daily Break: tests only (the game itself has no build step).",
+  "scripts": {
+    "test": "node tests/worker/worker.test.mjs && node tests/run.js",
+    "test:update": "node tests/run.js --update"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
