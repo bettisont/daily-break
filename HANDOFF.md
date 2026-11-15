@@ -545,3 +545,13 @@ holes for 14–28 Nov were checked identical to the build before (90 holes).
 - The one-way gate is out of the daily rotation from `NO_GATE_FROM` (2026-11-16) and on practice courses
   (`featureKeys`): holes 3–6 get sand and the cat, two each. Days up to 15 Nov are unchanged (checked 11–15 Nov);
   16–30 Nov: 60 feature holes, all with a real opening pot and clearable. Intro and help text follow.
+
+### Simpler guide (15 Nov 2026)
+
+Feedback: the guide lines went all over the place. On short rounds (`drawGuide`) it's now straight lines only: the
+cue ball's dashed line to the first thing it meets with a ghost ball there, then the object ball's solid line to the
+pocket's ring if it heads into one, or a 150 px fading stub if not. No bounce, kick, combination or simulated object
+paths (`bounceOff`, `kickPath`, `objectSimPath` removed). The ring still comes from simulation, but only for straight
+pots (`GUIDE_CUSH` 0: no cushion for the cue ball first or for the potted ball); `guidePots`/`startUnpotted` use the
+same rule. The spin path hint while pulling back is unchanged. Tunnels: the line stops at the mouth and the far end
+glows where the ball will come out (the copper exit line and lit pipe are gone); the ring still shows a pot through it.
