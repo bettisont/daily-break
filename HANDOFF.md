@@ -604,3 +604,7 @@ off one side of an arcade screen and on at the other). They're an optional route
   speed into the cushion × e), then stops at the next cushion, ball or pocket. It stops at a pocket's jaws or a bar.
   The ring now also lights for one-cushion banks of the object ball (`GUIDE_CUSH` 1); the cue ball must still go
   straight to its first ball (`GUIDE_KICK` 0).
+- On target (15 Nov): when the object ball's line runs into a pocket that really pots (a ringed pocket), it's drawn
+  warm and bright with a soft glow, and a white shimmer runs along it towards the pocket (`onTargetLine`). The
+  moment the guide locks on (`guideLock`) the line and ring flare for 0.6 s, a few sparkles burst at the pocket and a
+  soft two-note tick plays (at most every 0.25 s, so sweeping the aim doesn't chatter).

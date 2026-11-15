@@ -3083,7 +3083,7 @@ function tag(x, y, text, bg, fg, size = 11, below = false) {
 let tunAimWant = false, tunAimFrom = 0;
 function drawAim(t) {
   tunAimWant = false;
-  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) return;
+  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) { guideLock.on = false; return; }
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), lvl = aidLevel(hole);
   const fb = table.balls[aim.bi];
   drawSpinPaths();
@@ -3134,6 +3134,7 @@ const GUIDE_A = 0.55;   // how strong the guide's lines are (1 was the old, bold
 const GUIDE_KICK = 0, GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
 // a path point where the line jumps (the ball came out of a tunnel): move there without drawing
 const gapPt = (x, y) => Object.assign([x, y], { gap: true });
+const guideLock = { on: false, at: -9, ticked: -9 };   // the guide locking on to a pot: when, for the flare and tick
 function drawGuide(c, dx, dy, hit, t) {
   // kept subtle (GUIDE_A scales every line): a hint on the cloth, not the brightest thing on the table
   const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([5, 8]); ctx.strokeStyle = `rgba(251,248,240,${a * GUIDE_A})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
@@ -3145,7 +3146,7 @@ function drawGuide(c, dx, dy, hit, t) {
   // "it's in": a bold white ring round the pocket's edge, turning slowly (the same for every pocket, golden or not)
   const ringRadius = p => p.cap + 10;
   const ringPocket = i => {
-    const p = table.pk[i], k = 0.6 + 0.15 * Math.sin(t * 4), rr = ringRadius(p);
+    const p = table.pk[i], fl = guideLock.on ? (1 - clamp((t - guideLock.at) / 0.6, 0, 1)) ** 2 : 0, k = 0.6 + 0.15 * Math.sin(t * 4) + 0.4 * fl, rr = ringRadius(p) + 8 * fl;
     ctx.save();
     ctx.strokeStyle = 'rgba(40,30,20,.2)'; ctx.lineWidth = 5.5; ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, TAU); ctx.stroke();
     ctx.strokeStyle = `rgba(255,253,245,${k})`; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -3190,7 +3191,31 @@ function drawGuide(c, dx, dy, hit, t) {
     guideSim.ringed = potPace == null ? [] : at[potPace];
   }
   if (guideSim.nowKey !== guideSim.key) { guideSim.nowKey = guideSim.key; guideSim.pks = guideSim.ringed; }
+  const onNow = guideSim.pks.length > 0;
+  if (onNow && !guideLock.on) {
+    guideLock.at = t;
+    // a little burst at the pocket as it locks on
+    for (const i of guideSim.pks) { const p = table.pk[i], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H); sparkle(x, y, '#ffe6a8', 12, 110); ring(x, y, '255,230,170', 34, 0.45, p.cap); }
+    if (t - guideLock.ticked > 0.25) { guideLock.ticked = t; tone(1175, 0.09, 0.035, 'sine', 1.2, 0, 0.4); tone(1760, 0.07, 0.015, 'sine', 1, 0.03, 0.4); }
+  }
+  guideLock.on = onNow;
   guideSim.pks.forEach(ringPocket);
+  // On target: the object ball's line into a pocket that really pots lights up warm and bright with a soft glow, and a
+  // shimmer runs along it towards the pocket. The moment it locks on, it flares (wider, brighter) and ticks.
+  const lockK = clamp((t - guideLock.at) / 0.6, 0, 1), flare = guideLock.on ? (1 - lockK) ** 2 : 0;
+  const onTargetLine = (ax, ay, bx, by) => {
+    ctx.save(); ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(255,210,120,1)'; ctx.shadowBlur = (14 + 22 * flare) * view.s * view.dpr;
+    ctx.strokeStyle = `rgba(255,246,222,${0.9 + 0.1 * flare})`; ctx.lineWidth = 3.5 + 4 * flare;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.shadowBlur = 0;
+    const ph = (t * 1.1) % 1, g = ctx.createLinearGradient(ax, ay, bx, by);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(Math.max(0, ph - 0.12), 'rgba(255,255,255,0)');
+    g.addColorStop(ph, 'rgba(255,255,255,.95)'); g.addColorStop(Math.min(1, ph + 0.06), 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.strokeStyle = g; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.restore();
+  };
   // from (sx, sy): the dashed line to the first thing it meets, a ghost ball there, and the object ball's straight line
   const cueLeg = (sx, sy, h, off) => {
     if (!isFinite(h.t)) return;
@@ -3212,7 +3237,11 @@ function drawGuide(c, dx, dy, hit, t) {
     }
     pk = pk || pocketAlong(px, py, ux, uy, h.t);
     const a = leg ? 0.65 : 0.9;
-    if (pk) { const e = toRim(px, py, ux, uy, pk); solid(px + ux * from, py + uy * from, px + ux * e, py + uy * e, a, a); return; }
+    if (pk) {
+      const e = toRim(px, py, ux, uy, pk), ax = px + ux * from, ay = py + uy * from, bx = px + ux * e, by = py + uy * e;
+      if (guideSim.pks.includes(pk.i)) onTargetLine(ax, ay, bx, by); else solid(ax, ay, bx, by, a, a);
+      return;
+    }
     if (h.tunnel != null && depth < 1 && isFinite(h.t)) {
       solid(px + ux * from, py + uy * from, px + ux * h.t, py + uy * h.t, a, a);
       tunAimWant = true; tunAimFrom = h.tunnel;
