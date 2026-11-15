@@ -948,7 +948,8 @@ function simulate(t, angle, power, spin = 0, path = null) {
 /* =================== browser =================== */
 
 const $ = id => document.getElementById(id);
-const canvas = $('c'), ctx = canvas.getContext('2d'), stage = $('stage');
+const canvas = $('c'), stage = $('stage');
+let ctx = canvas.getContext('2d');   // let: the scenery cache points it at its own canvases while it paints them
 const lerp = (a, b, k) => a + (b - a) * k;
 function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } }
 function buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
@@ -2253,6 +2254,7 @@ function glowSprite(size, stops) {
 const SOFT_SHADOW = glowSprite(128, [[0, 'rgba(40,25,10,.55)'], [0.55, 'rgba(40,25,10,.25)'], [1, 'rgba(40,25,10,0)']]);
 const CLOUD = glowSprite(256, [[0, 'rgba(50,40,30,.10)'], [0.6, 'rgba(50,40,30,.05)'], [1, 'rgba(50,40,30,0)']]);
 const LAMP = glowSprite(256, [[0, 'rgba(255,238,200,.22)'], [0.55, 'rgba(255,238,200,.08)'], [1, 'rgba(255,238,200,0)']]);
+const CLOUD_BUF = document.createElement('canvas');   // the cloud shadows, drawn small (see draw())
 const MOTE = glowSprite(16, [[0, 'rgba(255,248,225,.9)'], [1, 'rgba(255,248,225,0)']]);
 function noisePattern(size, alpha) {
   const c = document.createElement('canvas'); c.width = c.height = size;
@@ -2427,16 +2429,22 @@ function drawChair() {
   ctx.strokeStyle = 'rgba(120,80,30,.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(14, -28); ctx.lineTo(14, 28); ctx.stroke();
   ctx.restore();
 }
-function drawRecord(dt) {
+function drawRecord(dt) { drawRecordBase(); drawRecordTop(dt); }
+// the turntable's plinth, platter and grooves (still: cached with the room) ...
+function drawRecordBase() {
   const { x, y } = DECOR.record;
-  recordSpeed = lerp(recordSpeed, musicOn && !muted ? 3.5 : 0, Math.min(1, dt * 1.5));
-  recordAngle += recordSpeed * dt;
   ctx.drawImage(SOFT_SHADOW, x - 80, y - 70, 175, 165);
   ctx.fillStyle = '#7d5538'; ctx.beginPath(); ctx.roundRect(x - 66, y - 58, 132, 116, 8); ctx.fill();
   ctx.fillStyle = '#e9dcc0'; ctx.beginPath(); ctx.roundRect(x - 58, y - 50, 116, 100, 6); ctx.fill();
   ctx.fillStyle = '#2b2622'; ctx.beginPath(); ctx.arc(x - 8, y, 44, 0, TAU); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,.07)'; ctx.lineWidth = 1;
   for (let rr = 18; rr < 44; rr += 4) { ctx.beginPath(); ctx.arc(x - 8, y, rr, 0, TAU); ctx.stroke(); }
+}
+// ... and the label and shine turning on it, with the tone arm over them (drawn every frame)
+function drawRecordTop(dt) {
+  const { x, y } = DECOR.record;
+  recordSpeed = lerp(recordSpeed, musicOn && !muted ? 3.5 : 0, Math.min(1, dt * 1.5));
+  recordAngle += recordSpeed * dt;
   ctx.save(); ctx.translate(x - 8, y); ctx.rotate(recordAngle);
   ctx.fillStyle = '#c4472f'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, TAU); ctx.fill();
   ctx.fillStyle = '#efe4ca'; ctx.fillRect(-1.5, -12, 3, 8);
@@ -2676,7 +2684,12 @@ function drawShapedTable(sh) {
   ctx.restore();
 }
 
-function drawTable(t, dt) {
+function drawTable(t, dt) { drawTableBase(); drawTableLive(t, dt); }
+// Felt markings (sand and ice patches, slope arrows) are drawn under the pockets; ice shimmers and the arrows drift,
+// so on a hole with either they're drawn every frame, pockets and all, and the cached table is just rail and felt.
+const feltMoves = h => !!h.tilt.mag || h.patches.some(p => p.type !== 'rough');
+// the rail and felt, and the felt's markings and pockets when they're still: what the scenery cache holds
+function drawTableBase() {
   const sh = hole.shape;
   if (sh) drawShapedTable(sh);
   else {
@@ -2699,7 +2712,11 @@ function drawTable(t, dt) {
     ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
   }
-  // everything on the felt is clipped to the table's shape
+  if (!feltMoves(hole)) drawFelt(0);
+}
+// the felt's markings, clipped to the table's shape, and the pockets over them
+function drawFelt(t) {
+  const sh = hole.shape;
   ctx.save();
   if (sh) { feltPath(sh); ctx.clip('evenodd'); }
   for (const p of hole.patches) {
@@ -2745,6 +2762,10 @@ function drawTable(t, dt) {
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
     }
   });
+}
+// what's on the table that moves: the obstacle, tunnel mouths and bumpers (and the felt, when it moves)
+function drawTableLive(t, dt) {
+  if (feltMoves(hole)) drawFelt(t);
   if (hole.obst) drawObstacle(hole.obst, t);
   if (hole.tunnel) drawTunnel(hole.tunnel, t, dt);
   for (const o of hole.bumpers) {
@@ -3234,24 +3255,70 @@ function drawBanner(dt) {
   ctx.restore();
   if (banner.life <= 0) banner = null;
 }
+/* ----- the scenery cache ----- */
+// Most of the picture is still for a whole hole: the floor, rug, chair and turntable, and the table's rail and felt.
+// Repainting them was most of a frame (~8 ms on a software canvas), so they're painted once into two canvases at
+// device resolution and copied in each frame: `room` (opaque: floor, rug, chair, the turntable's plinth) and
+// `table` (transparent: rail, felt with its drop shadow, and the felt's markings and pockets when they're still).
+// Two layers because the cat sleeps between them, under the edge of the table's shadow. The window light is drawn
+// over `room` though it's under the rug in the direct order: its patch of floor is clear of the rug and chair.
+// They're keyed on the view (resize() makes a new one; the canvas size too) and the hole. While the camera pushes
+// in (cam.k > 1, the slow-motion finish) everything is drawn directly, as before: a stretched copy would look soft
+// just when you're watching closely, and it's only a second or two. Shake just offsets the copy, by whole device
+// pixels, into SHAKE_PAD of margin painted round the screen.
+const SHAKE_PAD = 8;   // css px: more than half the biggest shake (fx.shake ≤ 9)
+const scenery = { room: document.createElement('canvas'), table: document.createElement('canvas'), view: null, w: 0, h: 0, hole: null };
+function paintLayer(c, paint) {
+  const { s, dpr, ox, oy } = view, P = Math.ceil(SHAKE_PAD * dpr);
+  c.width = canvas.width + 2 * P; c.height = canvas.height + 2 * P;   // (also clears it)
+  const keep = ctx;
+  ctx = c.getContext('2d');
+  try { ctx.setTransform(s * dpr, 0, 0, s * dpr, ox * dpr + P, oy * dpr + P); paint(P); } finally { ctx = keep; }
+}
+function sceneryReady() {
+  if (scenery.view !== view || scenery.w !== canvas.width || scenery.h !== canvas.height) {
+    const { s, dpr, cw, ch, ox, oy } = view;
+    paintLayer(scenery.room, P => {
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, scenery.room.width, scenery.room.height); ctx.restore();
+      const m = P / dpr;
+      drawFloor(-(ox + m) / s - 20, -(oy + m) / s - 20, (cw + m - ox) / s + 20, (ch + m - oy) / s + 20);
+      drawRug(); drawChair(); drawRecordBase();
+    });
+    Object.assign(scenery, { view, w: canvas.width, h: canvas.height, hole: null });
+  }
+  if (scenery.hole !== hole) { paintLayer(scenery.table, drawTableBase); scenery.hole = hole; }
+}
+
 function draw(t, dt) {
   const { s, dpr, cw, ch, ox, oy } = view;
   fx.shake = Math.max(0, fx.shake - dt * 25);
   const sx = (Math.random() - 0.5) * fx.shake, sy = (Math.random() - 0.5) * fx.shake;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   // the camera can push in on a point (cam.x, cam.y) for the slow-motion finish
   const S = s * cam.k, OX = ox + cam.x * s * (1 - cam.k), OY = oy + cam.y * s * (1 - cam.k);
-  ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
   const x0 = -OX / S - 20, y0 = -OY / S - 20, x1 = (cw - OX) / S + 20, y1 = (ch - OY) / S + 20;
-
-  drawFloor(x0, y0, x1, y1);
-  drawWindowLight(t);
-  drawRug();
-  drawChair();
-  drawRecord(dt);
-  drawCat(t);
-  drawTable(t, dt);
+  if (Math.abs(cam.k - 1) < 2e-4) {   // (it eases back to 1 but never quite lands: 2e-4 is under 0.2 px at the edges)
+    sceneryReady();
+    const P = Math.ceil(SHAKE_PAD * dpr), bx = Math.round(sx * dpr) - P, by = Math.round(sy * dpr) - P, world = () => ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(scenery.room, bx, by);
+    world();
+    drawWindowLight(t);
+    drawRecordTop(dt);
+    drawCat(t);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(scenery.table, bx, by);
+    world();
+    drawTableLive(t, dt);
+  } else {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
+    drawFloor(x0, y0, x1, y1);
+    drawWindowLight(t);
+    drawRug();
+    drawChair();
+    drawRecord(dt);
+    drawCat(t);
+    drawTable(t, dt);
+  }
   drawTableCat(t, dt);
 
   // (the dotted trail of where the cue ball has been is no longer drawn: it cluttered the table; `trails` still records it)
@@ -3376,10 +3443,19 @@ function draw(t, dt) {
   drawBanner(dt);
   drawStamp(dt);
 
+  // cloud shadows: three huge, very soft sprites, each stretched over most of the screen, which cost more than the
+  // rest of the room put together. They're drawn into a canvas at a quarter of the resolution and that is stretched
+  // over the screen once: the same soft shapes for a third of the work.
+  const cb = CLOUD_BUF, cq = 4;
+  if (cb.width !== Math.ceil(canvas.width / cq) || cb.height !== Math.ceil(canvas.height / cq)) { cb.width = Math.ceil(canvas.width / cq); cb.height = Math.ceil(canvas.height / cq); }
+  const cg = cb.getContext('2d');
+  cg.setTransform(1, 0, 0, 1, 0, 0); cg.clearRect(0, 0, cb.width, cb.height);
+  cg.setTransform(S * dpr / cq, 0, 0, S * dpr / cq, (OX + sx) * dpr / cq, (OY + sy) * dpr / cq);
   for (const c of clouds) {
     c.x += c.v * dt; if (c.x - c.r > x1 + 400) c.x = x0 - c.r - 200;
-    ctx.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
+    cg.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
   }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(cb, 0, 0, cb.width * cq, cb.height * cq); ctx.restore();
   ctx.globalCompositeOperation = 'lighter';
   for (const m of motes) {
     const mx = m.x + Math.sin(t * 0.13 * m.s + m.p) * 40, my = m.y + Math.cos(t * 0.1 * m.s + m.p) * 30 - (t * 4 * m.s) % 60;
