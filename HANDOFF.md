@@ -559,3 +559,26 @@ glows where the ball will come out (the copper exit line and lit pipe are gone);
 - Exit guide (15 Nov): aiming into a tunnel, the guide carries on out of the far mouth on the same heading with the
   same style as any shot (`cueLeg` in `drawGuide`): dashed line, ghost ball, object ball's line to the ring. It's exact
   geometry, since the ball always leaves the far mouth's centre on the heading it went in with.
+
+### Tunnels move into the cushions (15 Nov 2026)
+
+Feedback: the tunnels sat in the middle of the play and took over the hole. Now they're **openings in two facing
+cushions** that wrap round: a ball that rolls into one comes back in through the other on the same heading (like going
+off one side of an arcade screen and on at the other). They're an optional route, out of the way.
+- Data: `h.tunnel = { a, b }`, each `{ x, y, nx, ny }`: the middle of the opening on the cushion line, normal into
+  the felt. `TUN_HALF` (1.5 R) is half the opening's width. `tunRails` lists the straight outer cushions long enough
+  for one (the four sides of the classic table; shaped tables' outer segments); a pair must face each other
+  (normals opposite). The oval has no such pair, so in the test an oval hole gets the day's usual feature instead.
+- Physics: a ball goes in when its centre is within the opening's width, up against that cushion (`out` < R + 1)
+  and heading into it (`tunLocal`). It's under the table for `TUN_T` (0.35 s), then comes back in at `tunExit`
+  (just off the far opening's middle) at `TUN_KEEP` of its pace. `trace` treats the opening as taking the place of
+  the cushion there; `pathBlocked` uses `tunCrosses`.
+- Placement (`tunnelSearch`): for an exit spot on one cushion and a pot, the heading is fixed (exit to ghost ball),
+  and so is the entrance (where the cue ball on that heading meets the facing cushion). Openings keep clear of the
+  pockets and the cushions' ends. It no longer tries to block anything; it prefers pots that are hard or blocked the
+  normal way, so the tunnel is the clever route. The tunnel shot is still checked in simulation.
+- Drawing: a dark slot running back into the rail with a cream liner, a shadow on the felt in front and chevrons on
+  the rail either side. Aiming in, the far opening glows and the guide carries on from it. "Tunnel" labels show at
+  both openings as the hole starts.
+- Testing (20 courses × holes 3–6): 68 tunnel holes (the other 12 were oval and got sand or the cat), every hole had
+  a real opening pot and was clearable, every tunnel shot pots in simulation; 1,020 random shots with nothing stuck.

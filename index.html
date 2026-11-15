@@ -338,13 +338,27 @@ const CAT_R = 30, CAT_E = 0.3;   // the cat on the felt: a big soft ball that so
 const BAR_T = 6, WM_W = 1.5, GATE_MAX = 1.45, GATE_BACK = 2.2;
 let obstacleOverride = null;   // the test build forces an obstacle here
 // Tunnels (test: only with ?tunnels in the address, which starts a practice course where holes 3-6 each have
-// one). A pair of holes in the felt joined underneath: a ball that rolls into one mouth travels underground and
-// comes out of the other at the same heading, a little slower. Placement always sets up a real tunnel shot.
+// one). Two openings built into facing cushions, joined under the table: a ball that rolls into one comes back in
+// through the other, heading the same way (it wraps round, like going off one side of an arcade screen and on at the
+// other), a little slower. They sit on the cushions, out of the way, as an optional route; placement always sets up
+// a real pot through them.
 const TUNNEL_TEST = (() => { try { return new URLSearchParams(location.search).has('tunnels'); } catch { return false; } })();
-const TUN_R = R * 1.5, TUN_KEEP = 0.92, TUN_SPEED = 900;   // capture radius (ball centre), pace kept, underground speed
+const TUN_HALF = R * 1.5, TUN_KEEP = 0.92, TUN_T = 0.35;   // half the opening's width, pace kept, time under the table
 const tunMouths = h => h.tunnel ? [h.tunnel.a, h.tunnel.b] : [];
+// where a ball comes back onto the felt from mouth m: just off the cushion, in the middle of the opening
+const tunExit = m => ({ x: m.x + m.nx * (R + 3), y: m.y + m.ny * (R + 3) });
+// how far a ball centre at (x, y) is along mouth m's cushion (from its middle) and out from it into the felt
+const tunLocal = (m, x, y) => ({ along: (x - m.x) * -m.ny + (y - m.y) * m.nx, out: (x - m.x) * m.nx + (y - m.y) * m.ny });
+// the straight cushions a tunnel can open in: the table's outer cushions long enough for one (the four sides of the
+// classic table)
+function tunRails(h) {
+  if (!h.shape) return [{ ax: 0, ay: 0, bx: 0, by: H, nx: 1, ny: 0 }, { ax: W, ay: 0, bx: W, by: H, nx: -1, ny: 0 }, { ax: 0, ay: 0, bx: W, by: 0, nx: 0, ny: 1 }, { ax: 0, ay: H, bx: W, by: H, nx: 0, ny: -1 }];
+  return h.shape.segs.slice(0, h.shape.outer.length).map(g => ({ ax: g.ax, ay: g.ay, bx: g.bx, by: g.by, nx: g.nx, ny: g.ny })).filter(g => Math.hypot(g.bx - g.ax, g.by - g.ay) > 4 * TUN_HALF + 60);
+}
 function obstFor(seed, i) {
   if (obstacleOverride) return obstacleOverride === 'none' ? null : obstacleOverride;
+  // (the oval has no straight facing cushions, so an oval hole gets the day's usual feature instead)
+  if (TUNNEL_TEST && shortSeed(seed) && i >= 2 && !tunRails({ shape: shapeFor(seed, i) }).some((g, k, all) => all.some(o => g.nx * o.nx + g.ny * o.ny < -0.98))) { const ks = featureKeys(seed); return shuffle(rngFor(`${seed}:feature`), ks)[(i - 2) % ks.length]; }
   if (TUNNEL_TEST && shortSeed(seed)) return i < 2 ? null : 'tunnel';
   if (shortSeed(seed)) { const ks = featureKeys(seed); return i < 2 ? null : shuffle(rngFor(`${seed}:feature`), ks)[(i - 2) % ks.length]; }
   if (!OBSTACLES_ON || i < 2 || !parSeed(seed)) return null;
@@ -518,34 +532,48 @@ function placeFeature(h, kind, rr) {
   const blockedBy = extra => { const t2 = new Table({ ...h, ...extra }); return good.map(l => { const m = potLine(t2, l.bi, l.pocket); return !m || m.blocked; }); };
   const crossesSand = (p, [ax, ay, bx, by]) => { for (let u = 0.05; u <= 0.95; u += 0.05) if (inPatch(p, ax + (bx - ax) * u, ay + (by - ay) * u)) return true; return false; };
   let best = null;
-  // Tunnels: for each pot, the exit goes on the line back from its ghost ball along some heading (up to ~43° off
-  // the pot's line), and the entrance on the cue ball's line along that same heading, so going in the entrance is
-  // a real pot out of the exit. Among those, the entrance that gets in the way of the most good pots wins.
-  const tcands = [], TCLR = TUN_R + 2 * R;
-  const tunnelSearch = () => t.balls.forEach((ball, bi) => { for (let pk = 0; pk < 6; pk++) {
-    if (!t.openPocket(pk)) continue;
-    const P = pocketAim(pk, h), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
-    if (d2 < 60) continue;
-    const va = Math.atan2(P.y - ball.y, P.x - ball.x), gx = ball.x - Math.cos(va) * 2 * R, gy = ball.y - Math.sin(va) * 2 * R;
-    for (const du of [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75]) {
-      const ang = va + du, ux = Math.cos(ang), uy = Math.sin(ang);
-      for (const ad of [130, 190, 250, 320]) {
-        const x = c.x + ux * ad, y = c.y + uy * ad;
-        if (!clear(x, y, TCLR) || pathBlocked(t, c.x, c.y, x, y)) continue;
-        for (const d of [160, 230, 310, 400]) {
-          const bx = gx - ux * d, by = gy - uy * d;
-          if (Math.hypot(bx - x, by - y) < 220 || !clear(bx, by, TCLR)) continue;
-          const extra = { tunnel: { a: { x, y }, b: { x: bx, y: by } }, feature: 'tunnel' }, t2 = new Table({ ...h, ...extra });
-          if (pathBlocked(t2, c.x, c.y, x - ux * (TUN_R + R), y - uy * (TUN_R + R)) ||
-            pathBlocked(t2, bx + ux * (TUN_R + 2), by + uy * (TUN_R + 2), gx, gy, t2.balls[bi]) || pathBlocked(t2, ball.x, ball.y, P.x, P.y, t2.balls[bi])) continue;
-          const hits = blockedBy(extra);
-          if (hits.every(Boolean)) continue;
-          const score = good.reduce((a, l, k) => a + (hits[k] ? l.q : 0), 0) + Math.cos(du) * 0.2 + rr() * 0.001;
-          tcands.push({ extra, score, angle: ang, ball: bi });
-        }
+  // Tunnels: a pair of facing cushions (normals opposite). For an exit spot on one and a pot, the heading is fixed
+  // (from the exit to the ghost ball), and so is the entrance: where the cue ball, on that heading, meets the
+  // facing cushion. Kept if every path is clear and the opening sits well away from the pockets. Preferred: pots that
+  // are hard or blocked the normal way, so the tunnel is the clever route, not the only one.
+  const tcands = [];
+  const tunnelSearch = () => {
+    const rails = tunRails(h);
+    const direct = new Map(allLines(t).map(l => [l.bi + ':' + l.pocket, l]));
+    const spotOK = (x, y, g) => pks.every(q => Math.hypot(q.x - x, q.y - y) > q.cap + TUN_HALF + 2 * R) &&
+      Math.min(Math.hypot(x - g.ax, y - g.ay), Math.hypot(x - g.bx, y - g.by)) > TUN_HALF + 24;
+    for (const ga of rails) for (const gb of rails) {
+      if (ga === gb || ga.nx * gb.nx + ga.ny * gb.ny > -0.98) continue;
+      const lb = Math.hypot(gb.bx - gb.ax, gb.by - gb.ay);
+      for (let d = TUN_HALF + 30; d < lb - TUN_HALF - 30; d += 28) {
+        const bx = gb.ax + (gb.bx - gb.ax) * d / lb, by = gb.ay + (gb.by - gb.ay) * d / lb;
+        if (!spotOK(bx, by, gb)) continue;
+        const B = { x: bx, y: by, nx: gb.nx, ny: gb.ny }, S = tunExit(B);
+        t.balls.forEach((ball, bi) => { for (let pk = 0; pk < 6; pk++) {
+          if (!t.openPocket(pk)) continue;
+          const P = pocketAim(pk, h), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
+          if (d2 < 60) continue;
+          const vx = (P.x - ball.x) / d2, vy = (P.y - ball.y) / d2, gx = ball.x - vx * 2 * R, gy = ball.y - vy * 2 * R;
+          const dl = Math.hypot(gx - S.x, gy - S.y);
+          if (dl < 60) continue;
+          const ux = (gx - S.x) / dl, uy = (gy - S.y) / dl, cos = ux * vx + uy * vy, into = ux * B.nx + uy * B.ny;
+          if (cos < 0.72 || into < 0.3) continue;
+          // the entrance: where the cue ball, heading (ux, uy), gets to R from the facing cushion
+          const k = -(ux * ga.nx + uy * ga.ny), off = (c.x - ga.ax) * ga.nx + (c.y - ga.ay) * ga.ny;
+          if (k < 0.3) continue;
+          const tt = (off - R) / k, ax = c.x + ux * tt - ga.nx * R, ay = c.y + uy * tt - ga.ny * R;
+          if (tt < 60) continue;
+          const la = Math.hypot(ga.bx - ga.ax, ga.by - ga.ay), da = (ax - ga.ax) * (ga.bx - ga.ax) / la + (ay - ga.ay) * (ga.by - ga.ay) / la;
+          if (da < TUN_HALF + 30 || da > la - TUN_HALF - 30 || !spotOK(ax, ay, ga)) continue;
+          const extra = { tunnel: { a: { x: ax, y: ay, nx: ga.nx, ny: ga.ny }, b: B }, feature: 'tunnel' }, t2 = new Table({ ...h, ...extra });
+          if (pathBlocked(t2, c.x, c.y, c.x + ux * (tt - 4), c.y + uy * (tt - 4)) ||
+            pathBlocked(t2, S.x, S.y, gx, gy, t2.balls[bi]) || pathBlocked(t2, ball.x, ball.y, P.x, P.y, t2.balls[bi])) continue;
+          const dl0 = direct.get(bi + ':' + pk), hard = !dl0 || dl0.blocked ? 1 : 1 - dl0.q;
+          tcands.push({ extra, score: hard + cos * 0.3 + rr() * 0.001, angle: Math.atan2(uy, ux), ball: bi });
+        } });
       }
     }
-  } });
+  };
   if (kind === 'tunnel') tunnelSearch();
   const consider = (extra, hits) => {
     const score = good.reduce((a, l, k) => a + (hits[k] ? l.q : 0), 0) + rr() * 0.001;
@@ -624,7 +652,7 @@ class Table {
     // a ball in the tunnel: underground until it comes out of the other mouth, heading the same way
     if (mouths.length) for (const b of this.live()) if (b.uN && --b.uN === 0) {
       const m = mouths[b.uTo], sp = Math.hypot(b.uVx, b.uVy) || 1;
-      b.x = m.x + b.uVx / sp * (TUN_R + 2); b.y = m.y + b.uVy / sp * (TUN_R + 2); b.vx = b.uVx; b.vy = b.uVy;
+      const e = tunExit(m); b.x = e.x; b.y = e.y; b.vx = b.uVx; b.vy = b.uVy; void sp;
       this.ev('tunnelOut', { x: m.x, y: m.y, ball: b, speed: sp });
     }
     const live = mouths.length ? this.live().filter(b => !b.uN) : this.live();
@@ -700,11 +728,13 @@ class Table {
       let under = false;
       for (let k = 0; k < mouths.length && !under; k++) {
         const m = mouths[k];
-        if (Math.hypot(b.x - m.x, b.y - m.y) >= TUN_R) continue;
+        // into the opening: within its width, up against the cushion, and heading into it
+        const q = tunLocal(m, b.x, b.y);
+        if (Math.abs(q.along) >= TUN_HALF || q.out >= R + 1 || b.vx * m.nx + b.vy * m.ny >= 0) continue;
         // down the tunnel: it travels underground at a steady pace and keeps most of its own
         const o = mouths[1 - k], sp = Math.hypot(b.vx, b.vy), fx0 = b.x, fy0 = b.y;
         b.uVx = b.vx * TUN_KEEP; b.uVy = b.vy * TUN_KEEP; b.uTo = 1 - k;
-        b.uN = b.uN0 = Math.max(1, Math.round(clamp(Math.hypot(o.x - m.x, o.y - m.y) / TUN_SPEED, 0.2, 0.6) / DT));
+        b.uN = b.uN0 = Math.round(TUN_T / DT);
         b.x = m.x; b.y = m.y; b.vx = b.vy = 0; b.tunN = (b.tunN || 0) + 1;
         if (s) s.tunnels++;
         this.ev('tunnelIn', { x: m.x, y: m.y, fromX: fx0, fromY: fy0, toX: o.x, toY: o.y, ball: b, speed: sp, dur: b.uN0 * DT });
@@ -811,7 +841,7 @@ class Table {
       this.live().every(o => o === b || Math.hypot(o.x - px, o.y - py) > 2 * R + 2) &&
       this.bumps.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
       this.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4) &&
-      tunMouths(this.hole).every(m => Math.hypot(m.x - px, m.y - py) > TUN_R + R + 4) &&
+      tunMouths(this.hole).every(m => { const e = tunExit(m); return Math.hypot(e.x - px, e.y - py) > 2 * R + 4; }) &&
       (!this.hole.obst || (this.hole.obst.type === 'water' ? !inPond(this.hole.obst, px, py, R + 2) : obstBars(this).every(([ax, ay, bx, by]) => segDist(px, py, ax, ay, bx, by) > R + BAR_T + 2)));
     for (let rad = 0; rad < 600; rad += 4) {
       for (let a = 0; a < TAU; a += 0.3) {
@@ -844,13 +874,22 @@ function pathBlocked(t, ax, ay, bx, by, skip) {
     if (ob.type === 'water') { const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 10); for (let k = 0; k <= n; k++) if (inPond(ob, ax + (bx - ax) * k / n, ay + (by - ay) * k / n, R * 0.5)) return true; }
     else if (obstBars(t).some(([cx, cy, dx, dy]) => segSeg(ax, ay, bx, by, cx, cy, dx, dy) < R + BAR_T)) return true;
   }
-  // a tunnel mouth swallows a ball whose centre passes over it
-  if (t.hole.tunnel && tunMouths(t.hole).some(m => segDist(m.x, m.y, ax, ay, bx, by) < TUN_R)) return true;
+  // a line that runs up against a tunnel's opening: the ball would go in
+  if (t.hole.tunnel && tunMouths(t.hole).some(m => tunCrosses(m, ax, ay, bx, by))) return true;
   return t.balls.some(b => !b.potted && b !== skip && segDist(b.x, b.y, ax, ay, bx, by) < 2 * R - 0.5) ||
     t.bumps.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R) ||
     // shaped tables: corners sticking into the felt, and islands, get in the way
     !!sh && (sh.reflex.some(([x, y]) => segDist(x, y, ax, ay, bx, by) < R) ||
       sh.islands.length > 0 && sh.segs.slice(sh.outer.length).some(g => segSeg(ax, ay, bx, by, g.ax, g.ay, g.bx, g.by) < R));
+}
+// does a ball centre moving from (ax, ay) to (bx, by) come within R of the cushion across the tunnel's opening?
+function tunCrosses(m, ax, ay, bx, by) {
+  const p = tunLocal(m, ax, ay), q = tunLocal(m, bx, by);
+  let s0 = 0, s1 = 1;
+  const da = q.along - p.along;
+  if (Math.abs(da) < 1e-9) { if (Math.abs(p.along) >= TUN_HALF) return false; }
+  else { const u0 = (-TUN_HALF - p.along) / da, u1 = (TUN_HALF - p.along) / da; s0 = Math.max(0, Math.min(u0, u1)); s1 = Math.min(1, Math.max(u0, u1)); if (s0 > s1) return false; }
+  return Math.min(p.out + (q.out - p.out) * s0, p.out + (q.out - p.out) * s1) < R;
 }
 // shortest distance between two segments
 function segSeg(ax, ay, bx, by, cx, cy, dx, dy) {
@@ -901,16 +940,23 @@ function trace(t, px, py, dx, dy, skip = null) {
   let best = { t: Infinity };
   for (const b of t.balls) { if (b.potted || b === skip) continue; const s = ray(b.x, b.y, 2 * R); if (s < best.t) best = { t: s, ball: b }; }
   for (const o of t.bumps) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
-  tunMouths(t.hole).forEach((m, k) => { const s = ray(m.x, m.y, TUN_R); if (s < best.t) best = { t: s, tunnel: k }; });
+  // a tunnel's opening: where the ball centre gets to R from that cushion, inside the opening (checked after the
+  // cushions, which it takes the place of)
+  const tun = (b0) => { let bt = b0; tunMouths(t.hole).forEach((m, k) => {
+    const p = tunLocal(m, px, py), vn = dx * m.nx + dy * m.ny;
+    if (vn >= -1e-6) return;
+    const s = Math.max(0, (p.out - R) / -vn), al = p.along + (dx * -m.ny + dy * m.nx) * s;
+    if (Math.abs(al) < TUN_HALF && s <= bt.t + 0.5) bt = { t: s, tunnel: k };
+  }); return bt; };
   for (const [ax, ay, bx, by, solid] of obstBars(t)) { const s = rayBar(px, py, dx, dy, ax, ay, bx, by, BAR_T, solid); if (s < best.t) best = { t: s, wall: true }; }
   if (t.hole.shape) {
     for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true, nx: g.nx, ny: g.ny }; }
-    return best;
+    return tun(best);
   }
   const tx = dx > 0 ? (W - R - px) / dx : dx < 0 ? (R - px) / dx : Infinity;
   const ty = dy > 0 ? (H - R - py) / dy : dy < 0 ? (R - py) / dy : Infinity;
   if (Math.min(tx, ty) < best.t) best = tx < ty ? { t: tx, wall: true, nx: dx > 0 ? -1 : 1, ny: 0 } : { t: ty, wall: true, nx: 0, ny: dy > 0 ? -1 : 1 };
-  return best;
+  return tun(best);
 }
 
 // ---- shot helpers ----
@@ -1200,8 +1246,9 @@ function onEvent(type, e) {
     if (m) m.flash = 1;
     tunPop.set(e.ball, 0);
     atX(e.x, () => sfx.tunnelOut(e.speed)); buzz([6, 20, 6]);
-    ring(e.x, e.y, '240,190,120', 40, 0.45, TUN_R);
-    for (let k = 0; k < 14; k++) { const a = Math.random() * TAU, v = 50 + Math.random() * 90; fx.particles.push({ x: e.x + Math.cos(a) * TUN_R * 0.6, y: e.y + Math.sin(a) * TUN_R * 0.6, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.45 + Math.random() * 0.3, color: k % 2 ? 'rgba(225,238,228,.8)' : 'rgba(214,160,110,.85)', r: 1.5 + Math.random() * 2.5 }); }
+    const ex = tunExit(m || { x: e.x, y: e.y, nx: 0, ny: 0 });
+    ring(ex.x, ex.y, '240,190,120', 40, 0.45, R);
+    for (let k = 0; k < 14; k++) { const a = Math.random() * TAU, v = 50 + Math.random() * 90; fx.particles.push({ x: ex.x + Math.cos(a) * R * 0.6, y: ex.y + Math.sin(a) * R * 0.6, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.45 + Math.random() * 0.3, color: k % 2 ? 'rgba(225,238,228,.8)' : 'rgba(214,160,110,.85)', r: 1.5 + Math.random() * 2.5 }); }
   }
   else if (type === 'rattle') { sfx.rattle(); float(e.x, e.y - 30, 'Rattled out', '#b8553f', 18); fx.shake = 4; }
   else if (type === 'pot') {
@@ -1261,8 +1308,8 @@ function startHole(i) {
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
   if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${hole.gold != null ? 'golden pocket · ' : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life: featureName(hole) ? 2.3 : banner.life, max: featureName(hole) ? 2.3 : banner.max });
-  // a tunnel hole: say which end is which, once it has had a moment on screen
-  if (hole.tunnel) { const h = hole, { a, b } = h.tunnel; setTimeout(() => { if (hole !== h || phase !== 'aim') return; float(a.x, a.y - 42, 'In here…', '#8a4a2c', 18, 2.6); float(b.x, b.y - 42, '…out here', '#8a4a2c', 18, 2.6); }, 1900); }
+  // a tunnel hole: point out the two openings, once the hole has had a moment on screen
+  if (hole.tunnel) { const h = hole, { a, b } = h.tunnel; setTimeout(() => { if (hole !== h || phase !== 'aim') return; for (const m of [a, b]) { const e = tunExit(m); float(clamp(e.x + m.nx * 50, 70, W - 70), clamp(e.y + m.ny * 50, 30, H - 30), 'Tunnel', '#2f6b4f', 17, 2.6); } }, 1900); }
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -2109,7 +2156,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${TUNNEL_TEST ? '<p>🕳️ Tunnel test: holes 3 to 6 each have a <b>tunnel</b>, two brick-rimmed holes joined underneath. A ball that rolls into one comes out of the other heading the same way, a little slower. There is always a pot through it: the aim line follows it.</p>' : ''}<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. ${TRICK_STARS ? '<b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first).' : 'Trick shots (two in one, a bank, a combination or a kick) get an instant replay.'}</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
+      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${TUNNEL_TEST ? '<p>🕳️ Tunnel test: holes 3 to 6 each have a <b>tunnel</b>: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. ${TRICK_STARS ? '<b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first).' : 'Trick shots (two in one, a bank, a combination or a kick) get an instant replay.'}</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
@@ -2742,51 +2789,36 @@ function drawObstacle(o, t) {
   }
 }
 
-// A tunnel: two putting-green cups sunk into the felt (cream liners, so they never read as pockets), joined by a pipe buried
-// underneath that shows as a faint ridge. Each end has a spout pointing at the other. A ball underground is a
-// bulge and a glow travelling along the ridge. While the aim goes through the tunnel the pipe lights up.
+// A tunnel: two openings cut into facing cushions, drawn as dark slots running back into the rail with a cream
+// liner, and a soft shadow on the felt in front. Aiming in, the far opening glows where the ball will come back in.
 const tunPop = new Map();   // balls popping out of a tunnel: how far through the hop
-let tunAimLit = 0;          // the aim goes into the tunnel this frame (the pipe glows)
+let tunAimLit = 0;          // the aim goes into the tunnel this frame (the far end glows)
 function drawTunnel(tn, t, dt) {
-  const A = tn.a, B = tn.b, ang = Math.atan2(B.y - A.y, B.x - A.x), len = Math.hypot(B.x - A.x, B.y - A.y);
   tunAimLit = lerp(tunAimLit, tunAimWant ? 1 : 0, Math.min(1, dt * 8));
-  ctx.save(); ctx.lineCap = 'round';
-  // the buried pipe: a soft ridge in the cloth
-  ctx.strokeStyle = 'rgba(25,45,32,.22)'; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(A.x, A.y + 2); ctx.lineTo(B.x, B.y + 2); ctx.stroke();
-  ctx.strokeStyle = 'rgba(235,250,235,.12)'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(A.x, A.y - 1); ctx.lineTo(B.x, B.y - 1); ctx.stroke();
-  // a ball underground: a bulge in the cloth with a warm glow, running from one end to the other
-  for (const b of table.live()) if (b.uN) {
-    const from = b.uTo ? A : B, to = b.uTo ? B : A, k = 1 - b.uN / (b.uN0 || 1), x = lerp(from.x, to.x, k), y = lerp(from.y, to.y, k);
-    const gl = ctx.createRadialGradient(x, y, 0, x, y, 30);
-    gl.addColorStop(0, b.isCue ? 'rgba(255,252,240,.55)' : 'rgba(255,214,140,.55)'); gl.addColorStop(1, 'rgba(255,214,140,0)');
-    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, 30, 0, TAU); ctx.fill();
-    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-    ctx.fillStyle = 'rgba(25,45,32,.28)'; ctx.beginPath(); ctx.ellipse(1, 4, 17, 11, 0, 0, TAU); ctx.fill();
-    const mg = ctx.createRadialGradient(-4, -5, 1, 0, 0, 16); mg.addColorStop(0, 'rgba(190,225,200,.85)'); mg.addColorStop(1, 'rgba(110,160,130,.0)');
-    ctx.fillStyle = mg; ctx.beginPath(); ctx.ellipse(0, 0, 16, 10, 0, 0, TAU); ctx.fill();
-    ctx.restore();
-  }
-  for (const [m, o] of [[A, B], [B, A]]) {
+  const depth = RAIL - 6, w = TUN_HALF;
+  [tn.a, tn.b].forEach((m, k) => {
     m.flash = Math.max(0, (m.flash || 0) - dt * 2.5);
-    const rr = TUN_R + 2, ro = rr + 3, sa = Math.atan2(o.y - m.y, o.x - m.x);
-    // aiming into the other end: this one glows where the ball will come out
-    if (tunAimLit > 0.02 && m === (tunAimFrom === 0 ? B : A)) { const gl = ctx.createRadialGradient(m.x, m.y, ro, m.x, m.y, ro + 22); gl.addColorStop(0, `rgba(255,214,140,${0.6 * tunAimLit})`); gl.addColorStop(1, 'rgba(255,214,140,0)'); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(m.x, m.y, ro + 22, 0, TAU); ctx.fill(); }
-    // a putting-green cup sunk into the cloth: a thin cream liner round a dark hole, shaded where the near edge
-    // overhangs, and a small cream chevron on the cloth pointing along the pipe to the other end
-    ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(sa);
-    ctx.strokeStyle = 'rgba(251,248,240,.7)'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(ro + 4, -5); ctx.lineTo(ro + 10, 0); ctx.lineTo(ro + 4, 5); ctx.stroke();
+    ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(Math.atan2(m.ny, m.nx));
+    // local frame: +x is into the felt, -x back into the cushion and rail; y runs along the cushion
+    if (tunAimLit > 0.02 && k === 1 - tunAimFrom) {
+      const gl = ctx.createRadialGradient(R, 0, 4, R, 0, 60); gl.addColorStop(0, `rgba(255,214,140,${0.55 * tunAimLit})`); gl.addColorStop(1, 'rgba(255,214,140,0)');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(R, 0, 60, 0, TAU); ctx.fill();
+    }
+    // the shadow it casts on the felt just in front
+    const sh = ctx.createLinearGradient(0, 0, 14, 0); sh.addColorStop(0, 'rgba(15,25,18,.4)'); sh.addColorStop(1, 'rgba(15,25,18,0)');
+    ctx.fillStyle = sh; ctx.fillRect(0, -w, 14, 2 * w);
+    // the cream liner, then the dark slot running back under the rail
+    ctx.fillStyle = '#efe8d6'; ctx.beginPath(); ctx.roundRect(-depth - 3, -w - 3, depth + 3, 2 * w + 6, [8, 0, 0, 8]); ctx.fill();
+    const g = ctx.createLinearGradient(0, 0, -depth, 0); g.addColorStop(0, '#2b3530'); g.addColorStop(0.45, '#0f1411'); g.addColorStop(1, '#050706');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(-depth, -w, depth, 2 * w, [6, 0, 0, 6]); ctx.fill();
+    // a little light on the far wall of the slot
+    ctx.strokeStyle = 'rgba(239,232,214,.25)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-depth + 4, -w + 4); ctx.lineTo(-depth + 4, w - 4); ctx.stroke();
+    // chevrons on the rail either side: this way in
+    ctx.strokeStyle = 'rgba(239,232,214,.55)'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    for (const sy of [-1, 1]) { const y0 = sy * (w + 12); ctx.beginPath(); ctx.moveTo(-10, y0 - 5); ctx.lineTo(-16, y0); ctx.lineTo(-10, y0 + 5); ctx.stroke(); }
+    if (m.flash > 0) { ctx.fillStyle = `rgba(255,214,140,${0.5 * m.flash})`; ctx.beginPath(); ctx.roundRect(-depth, -w, depth, 2 * w, [6, 0, 0, 6]); ctx.fill(); }
     ctx.restore();
-    ctx.fillStyle = 'rgba(25,45,32,.25)'; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 4, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#efe8d6'; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 2, 0, TAU); ctx.fill();
-    const g = ctx.createRadialGradient(m.x, m.y + 5, 2, m.x, m.y, rr);
-    g.addColorStop(0, '#0b0f0c'); g.addColorStop(0.75, '#1a221d'); g.addColorStop(1, '#3a4a40');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(m.x, m.y, rr - 0.5, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(m.x, m.y - 3, rr - 1, Math.PI * 1.05, Math.PI * 1.95); ctx.arc(m.x, m.y, rr - 1, Math.PI * 1.95, Math.PI * 1.05, true); ctx.fill();
-    if (m.flash > 0) { ctx.strokeStyle = `rgba(255,214,140,${m.flash})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, m.y, ro + 4 + (1 - m.flash) * 14, 0, TAU); ctx.stroke(); }
-  }
-  ctx.restore();
-  void len;
+  });
 }
 // a ball that has just come out of a tunnel hops: up and a touch bigger, then down with a small bounce
 function drawLiveBall(b) {
@@ -2955,7 +2987,7 @@ function cuePath(angle, pw, spin) {
   for (let n = 0; n < 9000 && s.moving(); n++) {
     s.step();
     if (s.cue.potted) break;
-    const jump = Math.hypot(s.cue.x - lx, s.cue.y - ly) > TUN_R * 2; lx = s.cue.x; ly = s.cue.y;
+    const jump = Math.hypot(s.cue.x - lx, s.cue.y - ly) > 4 * R; lx = s.cue.x; ly = s.cue.y;
     if (s.cue.uN) continue;
     if (jump && hitAt >= 0) pts.push(gapPt(s.cue.x, s.cue.y));
     if (hitAt < 0 && s.shot.firstHit) { hitAt = n; pts.push([s.cue.x, s.cue.y]); }
@@ -3164,7 +3196,7 @@ function drawGuide(c, dx, dy, hit, t) {
     // heading (the ball always leaves the far mouth heading the way it went in)
     dash(c.x + dx * R, c.y + dy * R, ex, ey, 0.85);
     tunAimWant = true; tunAimFrom = hit.tunnel;
-    const o = tunMouths(hole)[1 - hit.tunnel], sx = o.x + dx * (TUN_R + 2), sy = o.y + dy * (TUN_R + 2), h2 = trace(table, sx, sy, dx, dy);
+    const { x: sx, y: sy } = tunExit(tunMouths(hole)[1 - hit.tunnel]), h2 = trace(table, sx, sy, dx, dy);
     if (h2.tunnel == null) cueLeg(sx, sy, h2, 0);
     else dash(sx, sy, sx + dx * h2.t, sy + dy * h2.t, 0.85);
     return;
