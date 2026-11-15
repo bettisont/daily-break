@@ -8,7 +8,7 @@
 //            follows really drops into it (a perfect strike at some guide pace).
 //   fastsim  the guide's early-exit simulation (guidePotsAt) finds exactly the pots a full simulation does.
 //   smoke    a first visit: the intro card, "Let's play", one real shot through the pull cue, no errors.
-// Usage: node tests/run.js [--update] [--only layouts,guide,smoke]
+// Usage: node tests/run.js [--update] [--only layouts,guide,fastsim,smoke]
 const { execFileSync } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');

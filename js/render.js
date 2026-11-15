@@ -446,9 +446,9 @@ function drawShapedTable(sh) {
 }
 
 function drawTable(t, dt) { drawTableBase(); drawTableLive(t, dt); }
-// Felt markings (sand and ice patches, slope arrows) are drawn under the pockets; ice shimmers and the arrows drift,
-// so on a hole with either they're drawn every frame, pockets and all, and the cached table is just rail and felt.
-const feltMoves = h => !!h.tilt.mag || h.patches.some(p => p.type !== 'rough');
+// Felt markings (sand bunkers, slope arrows) are drawn under the pockets; the slope arrows drift, so on a tilted hole
+// they're drawn every frame, pockets and all, and the cached table is just rail and felt.
+const feltMoves = h => !!h.tilt.mag;   // sand ('rough') patches are the only kind left, and they're still
 // the rail and felt, and the felt's markings and pockets when they're still: what the scenery cache holds
 function drawTableBase() {
   const sh = hole.shape;
@@ -644,7 +644,7 @@ function tag(x, y, text, bg, fg, size = 11, below = false) {
   ctx.fillStyle = fg; ctx.fillText(text, best.cx, best.cy + 0.5);
 }
 // Aiming: the line to the first thing the cue ball meets and a ghost ball where it touches, the object
-// ball's direction (long, then short, then none as the round goes on) and the cue ball's path for each spin.
+// ball's line (drawGuide) and, while you pull back or set spin, the cue ball's path after contact.
 let tunAimWant = false, tunAimFrom = 0;
 function drawAim(t) {
   tunAimWant = false;
@@ -660,8 +660,8 @@ function drawAim(t) {
 }
 // The guide (simplified 15 Nov 2026): straight lines only, the cue ball to the first thing it
 // meets and the object ball on from there. A line stops at a pocket's edge, and the pocket gets a slowly turning
-// white ring when your shot (your pace and spin, struck perfectly) really pots into it straight (simulated). Banks,
-// kicks and combinations aren't drawn. The golden pocket keeps its own gold glow. It never shows where the balls stop.
+// white ring when your shot (your spin, struck perfectly, at some pace) really drops the object ball into the pocket the
+// line goes into (simulated; the line may come off one cushion first). Kicks and combinations aren't drawn. The golden pocket keeps its own gold glow. It never shows where the balls stop.
 // the open pocket a ball's centre would drop into along (ux, uy) before travelling maxT (plus the pocket's reach)
 function pocketAlong(px, py, ux, uy, maxT) {
   let best = null;
@@ -726,7 +726,7 @@ function drawGuide(c, dx, dy, hit, t) {
   // kick or combination lines: the ring says when the shot really goes in (simulated), the rest is judgement.
   const ex = c.x + dx * hit.t, ey = c.y + dy * hit.t;
   // The ring, for a perfect strike with the spin you've set, played out in full (tilt and sand included): if the
-  // shot pots at some pace (GUIDE_PACES), the pocket it goes into at the pace nearest medium that pots is ringed. It doesn't depend on how hard you pull:
+  // followed ball drops at any pace (GUIDE_PACES), that pocket can light (see finishGuide). It doesn't depend on how hard you pull:
   // the guide shows where the shot goes, assuming the right pace; judging the pace is up to you.
   const sp = aim.spin;
   // Only pots of the ball the line follows (the first ball the cue ball meets) count. A second ball knocked in by

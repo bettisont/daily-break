@@ -12,7 +12,8 @@
 // always gets the newest rules. Each line: the first day it applies, and what changed.
 // Folded in and always on (their old branches are gone): par scoring and table shapes (12 Nov 2026), spread-out
 // racks (13 Nov), the short round with a feature on holes 3-6 and a golden pocket (14 Nov). Old ?seed= dates
-// before then open a par practice round under today's rules.
+// before then open a par practice round as a short round, with that date's RULES switches still applied
+// (e.g. ?seed=2026-11-12 still deals the gate and the old 1050 rattle speed).
 const RULES = {
   FORGIVE_FROM: '2026-11-16',   // forgiving pockets: a ball rattles out only above POT_MAX_FORGIVING (1700, was 1050)
   NO_GATE_FROM: '2026-11-16',   // the one-way gate leaves the feature deck: holes 3-6 get sand and the cat
@@ -137,11 +138,9 @@ const SHAPES = [
     POCKETS.map(p => [p.x, p.y, p.cap / R]), [[[215, 410], [285, 410], [315, 440], [315, 560], [285, 590], [215, 590], [185, 560], [185, 440]]]),
 ];
 const SHAPE_KEYS = ['classic', ...SHAPES.map(s => s.key)];
-let shapeOverride = null;   // the test build forces a shape here
 // The shape for hole i (0-based): classic for holes 1-2. From hole 3 the day's shapes are dealt like a shuffled
 // deck (classic included), so you see all seven before any repeats, never twice running.
 function shapeFor(seed, i) {
-  if (shapeOverride) return shapeOverride === 'classic' ? null : SHAPES.find(s => s.key === shapeOverride);
   if (i < 2) return null;
   const n = SHAPE_KEYS.length, c = Math.floor((i - 2) / n);
   const deck = c => shuffle(rngFor(`${seed}:shapes:${c}`), SHAPE_KEYS), cur = deck(c);
@@ -165,7 +164,6 @@ const goldHole = (seed, i) => i >= 1;
 const featureName = h => h.feature ? FEATURE_NAMES[h.feature] : '';
 const CAT_R = 30, CAT_E = 0.3;   // the cat on the felt: a big soft ball that soaks up most of a hit
 const BAR_T = 6, GATE_MAX = 1.45, GATE_BACK = 2.2;   // the gate's flap: half-thickness, how far it opens, how fast it swings shut
-let obstacleOverride = null;   // the test build forces a feature here
 // Tunnels (in the daily rotation from RULES.TUNNELS_FROM). Two openings built into facing cushions, joined under the table: a ball that rolls into one comes back in
 // through the other, heading the same way (it wraps round, like going off one side of an arcade screen and on at the
 // other), a little slower. They sit on the cushions, out of the way, as an optional route; placement always sets up
@@ -187,7 +185,6 @@ function tunRails(h) {
 }
 // The feature for hole i (0-based): none on holes 1-2, then the day's deck.
 function obstFor(seed, i) {
-  if (obstacleOverride) return obstacleOverride === 'none' ? null : obstacleOverride;
   if (i < 2) return null;
   const ks = featureKeys(seed), deck = shuffle(rngFor(`${seed}:feature`), ks);
   // the oval has no straight facing cushions for a tunnel, so an oval tunnel hole takes the next feature in the deck
@@ -219,7 +216,7 @@ function lieAt(hole, x, y) {
 // It's re-rolled (deterministically) until the opening shot really drops.
 const holeCache = new Map();
 function makeHole(seed, i) {
-  const key = `${seed}:${i}:${shapeOverride || ''}:${obstacleOverride || ''}`;
+  const key = `${seed}:${i}`;
   if (holeCache.has(key)) return holeCache.get(key);
   const n = ballsFor(seed, i), needFeature = !!obstFor(seed, i);
   const done = h => {

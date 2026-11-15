@@ -1,4 +1,4 @@
-# Publishes the game to the daily-break Worker (https://daily-break.<account>.workers.dev).
+# Publishes the game to the daily-break Worker, served at https://dailybreak.app.
 # Runs on pushes to main, or by hand from the Actions tab.
 # Needs the repository secret CLOUDFLARE_API_TOKEN ("Edit Cloudflare Workers" token).
 # Only deploys once the tests (test.yml) pass.

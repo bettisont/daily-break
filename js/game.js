@@ -224,7 +224,6 @@ function setSpot(y, quiet) {
   if (phase !== 'aim') return;
   aim.spotY = clamp(Math.abs(y) < 0.06 ? 0 : y, -0.5, 0.5); aim.spin = spinFor(aim.spotY);
   spinTouched = true;
-  if (aim.spotY) ls('dailybreak:usedSpin', '1');
   if (!quiet) { sfx.click(); buzz(5); }
   updateUI();
 }

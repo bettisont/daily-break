@@ -10,12 +10,12 @@
     { "pattern": "dailybreak.app", "custom_domain": true },
     { "pattern": "www.dailybreak.app", "custom_domain": true }
   ],
-  // anonymous ranked results (day, level, balls, points) for .github/workflows/results.yml
+  // anonymous ranked results (par days: day, 'par', score to par, strokes, points) for .github/workflows/results.yml
   "analytics_engine_datasets": [
     { "binding": "RESULTS", "dataset": "daily_break_results" },
     { "binding": "EVENTS", "dataset": "daily_break_events" }   // drop-off funnel steps
   ],
-  // per-day count of players at each level, for "better than X% of today's players"
+  // per-day count of players at each score to par (each level, on old lives days), for "better than X% of today's players"
   "durable_objects": { "bindings": [{ "name": "DAYS", "class_name": "DayCounts" }] },
   // per-IP caps on POST /api/result and /api/event, so a script can't stuff the tally or the datasets
   "ratelimits": [
