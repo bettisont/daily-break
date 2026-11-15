@@ -582,3 +582,7 @@ off one side of an arcade screen and on at the other). They're an optional route
   both openings as the hole starts.
 - Testing (20 courses × holes 3–6): 68 tunnel holes (the other 12 were oval and got sand or the cat), every hole had
   a real opening pot and was clearable, every tunnel shot pots in simulation; 1,020 random shots with nothing stuck.
+- Object ball through a tunnel (15 Nov, from playtest screenshots): the object ball's line (`objLine` in `drawGuide`)
+  now runs into a tunnel opening and carries on out of the far one (the far end glows), to a pocket or a short stub.
+  It also stops at a ringed pocket it passes even when the straight line only clips the pocket's mouth (on the
+  hourglass the line ran on through the ringed waist pocket to the far corner).

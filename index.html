@@ -3186,10 +3186,28 @@ function drawGuide(c, dx, dy, hit, t) {
     dash(sx + dx * off, sy + dy * off, gx, gy, 0.85);
     if (!h.ball) { ghost(gx, gy, 0.45); return; }
     ghost(gx, gy, 0.85);
-    const ball = h.ball, ux = (ball.x - gx) / (2 * R), uy = (ball.y - gy) / (2 * R);
-    const h2 = trace(table, ball.x, ball.y, ux, uy, ball), pk = pocketAlong(ball.x, ball.y, ux, uy, h2.t);
-    if (pk) { const e = toRim(ball.x, ball.y, ux, uy, pk); solid(ball.x + ux * (R + 3), ball.y + uy * (R + 3), ball.x + ux * e, ball.y + uy * e, 0.9, 0.9); }
-    else { const e = Math.min(h2.t, 150); solid(ball.x + ux * (R + 3), ball.y + uy * (R + 3), ball.x + ux * e, ball.y + uy * e, 0.85, 0); }
+    const ball = h.ball;
+    objLine(ball.x, ball.y, (ball.x - gx) / (2 * R), (ball.y - gy) / (2 * R), ball, R + 3, 0);
+  };
+  // The object ball's line from (px, py): to the pocket it drops into (a ringed pocket it passes counts, even where
+  // the straight line only clips the pocket's mouth), or into a tunnel and on out of the far end, or a short fading stub.
+  const objLine = (px, py, ux, uy, skip, from, depth) => {
+    const h = trace(table, px, py, ux, uy, skip);
+    let pk = null;
+    for (const i of guideSim.pks) {
+      const p = table.pk[i], sAt = (p.x - px) * ux + (p.y - py) * uy, perp = Math.abs((p.x - px) * uy - (p.y - py) * ux);
+      if (sAt > 0 && perp < p.cap + R && sAt <= h.t + p.cap + R && (!pk || sAt < pk.s)) pk = { i, s: sAt };
+    }
+    pk = pk || pocketAlong(px, py, ux, uy, h.t);
+    if (pk) { const e = toRim(px, py, ux, uy, pk); solid(px + ux * from, py + uy * from, px + ux * e, py + uy * e, 0.9, 0.9); return; }
+    if (h.tunnel != null && depth < 1 && isFinite(h.t)) {
+      solid(px + ux * from, py + uy * from, px + ux * h.t, py + uy * h.t, 0.9, 0.9);
+      tunAimWant = true; tunAimFrom = h.tunnel;
+      const o = tunExit(tunMouths(hole)[1 - h.tunnel]);
+      objLine(o.x, o.y, ux, uy, skip, 0, depth + 1);
+      return;
+    }
+    const e = Math.min(h.t, 150); solid(px + ux * from, py + uy * from, px + ux * e, py + uy * e, 0.85, 0);
   };
   if (hit.tunnel != null) {
     // into a tunnel: the line stops at the mouth, the far end glows, and the line carries on out of it on the same
