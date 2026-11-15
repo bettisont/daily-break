@@ -1,0 +1,18 @@
+# Runs the tests (npm test): the worker's API, every daily course against tests/layouts.json, the aim guide and a
+# first-visit smoke test in headless Chromium. On every pull request, and before every deploy (deploy.yml calls it).
+name: Test
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
