@@ -319,7 +319,7 @@ const pocketsOf = h => h.shape ? h.shape.pockets : POCKETS;
 // edge), a windmill (two crossed bars that turn while balls are rolling) or a one-way gate (a hinged flap
 // that swings open from one side and is solid from the other). All of it runs in the deterministic physics.
 const OBSTACLES_ON = false, OBST_KEYS = ['none', 'water', 'windmill', 'gate'];
-const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way gate', sand: 'Sand bunker', cat: 'The cat' };
+const OBST_NAMES = { water: 'Water hazard', windmill: 'Windmill', gate: 'One-way gate', sand: 'Sand bunker', cat: 'The cat', tunnel: 'Tunnel' };
 // Shorter round (test; SHORT_ON is off in the live game, the test build turns it on): at most SHORT_MAX balls a
 // table, and holes 3-6 each get one feature, dealt for the day from a gate, a sand bunker and the cat (so one
 // comes up twice), each placed where it gets in the way of the good pots (placeFeature). No water or windmill.
@@ -334,8 +334,15 @@ const featureName = h => h.obst ? OBST_NAMES[h.obst.type] : h.feature ? OBST_NAM
 const CAT_R = 30, CAT_E = 0.3;   // the cat on the felt: a big soft ball that soaks up most of a hit
 const BAR_T = 6, WM_W = 1.5, GATE_MAX = 1.45, GATE_BACK = 2.2;
 let obstacleOverride = null;   // the test build forces an obstacle here
+// Tunnels (test: only with ?tunnels in the address, which starts a practice course where holes 3-6 each have
+// one). A pair of holes in the felt joined underneath: a ball that rolls into one mouth travels underground and
+// comes out of the other at the same heading, a little slower. Placement always sets up a real tunnel shot.
+const TUNNEL_TEST = (() => { try { return new URLSearchParams(location.search).has('tunnels'); } catch { return false; } })();
+const TUN_R = R * 1.5, TUN_KEEP = 0.92, TUN_SPEED = 900;   // capture radius (ball centre), pace kept, underground speed
+const tunMouths = h => h.tunnel ? [h.tunnel.a, h.tunnel.b] : [];
 function obstFor(seed, i) {
   if (obstacleOverride) return obstacleOverride === 'none' ? null : obstacleOverride;
+  if (TUNNEL_TEST && shortSeed(seed)) return i < 2 ? null : 'tunnel';
   if (shortSeed(seed)) return i < 2 ? null : shuffle(rngFor(`${seed}:feature`), FEATURE_KEYS)[(i - 2) % FEATURE_KEYS.length];
   if (!OBSTACLES_ON || i < 2 || !parSeed(seed)) return null;
   const n = OBST_KEYS.length, c = Math.floor((i - 2) / n), deck = shuffle(rngFor(`${seed}:obst:${c}`), OBST_KEYS);
@@ -508,6 +515,35 @@ function placeFeature(h, kind, rr) {
   const blockedBy = extra => { const t2 = new Table({ ...h, ...extra }); return good.map(l => { const m = potLine(t2, l.bi, l.pocket); return !m || m.blocked; }); };
   const crossesSand = (p, [ax, ay, bx, by]) => { for (let u = 0.05; u <= 0.95; u += 0.05) if (inPatch(p, ax + (bx - ax) * u, ay + (by - ay) * u)) return true; return false; };
   let best = null;
+  // Tunnels: for each pot, the exit goes on the line back from its ghost ball along some heading (up to ~43° off
+  // the pot's line), and the entrance on the cue ball's line along that same heading, so going in the entrance is
+  // a real pot out of the exit. Among those, the entrance that gets in the way of the most good pots wins.
+  const tcands = [], TCLR = TUN_R + 2 * R;
+  const tunnelSearch = () => t.balls.forEach((ball, bi) => { for (let pk = 0; pk < 6; pk++) {
+    if (!t.openPocket(pk)) continue;
+    const P = pocketAim(pk, h), d2 = Math.hypot(P.x - ball.x, P.y - ball.y);
+    if (d2 < 60) continue;
+    const va = Math.atan2(P.y - ball.y, P.x - ball.x), gx = ball.x - Math.cos(va) * 2 * R, gy = ball.y - Math.sin(va) * 2 * R;
+    for (const du of [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75]) {
+      const ang = va + du, ux = Math.cos(ang), uy = Math.sin(ang);
+      for (const ad of [130, 190, 250, 320]) {
+        const x = c.x + ux * ad, y = c.y + uy * ad;
+        if (!clear(x, y, TCLR) || pathBlocked(t, c.x, c.y, x, y)) continue;
+        for (const d of [160, 230, 310, 400]) {
+          const bx = gx - ux * d, by = gy - uy * d;
+          if (Math.hypot(bx - x, by - y) < 220 || !clear(bx, by, TCLR)) continue;
+          const extra = { tunnel: { a: { x, y }, b: { x: bx, y: by } }, feature: 'tunnel' }, t2 = new Table({ ...h, ...extra });
+          if (pathBlocked(t2, c.x, c.y, x - ux * (TUN_R + R), y - uy * (TUN_R + R)) ||
+            pathBlocked(t2, bx + ux * (TUN_R + 2), by + uy * (TUN_R + 2), gx, gy, t2.balls[bi]) || pathBlocked(t2, ball.x, ball.y, P.x, P.y, t2.balls[bi])) continue;
+          const hits = blockedBy(extra);
+          if (hits.every(Boolean)) continue;
+          const score = good.reduce((a, l, k) => a + (hits[k] ? l.q : 0), 0) + Math.cos(du) * 0.2 + rr() * 0.001;
+          tcands.push({ extra, score, angle: ang, ball: bi });
+        }
+      }
+    }
+  } });
+  if (kind === 'tunnel') tunnelSearch();
   const consider = (extra, hits) => {
     const score = good.reduce((a, l, k) => a + (hits[k] ? l.q : 0), 0) + rr() * 0.001;
     if (score > 0.001 && (!best || score > best.score)) best = { extra, score };
@@ -542,6 +578,16 @@ function placeFeature(h, kind, rr) {
       }
     }
   }
+  if (kind === 'tunnel') {
+    // the tunnel shot must really work: hit the entrance and the ball drops, without scratching
+    tcands.sort((a, b) => b.score - a.score);
+    for (const cd of tcands.slice(0, 8)) {
+      const t2 = new Table({ ...h, ...cd.extra });
+      const ok = [0.45, 0.6, 0.75].some(pw => { const s = simulate(t2, cd.angle, pw, 0), b = s.balls[cd.ball]; return !s.shot.scratch && s.shot.tunnels > 0 && s.shot.firstHit === b && s.shot.pots.some(p => p.ball === b); });
+      if (ok) { Object.assign(h, cd.extra, { tunnelShot: { angle: cd.angle, ball: cd.ball } }); return; }
+    }
+    return;
+  }
   if (best) Object.assign(h, best.extra);
 }
 
@@ -559,7 +605,7 @@ class Table {
   }
   openPocket(i) { return !this.hole.closed.includes(i); }
   live() { return [this.cue, ...this.balls].filter(b => !b.potted); }
-  moving() { return this.live().some(b => b.vx || b.vy); }
+  moving() { return this.live().some(b => b.vx || b.vy || b.uN); }
   remaining() { return this.balls.filter(b => !b.potted).length; }
 
   shoot(angle, power, spin = 0) {
@@ -567,11 +613,18 @@ class Table {
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
     for (const b of this.balls) { b.cush = 0; b.wallPts = []; }
     this.cue.cush = 0; this.cue.wallPts = [];
-    this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false, splashes: 0 };
+    this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false, splashes: 0, tunnels: 0 };
   }
 
   step() {
-    const live = this.live(), tl = this.hole.tilt, s = this.shot;
+    const tl = this.hole.tilt, s = this.shot, mouths = tunMouths(this.hole);
+    // a ball in the tunnel: underground until it comes out of the other mouth, heading the same way
+    if (mouths.length) for (const b of this.live()) if (b.uN && --b.uN === 0) {
+      const m = mouths[b.uTo], sp = Math.hypot(b.uVx, b.uVy) || 1;
+      b.x = m.x + b.uVx / sp * (TUN_R + 2); b.y = m.y + b.uVy / sp * (TUN_R + 2); b.vx = b.uVx; b.vy = b.uVy;
+      this.ev('tunnelOut', { x: m.x, y: m.y, ball: b, speed: sp });
+    }
+    const live = mouths.length ? this.live().filter(b => !b.uN) : this.live();
     for (const b of live) {
       if (b.vx || b.vy) { b.vx += tl.x * DT; b.vy += tl.y * DT; }
       b.x += b.vx * DT; b.y += b.vy * DT;
@@ -641,6 +694,20 @@ class Table {
           if (-vn > 40) this.ev(o.cat ? 'cat' : 'bumper', { o, speed: -vn });
         }
       }
+      let under = false;
+      for (let k = 0; k < mouths.length && !under; k++) {
+        const m = mouths[k];
+        if (Math.hypot(b.x - m.x, b.y - m.y) >= TUN_R) continue;
+        // down the tunnel: it travels underground at a steady pace and keeps most of its own
+        const o = mouths[1 - k], sp = Math.hypot(b.vx, b.vy);
+        b.uVx = b.vx * TUN_KEEP; b.uVy = b.vy * TUN_KEEP; b.uTo = 1 - k;
+        b.uN = b.uN0 = Math.max(1, Math.round(clamp(Math.hypot(o.x - m.x, o.y - m.y) / TUN_SPEED, 0.2, 0.6) / DT));
+        b.x = m.x; b.y = m.y; b.vx = b.vy = 0; b.tunN = (b.tunN || 0) + 1;
+        if (s) s.tunnels++;
+        this.ev('tunnelIn', { x: m.x, y: m.y, ball: b, speed: sp });
+        under = true;
+      }
+      if (under) continue;
       let potted = false;
       for (let i = 0; i < 6 && !potted; i++) {
         if (!this.openPocket(i)) continue;
@@ -741,6 +808,7 @@ class Table {
       this.live().every(o => o === b || Math.hypot(o.x - px, o.y - py) > 2 * R + 2) &&
       this.bumps.every(o => Math.hypot(o.x - px, o.y - py) > o.r + R + 2) &&
       this.pk.every(p => Math.hypot(p.x - px, p.y - py) > p.cap + 4) &&
+      tunMouths(this.hole).every(m => Math.hypot(m.x - px, m.y - py) > TUN_R + R + 4) &&
       (!this.hole.obst || (this.hole.obst.type === 'water' ? !inPond(this.hole.obst, px, py, R + 2) : obstBars(this).every(([ax, ay, bx, by]) => segDist(px, py, ax, ay, bx, by) > R + BAR_T + 2)));
     for (let rad = 0; rad < 600; rad += 4) {
       for (let a = 0; a < TAU; a += 0.3) {
@@ -773,6 +841,8 @@ function pathBlocked(t, ax, ay, bx, by, skip) {
     if (ob.type === 'water') { const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 10); for (let k = 0; k <= n; k++) if (inPond(ob, ax + (bx - ax) * k / n, ay + (by - ay) * k / n, R * 0.5)) return true; }
     else if (obstBars(t).some(([cx, cy, dx, dy]) => segSeg(ax, ay, bx, by, cx, cy, dx, dy) < R + BAR_T)) return true;
   }
+  // a tunnel mouth swallows a ball whose centre passes over it
+  if (t.hole.tunnel && tunMouths(t.hole).some(m => segDist(m.x, m.y, ax, ay, bx, by) < TUN_R)) return true;
   return t.balls.some(b => !b.potted && b !== skip && segDist(b.x, b.y, ax, ay, bx, by) < 2 * R - 0.5) ||
     t.bumps.some(o => segDist(o.x, o.y, ax, ay, bx, by) < o.r + R) ||
     // shaped tables: corners sticking into the felt, and islands, get in the way
@@ -828,6 +898,7 @@ function trace(t, px, py, dx, dy, skip = null) {
   let best = { t: Infinity };
   for (const b of t.balls) { if (b.potted || b === skip) continue; const s = ray(b.x, b.y, 2 * R); if (s < best.t) best = { t: s, ball: b }; }
   for (const o of t.bumps) { const s = ray(o.x, o.y, o.r + R); if (s < best.t) best = { t: s, bumper: o }; }
+  tunMouths(t.hole).forEach((m, k) => { const s = ray(m.x, m.y, TUN_R); if (s < best.t) best = { t: s, tunnel: k }; });
   for (const [ax, ay, bx, by, solid] of obstBars(t)) { const s = rayBar(px, py, dx, dy, ax, ay, bx, by, BAR_T, solid); if (s < best.t) best = { t: s, wall: true }; }
   if (t.hole.shape) {
     for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true, nx: g.nx, ny: g.ny }; }
@@ -1041,6 +1112,12 @@ const sfx = {
   // water: a plop and a splash; the gate: a woody creak and clack
   splash() { tone(260, 0.18, 0.18, 'sine', 0.45, 0, 0.2); noise(0.35, 0.3, 1400, 'bandpass', 0.02, 0.8); noise(0.5, 0.15, 600, 'lowpass', 0.1); },
   gate(v) { v = Math.min(1, v / 1500); noise(0.08, 0.25 * v + 0.05, 700, 'bandpass', 0, 3); tone(330, 0.06, 0.06 * v + 0.02, 'triangle', 0.7, 0.03, 0.05); },
+  // a tunnel: a hollow drop going in, a pop coming out
+  tunnel(into, v) {
+    v = clamp(v / 1500, 0.2, 1);
+    if (into) { tone(200, 0.3, 0.14 * v + 0.04, 'sine', 0.45, 0, 0.5); noise(0.25, 0.12 * v, 400, 'lowpass', 0.02); }
+    else { tone(150, 0.18, 0.12 * v + 0.04, 'sine', 2.2, 0, 0.4); tone(700, 0.05, 0.04, 'triangle', 1.3, 0.02, 0.3); }
+  },
   rattle() { for (let k = 0; k < 4; k++) tone(700 - k * 90, 0.04, 0.09, 'triangle', 0.8, k * 0.05, 0.1); noise(0.12, 0.2, 900, 'bandpass', 0, 2); },
   strike(p) { noise(0.02, 0.3 + 0.4 * p, 2400, 'bandpass', 0, 1); tone(820, 0.035, 0.08 + 0.1 * p, 'triangle', 1, 0, 0); },
   bumper() { tone(523, 0.25, 0.1, 'sine', 1.5, 0, 0.4); tone(784, 0.25, 0.06, 'sine', 1.5, 0.03, 0.4); },
@@ -1096,6 +1173,13 @@ function onEvent(type, e) {
     float(e.x, e.y - 34, 'Splash!', '#3b6ea6', 20);
   }
   else if (type === 'gate') atX(e.x, () => sfx.gate(e.speed));
+  else if (type === 'tunnelIn' || type === 'tunnelOut') {
+    const into = type === 'tunnelIn', m = tunMouths(hole).find(q => Math.hypot(q.x - e.x, q.y - e.y) < 1);
+    if (m) m.flash = 1;
+    atX(e.x, () => sfx.tunnel(into, e.speed)); buzz(into ? 12 : [6, 20, 6]);
+    ring(e.x, e.y, '255,214,140', into ? 26 : 44, 0.5, TUN_R);
+    if (!into) for (let k = 0; k < 8; k++) { const a = Math.random() * TAU, v = 40 + Math.random() * 60; fx.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.4 + Math.random() * 0.2, color: 'rgba(205,140,100,.8)', r: 1.5 + Math.random() * 1.5 }); }
+  }
   else if (type === 'rattle') { sfx.rattle(); float(e.x, e.y - 30, 'Rattled out', '#b8553f', 18); fx.shake = 4; }
   else if (type === 'pot') {
     const p = table.pk[e.pocket], b = e.ball, tx = clamp(p.x, 0, W), ty = clamp(p.y, 0, H);
@@ -1154,6 +1238,8 @@ function startHole(i) {
   const n = hole.balls.length;
   banner = { title: `Level ${i + 1}`, sub: `${i === 0 ? courseName(round.seed) + ' · ' : ''}${hole.shape ? `${hole.shape.name} table · ` : ''}${n} ball${n === 1 ? '' : 's'} · ${hearts(round.lives)}`, life: hole.shape ? 1.9 : 1.5, max: hole.shape ? 1.9 : 1.5 };
   if (isPar()) Object.assign(banner, { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${hole.gold != null ? 'golden pocket · ' : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life: featureName(hole) ? 2.3 : banner.life, max: featureName(hole) ? 2.3 : banner.max });
+  // a tunnel hole: say which end is which, once it has had a moment on screen
+  if (hole.tunnel) { const h = hole, { a, b } = h.tunnel; setTimeout(() => { if (hole !== h || phase !== 'aim') return; float(a.x, a.y - 42, 'In here…', '#8a4a2c', 18, 2.6); float(b.x, b.y - 42, '…out here', '#8a4a2c', 18, 2.6); }, 1900); }
   // level 2 tip, until the player has tapped a ball once
   saveRun();
   // level 3 tip, until the player has used spin: the spin ball pulses and the table says what it does
@@ -1426,6 +1512,7 @@ function drawReplay(dt) {
       }
       return;
     }
+    if (isNaN(a[o]) || isNaN(b[o])) return;   // in a tunnel
     pb.x = lerp(a[o], b[o], u); pb.y = lerp(a[o + 1], b[o + 1], u);
     updateSpin(pb, dt);
     drawBall(pb, pb.x, pb.y);
@@ -1492,6 +1579,7 @@ function trickKinds(s) {
   if (s.kick) k.push('Kick');
   if (s.pots.some(p => (p.ball.cush || 0) > 0)) k.push('Bank');
   if (s.pots.length === 1 && s.pots[0].ball !== s.firstHit) k.push('Combo');
+  if (s.tunnels) k.push('Tunnel');
   return k;
 }
 function resolveParShot() {
@@ -1998,7 +2086,7 @@ function showHelp() {
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
       <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
       <p>⛰️ From level 3, tilt, worn <b>rough</b> felt, <b>slick</b> felt and bumpers start to appear.</p>
-      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p><p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. ${TRICK_STARS ? '<b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first).' : 'Trick shots (two in one, a bank, a combination or a kick) get an instant replay.'}</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
+      ${shortSeed(round?.seed) ? `<p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${TUNNEL_TEST ? '<p>🕳️ Tunnel test: holes 3 to 6 each have a <b>tunnel</b>, two brick-rimmed holes joined underneath. A ball that rolls into one comes out of the other heading the same way, a little slower. There is always a pot through it: the aim line follows it.</p>' : ''}<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. ${TRICK_STARS ? '<b>Trick shots</b> earn ⭐: two balls in one shot, a bank (off a cushion), a combination (one ball knocks in another) or a kick (the cue ball off a cushion first).' : 'Trick shots (two in one, a bank, a combination or a kick) get an instant replay.'}</p>` : `<p${OBSTACLES_ON ? '' : ' hidden'}>💧 Some holes have an obstacle: a <b>water hazard</b> (a ball that rolls in costs a stroke and comes back out at the edge), a <b>windmill</b> that turns while the balls roll, or a <b>one-way gate</b>: it swings open for a ball going the way its arrows point, and is solid the other way.</p>`}
       <p>🔷 From level 3 the <b>table changes shape</b> from level to level: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same levels each day. One ranked run per day, plus up to 3 practice runs (today's levels again, or a random table).</p>
@@ -2631,6 +2719,42 @@ function drawObstacle(o, t) {
   }
 }
 
+// A tunnel: two brick-rimmed holes in the felt with the pipe faintly marked between them. A ball underground shows
+// as a glow travelling along the pipe; each mouth flashes as a ball goes in or comes out.
+function drawTunnel(tn, t, dt) {
+  const [A, B] = [tn.a, tn.b];
+  ctx.save();
+  ctx.setLineDash([3, 9]); ctx.lineDashOffset = -t * 10; ctx.strokeStyle = 'rgba(40,30,20,.22)'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke(); ctx.setLineDash([]);
+  for (const m of [A, B]) {
+    m.flash = Math.max(0, (m.flash || 0) - dt * 2.5);
+    const rr = TUN_R + 3;
+    ctx.drawImage(SOFT_SHADOW, m.x - rr * 1.5, m.y - rr * 1.5 + 3, rr * 3, rr * 3);
+    // the brick rim
+    ctx.fillStyle = '#b5603e'; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 7, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(70,30,15,.55)'; ctx.lineWidth = 1.5;
+    for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; ctx.beginPath(); ctx.moveTo(m.x + Math.cos(a) * rr, m.y + Math.sin(a) * rr); ctx.lineTo(m.x + Math.cos(a) * (rr + 7), m.y + Math.sin(a) * (rr + 7)); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(255,215,180,.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 6, Math.PI * 1.1, Math.PI * 1.75); ctx.stroke();
+    // the hole, dark and deep
+    const g = ctx.createRadialGradient(m.x, m.y - 3, 2, m.x, m.y, rr);
+    g.addColorStop(0, '#050302'); g.addColorStop(0.75, '#1d120b'); g.addColorStop(1, '#3a2416');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(m.x, m.y, rr, 0, TAU); ctx.fill();
+    if (m.flash > 0) { ctx.strokeStyle = `rgba(255,214,140,${m.flash})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, m.y, rr + 9 + (1 - m.flash) * 12, 0, TAU); ctx.stroke(); }
+  }
+  // the matching mark on each rim, so the pair reads as one tunnel
+  for (const [m, o] of [[A, B], [B, A]]) {
+    const a = Math.atan2(o.y - m.y, o.x - m.x), x = m.x + Math.cos(a) * (TUN_R + 6.5), y = m.y + Math.sin(a) * (TUN_R + 6.5);
+    ctx.fillStyle = '#f3d9a8'; ctx.beginPath(); ctx.arc(x, y, 3.2, 0, TAU); ctx.fill();
+  }
+  for (const b of table.live()) if (b.uN) {
+    const from = b.uTo ? A : B, to = b.uTo ? B : A, k = 1 - b.uN / (b.uN0 || 1), x = lerp(from.x, to.x, k), y = lerp(from.y, to.y, k);
+    const gl = ctx.createRadialGradient(x, y, 0, x, y, 22);
+    gl.addColorStop(0, b.isCue ? 'rgba(255,252,240,.7)' : 'rgba(255,214,140,.7)'); gl.addColorStop(1, 'rgba(255,214,140,0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, 22, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
 /* ----- the table ----- */
 
 const polyPath = (pts, move = true) => { pts.forEach(([x, y], k) => k || !move ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
@@ -2756,6 +2880,7 @@ function drawTable(t, dt) {
     }
   });
   if (hole.obst) drawObstacle(hole.obst, t);
+  if (hole.tunnel) drawTunnel(hole.tunnel, t, dt);
   for (const o of hole.bumpers) {
     o.flash = Math.max(0, (o.flash || 0) - dt * 3);
     ctx.drawImage(SOFT_SHADOW, o.x - o.r * 1.3 + 3, o.y - o.r * 1.3 + 6, o.r * 2.6, o.r * 2.6);
@@ -2784,10 +2909,13 @@ const spinKind = s => s > 0.2 ? 0 : s < -0.2 ? 2 : 1;
 const PATH_STEPS = 120;
 function cuePath(angle, pw, spin) {
   const s = cloneTable(table); s.shoot(angle, pw, spin);
-  const pts = []; let hitAt = -1;
+  const pts = []; let hitAt = -1, lx = s.cue.x, ly = s.cue.y;
   for (let n = 0; n < 9000 && s.moving(); n++) {
     s.step();
     if (s.cue.potted) break;
+    const jump = Math.hypot(s.cue.x - lx, s.cue.y - ly) > TUN_R * 2; lx = s.cue.x; ly = s.cue.y;
+    if (s.cue.uN) continue;
+    if (jump && hitAt >= 0) pts.push(gapPt(s.cue.x, s.cue.y));
     if (hitAt < 0 && s.shot.firstHit) { hitAt = n; pts.push([s.cue.x, s.cue.y]); }
     else if (hitAt >= 0) { if (n % 3 === 0) pts.push([s.cue.x, s.cue.y]); if (n - hitAt >= PATH_STEPS) break; }
   }
@@ -2831,6 +2959,7 @@ function drawSpinPaths() {
   const n = p.pts.length, rgb = showing ? '226,177,60' : '251,248,240';
   for (let k = 1; k < n; k++) {
     ctx.strokeStyle = `rgba(${rgb},${0.95 * (1 - k / n) + 0.05})`; ctx.lineWidth = showing ? 6 : 4;
+    if (p.pts[k].gap) continue;
     ctx.beginPath(); ctx.moveTo(p.pts[k - 1][0], p.pts[k - 1][1]); ctx.lineTo(p.pts[k][0], p.pts[k][1]); ctx.stroke();
   }
   if (p.scratch) {
@@ -2933,6 +3062,8 @@ const GUIDE_OBJ_LEN = 5000;   // the object ball's simulated line runs to its se
 const GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];   // the guide follows a ball off at most this many cushions; beyond that it's up to you
 // The first ball the cue ball hits, as it really travels after contact (same pace, no spin), up to 1400 units, until
 // it drops (and which pocket) or stops: drawn when its straight line would meet a cushion before a pocket.
+// a path point where the line jumps (the ball came out of a tunnel): move there without drawing
+const gapPt = (x, y) => Object.assign([x, y], { gap: true });
 function objectSimPath(pw, maxLen = 1400, sp = 0) {
   const s = cloneTable(table); s.shoot(aim.angle, pw, sp);
   for (let n = 0; n < 6000 && s.moving() && !s.shot.firstHit; n++) s.step();
@@ -2941,11 +3072,13 @@ function objectSimPath(pw, maxLen = 1400, sp = 0) {
   // play it right out, noting where it came off its second cushion; then if it drops (a pot the guide shows) the
   // whole path is drawn, and if not it's cut there (a ball that rattles out of the jaws and back in still drops)
   const pts = [[fb.x, fb.y]];
-  let len = 0, lx = fb.x, ly = fb.y, cut = null;
+  let len = 0, lx = fb.x, ly = fb.y, cut = null, tn = fb.tunN || 0;
   for (let n = 0; n < 20000 && s.moving() && !fb.potted && len < maxLen; n++) {
     s.step();
     if (fb.potted) break;
-    len += Math.hypot(fb.x - lx, fb.y - ly); lx = fb.x; ly = fb.y;
+    if (fb.uN) { if ((fb.tunN || 0) !== tn) { tn = fb.tunN; pts.push([fb.x, fb.y]); } lx = fb.x; ly = fb.y; continue; }
+    if (lx !== fb.x && Math.hypot(fb.x - lx, fb.y - ly) > TUN_R * 2) pts.push(gapPt(fb.x, fb.y));   // out of a tunnel
+    len += Math.hypot(fb.x - lx, fb.y - ly) > TUN_R * 2 ? 0 : Math.hypot(fb.x - lx, fb.y - ly); lx = fb.x; ly = fb.y;
     if (n % 3 === 0) pts.push([fb.x, fb.y]);
     if (cut == null && rollingWalls(s, fb) > GUIDE_CUSH) { pts.push([fb.x, fb.y]); cut = pts.length; }
   }
@@ -2959,10 +3092,13 @@ function objectSimPath(pw, maxLen = 1400, sp = 0) {
 function kickPath(pw, sp = 0) {
   const s = cloneTable(table); s.shoot(aim.angle, pw, sp);
   const c = s.cue, pts = [[c.x, c.y]];
-  let len = 0, lx = c.x, ly = c.y;
+  let len = 0, lx = c.x, ly = c.y, tn = 0;
   for (let n = 0; n < 6000 && s.moving(); n++) {
     s.step();
-    len += Math.hypot(c.x - lx, c.y - ly); lx = c.x; ly = c.y;
+    if (c.uN) { if ((c.tunN || 0) !== tn) { tn = c.tunN; pts.push([c.x, c.y]); } lx = c.x; ly = c.y; continue; }
+    const jump = Math.hypot(c.x - lx, c.y - ly) > TUN_R * 2;
+    if (jump) pts.push(gapPt(c.x, c.y)); else len += Math.hypot(c.x - lx, c.y - ly);
+    lx = c.x; ly = c.y;
     if (n % 3 === 0) pts.push([c.x, c.y]);
     if (s.shot.firstHit) return { pts: [...pts, [c.x, c.y]], ball: table.balls[s.balls.indexOf(s.shot.firstHit)], x: c.x, y: c.y };
     if (c.potted || len > 1800 || rollingWalls(s, c) > GUIDE_CUSH) break;
@@ -3020,6 +3156,7 @@ function drawGuide(c, dx, dy, hit, t) {
         ctx.save(); ctx.lineWidth = 3; ctx.lineCap = 'round';
         for (let n = 1; n < all.length; n++) {
           ctx.strokeStyle = `rgba(251,248,240,${0.85 * (fade && n > tail ? 1 - 0.85 * (n - tail) / (all.length - tail) : 1)})`;
+          if (all[n].gap) continue;
           ctx.beginPath(); ctx.moveTo(all[n - 1][0], all[n - 1][1]); ctx.lineTo(all[n][0], all[n][1]); ctx.stroke();
         }
         ctx.restore();
@@ -3078,7 +3215,7 @@ function drawGuide(c, dx, dy, hit, t) {
   if (!k) return;
   ctx.save(); ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(251,248,240,.8)'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
   ctx.beginPath();
-  k.pts.forEach(([x, y], n) => { if (!n) ctx.moveTo(x + dx * R, y + dy * R); else ctx.lineTo(x, y); });
+  k.pts.forEach((p, n) => { const [x, y] = p; if (!n) ctx.moveTo(x + dx * R, y + dy * R); else if (p.gap) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
   ctx.stroke(); ctx.restore();
   if (k.ball) { ghost(k.x, k.y, 0.75); objectPath(k.ball, k.x, k.y); }
   else { const [x, y] = k.pts[k.pts.length - 1]; ghost(x, y, 0.4); }
@@ -3325,8 +3462,8 @@ function draw(t, dt) {
   fx.sinks = fx.sinks.filter(sk => sk.t < 1);
   if (phase === 'replay') drawReplay(dt);
   else {
-    for (const b of table.balls) if (!b.potted) drawBall(b, b.x, b.y);
-    if (!table.cue.potted) drawBall(table.cue, table.cue.x, table.cue.y);
+    for (const b of table.balls) if (!b.potted && !b.uN) drawBall(b, b.x, b.y);
+    if (!table.cue.potted && !table.cue.uN) drawBall(table.cue, table.cue.x, table.cue.y);
   }
   // the cue drives on through where the cue ball was, then eases back and fades
   if (follow && follow.t < 0.5) {
@@ -3534,7 +3671,7 @@ function frame(now) {
     else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; shotSteps++; } }
     const c = table.cue, last = curTrail?.pts[curTrail.pts.length - 1];
     if (curTrail && !c.potted && last && Math.hypot(c.x - last[0], c.y - last[1]) > 14) curTrail.pts.push([c.x, c.y]);
-    if (shotRec && shotRec.length < 3000) shotRec.push([shotSteps * DT, c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.x, b.y, b.potted ? 1 : 0])]);
+    if (shotRec && shotRec.length < 3000) shotRec.push([shotSteps * DT, c.uN ? NaN : c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.uN ? NaN : b.x, b.y, b.potted ? 1 : 0])]);
     if (!table.moving() && !(cine && cine.hold > 0)) resolveShot();
   }
   if (rollGain) {
@@ -3566,7 +3703,8 @@ resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
 const firstVisit = !ls('dailybreak:seenHelp');
-if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
+if (TUNNEL_TEST) newRound(seedParam || 'tunnels-' + Math.random().toString(36).slice(2, 7), false);
+else if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
 // the first time the page is hidden before today's first shot: how long they'd been here and on which screen
 // (some come back and play later; this is one event per device per day)
 document.addEventListener('visibilitychange', () => {

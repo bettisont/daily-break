@@ -503,3 +503,31 @@ round straight away. Players already on 15 Nov in time zones ahead of UTC when t
 tables change mid-round (a resumed run whose ball count no longer matches starts the hole fresh).
 Checked before merging: 15–28 Nov all generate (84 holes, every feature placed, opener and clearable, golden pocket
 from hole 2, 10 ms average, 108 ms worst); full rounds of 15 and 16 Nov play through with no errors.
+
+## Tunnels (test, 15 Nov 2026; only with `?tunnels` in the address)
+
+The first of the "more mini-golf" features. Open `index.html?tunnels` (or `https://dailybreak.app/?tunnels` once
+merged): it starts a practice course on a random seed (add `&seed=x` to pick one; it doesn't use up a practice) where
+holes 3–6 each have a tunnel instead of the gate, sand or cat. Without the parameter nothing changes: the daily
+holes for 14–28 Nov were checked identical to the build before (90 holes).
+
+- A tunnel (`h.tunnel = { a, b }`, `TUN_R` = 1.5 R capture radius, `tunMouths`) is two brick-rimmed holes joined
+  underneath. A ball whose centre comes within `TUN_R` of a mouth goes underground (`b.uN` steps, at
+  `TUN_SPEED` 900/s, 0.2–0.6 s; `b.uVx/uVy/uTo`), hidden, with a glow running along the dashed pipe, then comes out
+  of the other mouth just past its rim on the same heading at `TUN_KEEP` (92%) of its pace. Both ways work.
+  `Table.moving` counts balls underground; they skip collisions while under. `shot.tunnels` counts trips.
+- Placement (`placeFeature` → `tunnelSearch`): for every pot, the exit goes on the line back from its ghost ball
+  along a heading up to 0.75 rad off the pot's line, and the entrance on the cue ball's line along that same
+  heading, so aiming into the entrance pots that ball out of the exit. Candidates must have clear paths, and
+  the entrance must leave at least one ordinary pot open; the one blocking the most good pots wins, and it's
+  kept only if the tunnel shot really pots in simulation (`h.tunnelShot`).
+- Guide: `trace` stops at a mouth, so the generous guide hands over to its simulated paths, which now break the
+  line where a ball jumps between mouths (`gapPt`); the pocket ring works through the tunnel. `pathBlocked`
+  counts a line over a mouth as blocked. `respot` keeps clear of mouths. Replays hide a ball while it's under.
+- A pot on a shot that used the tunnel is a "Tunnel" trick shot (instant replay). Sounds: a hollow drop going in,
+  a pop coming out. On a tunnel hole, "In here…" / "…out here" labels show for a moment at the start.
+- Testing (20 practice seeds × holes 3–6): every hole got a tunnel, a real opening pot, was clearable, and its
+  tunnel shot pots; generation 22 ms on average, 184 ms at worst. 1,200 random shots (388 through a tunnel): no
+  ball left underground, inside a mouth, off the table or NaN.
+- To put tunnels in the daily game: add `'tunnel'` to `FEATURE_KEYS` (with a new `SHORT_FROM`-style date so earlier
+  days don't change).
