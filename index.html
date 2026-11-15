@@ -1004,6 +1004,85 @@ function simulate(t, angle, power, spin = 0, path = null) {
   if (path && !s.cue.potted) path.push([s.cue.x, s.cue.y]);
   return s;
 }
+// The guide's question about one pace, answered as simulate() would but stopping as soon as the answer can't change:
+// the pockets the first ball the cue ball meets drops into, off at most `cush` cushions (guideWalls), with the cue ball
+// off at most `kick` before it and no scratch. (simulate() itself is untouched: the generator's holes depend on it.)
+// Every exit is exact. Scratches, the cue ball's cushions before contact and the followed ball's cushions only ever
+// grow, and a potted ball stays potted. To know a ball will never drop (the followed ball, or the cue ball once the
+// followed ball is in), a bound on how far everything can still roll: friction takes at least (a + k v) off each speed,
+// collisions and cushions only lose energy, so the total distance all the balls can still travel is at most
+// n [u/k - a/k^2 ln(1 + k u / a)] with u = sqrt(E / n), E the sum of v^2 over the n balls on the table (canDrop, with
+// a margin for the step-by-step physics).
+// The bound is only used on holes where it holds: no tunnels, windmill or water (they move balls or put pace in; a gate
+// only takes it out), and a tilt weaker than the friction.
+function guidePotsAt(t, angle, power, spin, kick, cush) {
+  const s = cloneTable(t), h = s.hole, tl = h.tilt;
+  s.shoot(angle, power, spin);
+  const slick = h.patches.some(p => p.type === 'slick'), tilt = Math.hypot(tl.x, tl.y);
+  const a = ROLL_DECEL * (slick ? 0.3 : 1) - tilt, k = LIN_DAMP * (slick ? 0.4 : 1);
+  const bounded = (!h.obst || h.obst.type === 'gate') && !tunMouths(h).length && a > 20;
+  const open = s.pk.filter((_, i) => s.openPocket(i));
+  // how far a ball must still roll to drop into any open pocket (it drops once its centre is inside the mouth)
+  const gap = b => open.reduce((m, p) => Math.min(m, Math.hypot(b.x - p.x, b.y - p.y) - p.cap), Infinity);
+  // Can ball x still drop? Only if the balls can still roll, between them, as far as it takes for something moving to
+  // reach x (through any chain of resting balls: each gap between them has to be rolled across) and for x to reach a
+  // pocket's mouth.
+  const rollable = live => {   // (0 when nothing moves)
+    let E = 0, vmax = 0;
+    for (const b of live) { const v2 = b.vx * b.vx + b.vy * b.vy; E += v2; if (v2 > vmax) vmax = v2; }
+    if (!E) return 0;
+    const n = live.length, u = Math.sqrt(E / n);
+    return 1.1 * n * (u / k - a / (k * k) * Math.log(1 + k * u / a)) + 2 * R + 4 * Math.sqrt(vmax) * DT * n;
+  };
+  const canDrop = x => {
+    const live = s.live(), roll = rollable(live), n = live.length;
+    if (!roll) return false;
+    let need = gap(x);
+    if (roll >= need && !x.vx && !x.vy) {   // x is at rest: add the shortest chain of gaps from a moving ball to it
+      const d = live.map(b => b.vx || b.vy ? 0 : Infinity), done = live.map(() => false);
+      for (;;) {
+        let m = -1;
+        for (let i = 0; i < n; i++) if (!done[i] && d[i] < Infinity && (m < 0 || d[i] < d[m])) m = i;
+        if (m < 0 || live[m] === x) break;
+        done[m] = true;
+        for (let i = 0; i < n; i++) if (!done[i]) d[i] = Math.min(d[i], d[m] + Math.max(0, Math.hypot(live[i].x - live[m].x, live[i].y - live[m].y) - 2 * R));
+      }
+      need += d[live.indexOf(x)];
+    }
+    return roll >= need;
+  };
+  let walls = 0;
+  for (let n = 0; n < 9000 && s.moving(); n++) {
+    s.step();
+    const sh = s.shot, b = sh.firstHit;
+    if (sh.scratch) return [];
+    if (!b) {
+      if (s.cue.wallPts.length > kick) return [];
+      // before the first contact only the cue ball rolls: if it can't get as far as any ball, it hits nothing
+      if (bounded && n % 4 === 0) { const c = s.cue, roll = rollable([c]);
+        if (s.balls.every(o => o.potted || Math.hypot(o.x - c.x, o.y - c.y) - 2 * R > roll)) return []; }
+      continue;
+    }
+    if ((sh.kickWalls || 0) > kick) return [];
+    if (b.potted) {
+      const q = sh.pots.find(q => q.ball === b);
+      if (guideWalls(s, b, q.pocket) > cush) return [];
+      // in: the answer stands unless the cue ball can still follow it down
+      if (s.cue.potted) return [];
+      if (bounded && n % 4 === 0 && !canDrop(s.cue)) return [q.pocket];
+      continue;
+    }
+    // off too many cushions to count whichever pocket it ends up in
+    if (b.wallPts.length > cush && b.wallPts.length !== walls) {
+      walls = b.wallPts.length;
+      if (s.pk.every((_, i) => !s.openPocket(i) || guideWalls(s, b, i) > cush)) return [];
+    }
+    if (bounded && n % 4 === 0 && !canDrop(b)) return [];
+  }
+  const b = s.shot.firstHit;
+  if (s.shot.scratch || !b || (s.shot.kickWalls || 0) > kick) return [];
+  return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= cush).map(q => q.pocket);
+}
 
 /* =================== browser =================== */
 
@@ -3187,7 +3266,7 @@ function pocketAlong(px, py, ux, uy, maxT) {
   });
   return best;
 }
-const guideSim = { key: null, pks: [], potsInto: new Set() };   // potsInto: pockets the followed ball drops into at some pace
+const guideSim = { key: null, pks: [], potsInto: new Set(), memo: new Map(), memoOf: null, memoAt: '' };   // potsInto: pockets the followed ball drops into at some pace
 // How many cushions a ball came off, as the guide counts them: every contact, except touches in the jaws of the
 // pocket it then dropped into (a pot that brushes the jaw is still a straight pot; a ball that comes back out of
 // a corner did come off a cushion).
@@ -3237,15 +3316,22 @@ function drawGuide(c, dx, dy, hit, t) {
   // Only pots of the ball the line follows (the first ball the cue ball meets) count. A second ball knocked in by
   // it, or by the cue ball, isn't on any line, so it never lights anything (it used to flicker rings round pockets
   // the line didn't go near while you aimed).
-  const shownPots = (a, pw) => {   // only pots the guide shows: cue ball and potted ball each off at most one cushion
-    const s = simulate(table, a, pw, sp), b = s.shot.firstHit;
-    if (s.shot.scratch || !b || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
-    return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
-  };
+  // Each pace's sim stops as soon as its answer is settled (guidePotsAt), and the answers for the last few hundred aims
+  // on this table are kept, so working the aim back and forth over the same spot doesn't simulate it again.
   const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}:${sp.toFixed(2)}`;
   if (guideSim.key !== key) {
-    guideSim.key = key; guideSim.potsInto = new Set();
-    for (const pw of GUIDE_PACES) for (const i of shownPots(aim.angle, pw)) guideSim.potsInto.add(i);
+    // (kept only while the table is the same one with every ball where it was)
+    const at = [table.cue, ...table.balls].map(b => b.potted ? '-' : `${b.x},${b.y}`).join(';') + `;${table.gp}`;
+    if (guideSim.memoOf !== table || guideSim.memoAt !== at) { guideSim.memoOf = table; guideSim.memoAt = at; guideSim.memo = new Map(); }
+    const mkey = `${aim.angle}:${sp}:${table.wa || 0}`;   // the exact inputs the sims see
+    let pots = guideSim.memo.get(mkey);
+    if (!pots) {
+      pots = new Set();
+      for (const pw of GUIDE_PACES) for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH)) pots.add(i);
+      if (guideSim.memo.size >= 400) guideSim.memo.delete(guideSim.memo.keys().next().value);
+      guideSim.memo.set(mkey, pots);
+    }
+    guideSim.key = key; guideSim.potsInto = pots;
   }
   // The ring and the bright line are one signal, decided once the line is drawn (finishGuide, below): they light
   // only when the pocket the line goes into is one the ball really drops into at some pace.
