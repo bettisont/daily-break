@@ -912,7 +912,7 @@ function drawContact(dt) {
   if (hold && power >= MIN_PULL && phase === 'aim') {
     const p = contactPanel(), d = contactDiff();
     drawFace(p.x, p.y, p.R, d, tipPos(d), 0, null);
-    const word = d < 0.3 ? 'Short shot' : d < 0.6 ? 'Medium shot' : 'Long shot · shaky';
+    const word = shotWord(d);
     ctx.font = "700 10px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const txt = word.toUpperCase(), tw = ctx.measureText(txt).width + 14;
     ctx.fillStyle = 'rgba(45,58,48,.9)'; ctx.beginPath(); ctx.roundRect(p.x - tw / 2, p.y + p.R + 4, tw, 18, 9); ctx.fill();
