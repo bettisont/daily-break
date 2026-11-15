@@ -6,6 +6,7 @@
 //            change is meant to alter layouts, and never for today or any day already played.
 //   guide    sweeps the aim across every ball on sample days: whenever the guide lights a pocket, the ball the line
 //            follows really drops into it (a perfect strike at some guide pace).
+//   fastsim  the guide's early-exit simulation (guidePotsAt) finds exactly the pots a full simulation does.
 //   smoke    a first visit: the intro card, "Let's play", one real shot through the pull cue, no errors.
 // Usage: node tests/run.js [--update] [--only layouts,guide,smoke]
 const { execFileSync } = require('child_process');
@@ -16,7 +17,7 @@ const ROOT = path.join(__dirname, '..'), DIST = path.join(ROOT, 'dist'), SNAP = 
 const LAYOUT_FROM = '2026-11-12', LAYOUT_TO = '2027-01-31', PRACTICE = ['practice-a', 'k3v9q', 'Zz1'];
 const GUIDE_DAYS = ['2026-11-15', '2026-11-17', '2026-11-24'];
 const args = process.argv.slice(2), update = args.includes('--update');
-const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : ['layouts', 'guide', 'smoke'];
+const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : ['layouts', 'guide', 'fastsim', 'smoke'];
 const SEEN = { 'dailybreak:seenHelp': '1', 'dailybreak:tappedBall': '1', 'dailybreak:spinDemo': '1' };
 
 const days = (from, to) => { const out = []; for (let d = new Date(from + 'T12:00:00Z'); d <= new Date(to + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10)); return out; };
@@ -95,6 +96,38 @@ const tests = {
     if (!r.lit) throw new Error('the guide never lit a pocket: the sweep is not exercising it');
     if (r.bad.length) throw new Error(`${r.bad.length} lit pocket(s) the ball doesn't drop into:\n  ` + r.bad.slice(0, 10).join('\n  '));
     return `${r.frames} aim angles, ${r.lit} lit, all real pots`;
+  },
+
+  async fastsim(browser, base) {
+    const p = await page(browser, base, SEEN);
+    await p.waitForFunction(() => typeof phase !== 'undefined' && phase === 'aim');
+    const r = await p.evaluate(days => {
+      let n = 0, pots = 0; const bad = [];
+      const full = (a, pw, sp) => { const s = simulate(table, a, pw, sp), f = s.shot.firstHit;
+        if (s.shot.scratch || !f || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
+        return s.shot.pots.filter(q => q.ball === f && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket); };
+      for (const day of days) {
+        newRound(day, false);
+        for (let hi = 0; hi < HOLES; hi++) {
+          startHole(hi); phase = 'aim';
+          for (const sp of [0, 0.6, -0.6]) for (let bi = 0; bi < table.balls.length; bi++) {
+            const bb = table.balls[bi], c = table.cue, a0 = Math.atan2(bb.y - c.y, bb.x - c.x);
+            for (let d = -5; d <= 5; d += 0.37) {
+              const a = a0 + d * Math.PI / 180, A = new Set(), B = new Set();
+              for (const pw of GUIDE_PACES) { full(a, pw, sp).forEach(i => A.add(i)); guidePotsAt(table, a, pw, sp, GUIDE_KICK, GUIDE_CUSH).forEach(i => B.add(i)); }
+              n++; if (A.size) pots++;
+              const ka = [...A].sort().join(), kb = [...B].sort().join();
+              if (ka !== kb) bad.push(`${day} hole ${hi + 1} ball ${bi} spin ${sp} ${d.toFixed(2)}°: full sim ${ka || 'none'}, fast ${kb || 'none'}`);
+            }
+          }
+        }
+      }
+      return { n, pots, bad };
+    }, GUIDE_DAYS.slice(0, 2));
+    if (p.errors.length) throw new Error('page errors: ' + p.errors.join(' | '));
+    if (!r.pots) throw new Error('no pots found: the check is not exercising anything');
+    if (r.bad.length) throw new Error(`${r.bad.length} aim(s) where the fast guide sim disagrees with the full one:\n  ` + r.bad.slice(0, 10).join('\n  '));
+    return `${r.n} aims (${r.pots} with pots) identical to the full simulation`;
   },
 
   async smoke(browser, base) {

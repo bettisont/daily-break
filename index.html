@@ -953,14 +953,13 @@ function simulate(t, angle, power, spin = 0, path = null) {
 // collisions and cushions only lose energy, so the total distance all the balls can still travel is at most
 // n [u/k - a/k^2 ln(1 + k u / a)] with u = sqrt(E / n), E the sum of v^2 over the n balls on the table (canDrop, with
 // a margin for the step-by-step physics).
-// The bound is only used on holes where it holds: no tunnels, windmill or water (they move balls or put pace in; a gate
-// only takes it out), and a tilt weaker than the friction.
+// The bound is only used on holes where it holds: no tunnels (they move balls; a gate or sand only takes pace out),
+// and a tilt weaker than the friction.
 function guidePotsAt(t, angle, power, spin, kick, cush) {
   const s = cloneTable(t), h = s.hole, tl = h.tilt;
   s.shoot(angle, power, spin);
-  const slick = h.patches.some(p => p.type === 'slick'), tilt = Math.hypot(tl.x, tl.y);
-  const a = ROLL_DECEL * (slick ? 0.3 : 1) - tilt, k = LIN_DAMP * (slick ? 0.4 : 1);
-  const bounded = (!h.obst || h.obst.type === 'gate') && !tunMouths(h).length && a > 20;
+  const a = ROLL_DECEL - Math.hypot(tl.x, tl.y), k = LIN_DAMP;   // sand only adds friction, so plain felt bounds it
+  const bounded = !tunMouths(h).length && a > 20;
   const open = s.pk.filter((_, i) => s.openPocket(i));
   // how far a ball must still roll to drop into any open pocket (it drops once its centre is inside the mouth)
   const gap = b => open.reduce((m, p) => Math.min(m, Math.hypot(b.x - p.x, b.y - p.y) - p.cap), Infinity);
@@ -3052,12 +3051,12 @@ function drawGuide(c, dx, dy, hit, t) {
   // the line didn't go near while you aimed).
   // Each pace's sim stops as soon as its answer is settled (guidePotsAt), and the answers for the last few hundred aims
   // on this table are kept, so working the aim back and forth over the same spot doesn't simulate it again.
-  const key = `${aim.angle}:${strokes}:${round.level}:${Math.round((table.wa || 0) * 20)}:${sp.toFixed(2)}`;
+  const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}`;
   if (guideSim.key !== key) {
     // (kept only while the table is the same one with every ball where it was)
     const at = [table.cue, ...table.balls].map(b => b.potted ? '-' : `${b.x},${b.y}`).join(';') + `;${table.gp}`;
     if (guideSim.memoOf !== table || guideSim.memoAt !== at) { guideSim.memoOf = table; guideSim.memoAt = at; guideSim.memo = new Map(); }
-    const mkey = `${aim.angle}:${sp}:${table.wa || 0}`;   // the exact inputs the sims see
+    const mkey = `${aim.angle}:${sp}`;   // the exact inputs the sims see
     let pots = guideSim.memo.get(mkey);
     if (!pots) {
       pots = new Set();
