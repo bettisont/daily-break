@@ -503,3 +503,136 @@ round straight away. Players already on 15 Nov in time zones ahead of UTC when t
 tables change mid-round (a resumed run whose ball count no longer matches starts the hole fresh).
 Checked before merging: 15–28 Nov all generate (84 holes, every feature placed, opener and clearable, golden pocket
 from hole 2, 10 ms average, 108 ms worst); full rounds of 15 and 16 Nov play through with no errors.
+
+## Tunnels (test, 15 Nov 2026; only with `?tunnels` in the address)
+
+The first of the "more mini-golf" features. Open `index.html?tunnels` (or `https://dailybreak.app/?tunnels` once
+merged): it starts a practice course on a random seed (add `&seed=x` to pick one; it doesn't use up a practice) where
+holes 3–6 each have a tunnel instead of the gate, sand or cat. Without the parameter nothing changes: the daily
+holes for 14–28 Nov were checked identical to the build before (90 holes).
+
+- A tunnel (`h.tunnel = { a, b }`, `TUN_R` = 1.5 R capture radius, `tunMouths`) is two brick-rimmed holes joined
+  underneath. A ball whose centre comes within `TUN_R` of a mouth goes underground (`b.uN` steps, at
+  `TUN_SPEED` 900/s, 0.2–0.6 s; `b.uVx/uVy/uTo`), hidden, with a glow running along the dashed pipe, then comes out
+  of the other mouth just past its rim on the same heading at `TUN_KEEP` (92%) of its pace. Both ways work.
+  `Table.moving` counts balls underground; they skip collisions while under. `shot.tunnels` counts trips.
+- Placement (`placeFeature` → `tunnelSearch`): for every pot, the exit goes on the line back from its ghost ball
+  along a heading up to 0.75 rad off the pot's line, and the entrance on the cue ball's line along that same
+  heading, so aiming into the entrance pots that ball out of the exit. Candidates must have clear paths, and
+  the entrance must leave at least one ordinary pot open; the one blocking the most good pots wins, and it's
+  kept only if the tunnel shot really pots in simulation (`h.tunnelShot`).
+- Guide: `trace` stops at a mouth, so the generous guide hands over to its simulated paths, which now break the
+  line where a ball jumps between mouths (`gapPt`); the pocket ring works through the tunnel. `pathBlocked`
+  counts a line over a mouth as blocked. `respot` keeps clear of mouths. Replays hide a ball while it's under.
+- A pot on a shot that used the tunnel is a "Tunnel" trick shot (instant replay). Sounds: a hollow drop going in,
+  a pop coming out. On a tunnel hole, "In here…" / "…out here" labels show for a moment at the start.
+- Testing (20 practice seeds × holes 3–6): every hole got a tunnel, a real opening pot, was clearable, and its
+  tunnel shot pots; generation 22 ms on average, 184 ms at worst. 1,200 random shots (388 through a tunnel): no
+  ball left underground, inside a mouth, off the table or NaN.
+- To put tunnels in the daily game: add `'tunnel'` to `FEATURE_KEYS` (with a new `SHORT_FROM`-style date so earlier
+  days don't change).
+
+### Tunnel polish and no gate (15 Nov 2026)
+
+- Look: the mouths are putting-green cups sunk into the cloth (a thin cream liner round a dark hole; the copper
+  pipe ends were dropped on feedback), so they never read as
+  pockets, each with a small cream chevron pointing at the other end; the buried pipe shows as a soft ridge.
+- The trip: the ball swirls and shrinks into the mouth (`fx.sinks`), a bulge and glow run along the ridge, and it
+  pops out with a hop and bounce (`tunPop`, `drawLiveBall`) and a puff of dust.
+- Sound: a hollow drop going in, a low rumble that pans from one end to the other for the time underground
+  (`sfx.tunnelRoll`), and a thunk coming out (`sfx.tunnelOut`).
+- Guide: when the aim goes through, the pipe lights up with copper dashes running the way the ball travels
+  (`tunAimWant`, `tunAimLit`) and the line out of the exit is drawn in copper.
+- The one-way gate is out of the daily rotation from `NO_GATE_FROM` (2026-11-16) and on practice courses
+  (`featureKeys`): holes 3–6 get sand and the cat, two each. Days up to 15 Nov are unchanged (checked 11–15 Nov);
+  16–30 Nov: 60 feature holes, all with a real opening pot and clearable. Intro and help text follow.
+
+### Simpler guide (15 Nov 2026)
+
+Feedback: the guide lines went all over the place. On short rounds (`drawGuide`) it's now straight lines only: the
+cue ball's dashed line to the first thing it meets with a ghost ball there, then the object ball's solid line to the
+pocket's ring if it heads into one, or a 150 px fading stub if not. No bounce, kick, combination or simulated object
+paths (`bounceOff`, `kickPath`, `objectSimPath` removed). The ring still comes from simulation, but only for straight
+pots (`GUIDE_CUSH` 0: no cushion for the cue ball first or for the potted ball); `guidePots`/`startUnpotted` use the
+same rule. The spin path hint while pulling back is unchanged. Tunnels: the line stops at the mouth and the far end
+glows where the ball will come out (the copper exit line and lit pipe are gone); the ring still shows a pot through it.
+- Exit guide (15 Nov): aiming into a tunnel, the guide carries on out of the far mouth on the same heading with the
+  same style as any shot (`cueLeg` in `drawGuide`): dashed line, ghost ball, object ball's line to the ring. It's exact
+  geometry, since the ball always leaves the far mouth's centre on the heading it went in with.
+
+### Tunnels move into the cushions (15 Nov 2026)
+
+Feedback: the tunnels sat in the middle of the play and took over the hole. Now they're **openings in two facing
+cushions** that wrap round: a ball that rolls into one comes back in through the other on the same heading (like going
+off one side of an arcade screen and on at the other). They're an optional route, out of the way.
+- Data: `h.tunnel = { a, b }`, each `{ x, y, nx, ny }`: the middle of the opening on the cushion line, normal into
+  the felt. `TUN_HALF` (1.5 R) is half the opening's width. `tunRails` lists the straight outer cushions long enough
+  for one (the four sides of the classic table; shaped tables' outer segments); a pair must face each other
+  (normals opposite). The oval has no such pair, so in the test an oval hole gets the day's usual feature instead.
+- Physics: a ball goes in when its centre is within the opening's width, up against that cushion (`out` < R + 1)
+  and heading into it (`tunLocal`). It's under the table for `TUN_T` (0.35 s), then comes back in at `tunExit`
+  (just off the far opening's middle) at `TUN_KEEP` of its pace. `trace` treats the opening as taking the place of
+  the cushion there; `pathBlocked` uses `tunCrosses`.
+- Placement (`tunnelSearch`): for an exit spot on one cushion and a pot, the heading is fixed (exit to ghost ball),
+  and so is the entrance (where the cue ball on that heading meets the facing cushion). Openings keep clear of the
+  pockets and the cushions' ends. It no longer tries to block anything; it prefers pots that are hard or blocked the
+  normal way, so the tunnel is the clever route. The tunnel shot is still checked in simulation.
+- Drawing: a dark slot running back into the rail with a cream liner, a shadow on the felt in front and chevrons on
+  the rail either side. Aiming in, the far opening glows and the guide carries on from it. "Tunnel" labels show at
+  both openings as the hole starts.
+- Testing (20 courses × holes 3–6): 68 tunnel holes (the other 12 were oval and got sand or the cat), every hole had
+  a real opening pot and was clearable, every tunnel shot pots in simulation; 1,020 random shots with nothing stuck.
+- Object ball through a tunnel (15 Nov, from playtest screenshots): the object ball's line (`objLine` in `drawGuide`)
+  now runs into a tunnel opening and carries on out of the far one (the far end glows), to a pocket or a short stub.
+  It also stops at a ringed pocket it passes even when the straight line only clips the pocket's mouth (on the
+  hourglass the line ran on through the ringed waist pocket to the far corner).
+- Fainter guide (15 Nov): every guide line is scaled by `GUIDE_A` (0.55) and thinner (dashes 1.5 px, object line 2 px,
+  ghost 1.25 px); the pocket ring is softer too (3 px, ~0.6 opacity) but still the strongest mark. Set `GUIDE_A` to 1
+  for the old look.
+- Cue ball trail (15 Nov): the dotted trail of where the cue ball has been is no longer drawn (clutter).
+
+### Forgiving pockets and a clunk (15 Nov 2026)
+
+- Rattles: from `FORGIVE_FROM` (2026-11-16) and on practice courses a ball only rattles out of a pocket above
+  `POT_MAX_FORGIVING` (1700, was 1050; `potMax`). Same 36 holes (10–15 Nov), every open pot at four firm paces: pots
+  160 → 300, rattle-outs 217 → 73. Days up to 15 Nov keep 1050 (layouts checked identical); 16–30 Nov all generate
+  with a real opening pot and are clearable.
+- Sound: `sfx.drop` is now a deep wooden clunk as the ball lands in the pocket (low thud, hollow knock), then a short
+  roll down the pocket.
+- Object ball line off one cushion (15 Nov): the object ball's line runs in full to the first thing it meets (no more
+  150 px stub); off a cushion or bumper it carries on for one more leg (a little fainter, bent as the physics bends it:
+  speed into the cushion × e), then stops at the next cushion, ball or pocket. It stops at a pocket's jaws or a bar.
+  The ring now also lights for one-cushion banks of the object ball (`GUIDE_CUSH` 1); the cue ball must still go
+  straight to its first ball (`GUIDE_KICK` 0).
+- On target (15 Nov): when the object ball's line runs into a pocket that really pots (a ringed pocket), it's drawn
+  warm and bright with a soft glow, and a white shimmer runs along it towards the pocket (`onTargetLine`). The
+  moment the guide locks on (`guideLock`) the line and ring flare for 0.6 s, a few sparkles burst at the pocket and a
+  soft two-note tick plays (at most every 0.25 s, so sweeping the aim doesn't chatter).
+  The whole path glows when it ends in a pot, banks and tunnel legs included (`objPath` collects the segments, `onTargetPath` draws them, with one shimmer travelling the whole path).
+  The lock-on burst, flare and tick now wait until the aim has stayed on a pot for 0.5 s (`guideLock.since`/`fired`), and the shimmer is slower (one pass about every 1.8 s).
+- Lock-on (15 Nov, later): no half-second wait any more; the burst fires as the aim lands on a pot, but at most once a
+  second (`guideLock.at`), so a sweep sets off one. The tick sound is gone.
+- Strike skew (15 Nov): an off-centre strike (Clean included, which can push up to `GOOD_PUSH` 0.15°) now shows where
+  it really went (`skew`, `skewGeom`, `drawSkew`): as the balls start rolling (the close-up covers the table before
+  that), the object ball's line swings over 0.25 s from the aimed line (left faint and dashed) to the one it really
+  took, gold if it still drops and amber if it now misses, then fades after ~1.4 s. A Clean that no longer drops says
+  "Clean, but pushed left/right" (the other grades already say they pushed it).
+- Clean strikes (15 Nov): a Clean now plays exactly as aimed, like a Perfect (`contact`); only Nearly, Off-centre and Miscue push the line.
+
+### Perfect strikes (15 Nov 2026)
+
+- Edge: on a Perfect strike's shot (`table.shot.perfect`) every pocket takes balls 12% further from its centre
+  (`PERFECT_POCKET`) and lets them in 15% faster (`PERFECT_POCKET_PACE`). Same shots (16–25 Nov holes, every open
+  pot at ±1.2° and three paces): 568 balls potted normally, 717 with the edge. The guide's ring doesn't assume it.
+- Feel: a gold flash, a rising four-note arpeggio over a low thump, a bigger sparkle burst and rings, the first
+  `PERFECT_SLOW` (0.4 s) of the roll in slow motion, and a gold comet trail behind the cue ball (`perfectFx`).
+
+## Release (15 Nov 2026, evening)
+
+Merged to main from `claude/gifted-mayer-3gwbdl`. Live straight away (every day, including today's games in progress):
+the simpler, fainter guide (straight lines, object line in full and off one cushion, bright shimmering line and a
+burst when on target, the skew line after an off-centre strike), no cue-ball trail, Clean strikes play exactly as
+aimed, the Perfect edge and feel, and the pocket clunk. From the 16 Nov game (and practice): no one-way gate (sand and
+the cat only) and more forgiving pockets (rattle-out above 1700, was 1050). Days up to 15 Nov keep their layouts
+(checked identical). Tunnels are not in the daily game: they're only on the `?tunnels` test course. To add them to
+the rotation, put `'tunnel'` into the feature list with a new start date (not on oval holes; see `obstFor`).
