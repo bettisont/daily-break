@@ -531,3 +531,17 @@ holes for 14–28 Nov were checked identical to the build before (90 holes).
   ball left underground, inside a mouth, off the table or NaN.
 - To put tunnels in the daily game: add `'tunnel'` to `FEATURE_KEYS` (with a new `SHORT_FROM`-style date so earlier
   days don't change).
+
+### Tunnel polish and no gate (15 Nov 2026)
+
+- Look: the mouths are raised copper pipe ends (collar, rivets, dark bore, drop shadow) so they never read as
+  pockets, each with a spout pointing at the other end; the buried pipe shows as a soft ridge in the cloth.
+- The trip: the ball swirls and shrinks into the mouth (`fx.sinks`), a bulge and glow run along the ridge, and it
+  pops out with a hop and bounce (`tunPop`, `drawLiveBall`) and a puff of dust.
+- Sound: a hollow drop going in, a low rumble that pans from one end to the other for the time underground
+  (`sfx.tunnelRoll`), and a thunk coming out (`sfx.tunnelOut`).
+- Guide: when the aim goes through, the pipe lights up with copper dashes running the way the ball travels
+  (`tunAimWant`, `tunAimLit`) and the line out of the exit is drawn in copper.
+- The one-way gate is out of the daily rotation from `NO_GATE_FROM` (2026-11-16) and on practice courses
+  (`featureKeys`): holes 3–6 get sand and the cat, two each. Days up to 15 Nov are unchanged (checked 11–15 Nov);
+  16–30 Nov: 60 feature holes, all with a real opening pot and clearable. Intro and help text follow.
