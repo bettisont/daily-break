@@ -610,3 +610,10 @@ off one side of an arcade screen and on at the other). They're an optional route
   soft two-note tick plays (at most every 0.25 s, so sweeping the aim doesn't chatter).
   The whole path glows when it ends in a pot, banks and tunnel legs included (`objPath` collects the segments, `onTargetPath` draws them, with one shimmer travelling the whole path).
   The lock-on burst, flare and tick now wait until the aim has stayed on a pot for 0.5 s (`guideLock.since`/`fired`), and the shimmer is slower (one pass about every 1.8 s).
+- Lock-on (15 Nov, later): no half-second wait any more; the burst fires as the aim lands on a pot, but at most once a
+  second (`guideLock.at`), so a sweep sets off one. The tick sound is gone.
+- Strike skew (15 Nov): an off-centre strike (Clean included, which can push up to `GOOD_PUSH` 0.15°) now shows where
+  it really went (`skew`, `skewGeom`, `drawSkew`): as the balls start rolling (the close-up covers the table before
+  that), the object ball's line swings over 0.25 s from the aimed line (left faint and dashed) to the one it really
+  took, gold if it still drops and amber if it now misses, then fades after ~1.4 s. A Clean that no longer drops says
+  "Clean, but pushed left/right" (the other grades already say they pushed it).

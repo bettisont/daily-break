@@ -1509,6 +1509,46 @@ function contact(d) {
   return { tip, quality: over < r ? 'near' : 'off', off, spin, power };
 }
 
+// The skew shown after an off-centre strike: the aimed line, and the line it really took, swung across over 0.25 s
+// as the balls start rolling (the close-up of the strike covers the table until then) (the cue ball's line barely moves; the object ball's line, which magnifies it, visibly does).
+let skew = null;
+function skewGeom(angle) {
+  const c = table.cue, dx = Math.cos(angle), dy = Math.sin(angle), h = trace(table, c.x, c.y, dx, dy);
+  const g = { cx: c.x, cy: c.y, gx: c.x + dx * h.t, gy: c.y + dy * h.t, ball: null };
+  if (!h.ball || !isFinite(h.t)) return g;
+  const b = h.ball, ux = (b.x - g.gx) / (2 * R), uy = (b.y - g.gy) / (2 * R), h2 = trace(table, b.x, b.y, ux, uy, b), pk = pocketAlong(b.x, b.y, ux, uy, h2.t);
+  const len = pk ? Math.max(0, pk.s - table.pk[pk.i].cap) : Math.min(isFinite(h2.t) ? h2.t : 300, 300);
+  return Object.assign(g, { ball: b, bx: b.x, by: b.y, ux, uy, len });
+}
+function drawSkew(dt) {
+  if (!skew) return;
+  if (phase !== 'strike' && phase !== 'moving') { skew = null; return; }
+  if (phase === 'strike' || zoom) return;   // the strike's close-up covers the table: show it as the balls start rolling
+  skew.age += dt;
+  const k = clamp(skew.age / 0.25, 0, 1), e = k * k * (3 - 2 * k), fade = 1 - clamp((skew.age - 1.1) / 0.3, 0, 1);
+  if (fade <= 0) { skew = null; return; }
+  const A = skew.from, B = skew.to, L = (a, b) => a + (b - a) * e;
+  ctx.save(); ctx.lineCap = 'round';
+  // the aimed line, faint, for comparison
+  if (A.ball) { ctx.setLineDash([4, 8]); ctx.strokeStyle = `rgba(251,248,240,${0.35 * fade})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(A.bx, A.by); ctx.lineTo(A.bx + A.ux * A.len, A.by + A.uy * A.len); ctx.stroke(); ctx.setLineDash([]); }
+  // the line it really took, swinging over from the aim: gold if it still drops, amber if it now misses
+  const col = skew.pots ? '255,226,150' : '240,160,90';
+  if (A.ball && B.ball === A.ball) {
+    const ux = L(A.ux, B.ux), uy = L(A.uy, B.uy), n = Math.hypot(ux, uy) || 1, len = L(A.len, B.len);
+    ctx.strokeStyle = `rgba(${col},${0.95 * fade})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(A.bx + ux / n * (R + 3), A.by + uy / n * (R + 3)); ctx.lineTo(A.bx + ux / n * len, A.by + uy / n * len); ctx.stroke();
+  } else if (B.ball) {
+    ctx.strokeStyle = `rgba(${col},${0.95 * e * fade})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(B.bx + B.ux * (R + 3), B.by + B.uy * (R + 3)); ctx.lineTo(B.bx + B.ux * B.len, B.by + B.uy * B.len); ctx.stroke();
+  }
+  ctx.restore();
+  // a Clean strike that no longer drops says why (the other grades already say they pushed it)
+  if (k >= 1 && !skew.said && skew.q === 'clean' && !skew.pots) {
+    skew.said = true;
+    const p = B.ball ? { x: B.bx + B.ux * Math.min(B.len, 120), y: B.by + B.uy * Math.min(B.len, 120) } : { x: B.gx, y: B.gy };
+    float(clamp(p.x, 70, W - 70), clamp(p.y - 30, 40, H - 40), `Clean, but pushed ${skew.off > 0 ? 'right' : 'left'}`, '#b8553f', 16, 1.6);
+  }
+}
 function release() {
   const c = table.cue, d = contactDiff(), first = !ls('dailybreak:firstShot');
   const real = contact(d), ct = first ? { tip: { x: 0, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, power } : real;
@@ -1536,6 +1576,8 @@ function release() {
   const sim = simulate(table, angle, ct.power, ct.spin), sp = sim.shot.pots;
   cine = (round.level >= 2 && !sim.remaining() || isPar() && shortSeed(round.seed) && trickKinds(sim.shot).length) && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
   strike = { angle, power: ct.power, spin: ct.spin, t: 0, end: teach ? SHOOT_T + TEACH_T : SHOOT_T };
+  // an off-centre strike (Clean included) pushes the line a little: show it bending from the aim to where it really goes
+  skew = generous() && !first && Math.abs(angle - aim.angle) > 0.02 * Math.PI / 180 ? { from: skewGeom(aim.angle), to: skewGeom(angle), off: (angle - aim.angle) * 180 / Math.PI, q: ct.quality, pots: sp.length > 0, age: 0, said: false } : null;
   zoom = { t: 0, ct, d, from: contactPanel(), teach, end: strike.end };
   if (rescue) {
     strike.spinLesson = rescue;
@@ -3083,7 +3125,7 @@ function tag(x, y, text, bg, fg, size = 11, below = false) {
 let tunAimWant = false, tunAimFrom = 0;
 function drawAim(t) {
   tunAimWant = false;
-  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) { guideLock.on = false; guideLock.fired = false; return; }
+  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) { guideLock.on = false; return; }
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle), lvl = aidLevel(hole);
   const fb = table.balls[aim.bi];
   drawSpinPaths();
@@ -3134,7 +3176,7 @@ const GUIDE_A = 0.55;   // how strong the guide's lines are (1 was the old, bold
 const GUIDE_KICK = 0, GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
 // a path point where the line jumps (the ball came out of a tunnel): move there without drawing
 const gapPt = (x, y) => Object.assign([x, y], { gap: true });
-const guideLock = { on: false, since: -9, at: -9, fired: false };   // the aim on a pot: since when, and when it flared
+const guideLock = { on: false, at: -9, fired: false };   // the aim on a pot, and when it last flared
 function drawGuide(c, dx, dy, hit, t) {
   // kept subtle (GUIDE_A scales every line): a hint on the cloth, not the brightest thing on the table
   const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([5, 8]); ctx.strokeStyle = `rgba(251,248,240,${a * GUIDE_A})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
@@ -3191,14 +3233,16 @@ function drawGuide(c, dx, dy, hit, t) {
     guideSim.ringed = potPace == null ? [] : at[potPace];
   }
   if (guideSim.nowKey !== guideSim.key) { guideSim.nowKey = guideSim.key; guideSim.pks = guideSim.ringed; }
-  // the burst, flare and tick come once the aim has stayed on a pot for half a second (sweeping past doesn't set them off)
+  // landing on a pot flares straight away, but at most once a second, so a quick sweep across several pots sets
+  // off one burst, not a string of them (no sound: it got tiresome)
   const onNow = guideSim.pks.length > 0;
-  if (!onNow) { guideLock.on = false; guideLock.since = -9; guideLock.at = -9; guideLock.fired = false; }
-  else if (!guideLock.on) { guideLock.on = true; guideLock.since = t; guideLock.fired = false; }
-  if (onNow && !guideLock.fired && t - guideLock.since >= 0.5) {
-    guideLock.fired = true; guideLock.at = t;
-    for (const i of guideSim.pks) { const p = table.pk[i], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H); sparkle(x, y, '#ffe6a8', 12, 110); ring(x, y, '255,230,170', 34, 0.45, p.cap); }
-    tone(1175, 0.09, 0.035, 'sine', 1.2, 0, 0.4); tone(1760, 0.07, 0.015, 'sine', 1, 0.03, 0.4);
+  if (!onNow) guideLock.on = false;
+  else if (!guideLock.on) {
+    guideLock.on = true;
+    if (t - guideLock.at > 1) {
+      guideLock.at = t; guideLock.fired = true;
+      for (const i of guideSim.pks) { const p = table.pk[i], x = clamp(p.x, 0, W), y = clamp(p.y, 0, H); sparkle(x, y, '#ffe6a8', 12, 110); ring(x, y, '255,230,170', 34, 0.45, p.cap); }
+    }
   }
   guideSim.pks.forEach(ringPocket);
   // On target: the object ball's line into a pocket that really pots lights up warm and bright with a soft glow, and a
@@ -3483,6 +3527,7 @@ function draw(t, dt) {
   }
 
   drawAim(t);
+  drawSkew(dt);
 
   for (const b of table.live()) updateSpin(b, dt);
   // potted balls swirl down into the pocket as they shrink
