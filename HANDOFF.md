@@ -618,3 +618,21 @@ off one side of an arcade screen and on at the other). They're an optional route
   took, gold if it still drops and amber if it now misses, then fades after ~1.4 s. A Clean that no longer drops says
   "Clean, but pushed left/right" (the other grades already say they pushed it).
 - Clean strikes (15 Nov): a Clean now plays exactly as aimed, like a Perfect (`contact`); only Nearly, Off-centre and Miscue push the line.
+
+### Perfect strikes (15 Nov 2026)
+
+- Edge: on a Perfect strike's shot (`table.shot.perfect`) every pocket takes balls 12% further from its centre
+  (`PERFECT_POCKET`) and lets them in 15% faster (`PERFECT_POCKET_PACE`). Same shots (16–25 Nov holes, every open
+  pot at ±1.2° and three paces): 568 balls potted normally, 717 with the edge. The guide's ring doesn't assume it.
+- Feel: a gold flash, a rising four-note arpeggio over a low thump, a bigger sparkle burst and rings, the first
+  `PERFECT_SLOW` (0.4 s) of the roll in slow motion, and a gold comet trail behind the cue ball (`perfectFx`).
+
+## Release (15 Nov 2026, evening)
+
+Merged to main from `claude/gifted-mayer-3gwbdl`. Live straight away (every day, including today's games in progress):
+the simpler, fainter guide (straight lines, object line in full and off one cushion, bright shimmering line and a
+burst when on target, the skew line after an off-centre strike), no cue-ball trail, Clean strikes play exactly as
+aimed, the Perfect edge and feel, and the pocket clunk. From the 16 Nov game (and practice): no one-way gate (sand and
+the cat only) and more forgiving pockets (rattle-out above 1700, was 1050). Days up to 15 Nov keep their layouts
+(checked identical). Tunnels are not in the daily game: they're only on the `?tunnels` test course. To add them to
+the rotation, put `'tunnel'` into the feature list with a new start date (not on oval holes; see `obstFor`).

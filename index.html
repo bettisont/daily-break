@@ -749,9 +749,11 @@ class Table {
       for (let i = 0; i < 6 && !potted; i++) {
         if (!this.openPocket(i)) continue;
         const pk = this.pk[i], dx = b.x - pk.x, dy = b.y - pk.y, d = Math.hypot(dx, dy);
-        if (d >= pk.cap) continue;
+        // a Perfect strike's shot gets slightly kinder pockets: a touch wider and harder to rattle out of
+        const pf = s?.perfect;
+        if (d >= pk.cap * (pf ? PERFECT_POCKET : 1)) continue;
         const sp = Math.hypot(b.vx, b.vy);
-        if (sp > potMax(this.hole)) {
+        if (sp > potMax(this.hole) * (pf ? PERFECT_POCKET_PACE : 1)) {
           // too hot: it rattles in the jaws and spits back out
           const nx = dx / (d || 1), ny = dy / (d || 1), vn = b.vx * nx + b.vy * ny;
           if (vn < 0) { b.vx = (b.vx - 2 * vn * nx) * 0.4; b.vy = (b.vy - 2 * vn * ny) * 0.4; }
@@ -1493,6 +1495,11 @@ const tipInCore = d => { const p = tipPos(d); return Math.hypot(p.x, p.y - aim.s
 // aimed ('perfect'). Since 15 Nov the rest of the spot ('clean') plays exactly as aimed too (it used to push up to
 // GOOD_PUSH degrees, and players couldn't see why a Clean missed); 'near' still starts its push from GOOD_PUSH.
 const PERFECT_CORE = 0.4, GOOD_PUSH = 0.15;
+// The Perfect edge: for that shot every pocket takes balls 12% further from its centre and lets them in 15% faster.
+const PERFECT_POCKET = 1.12, PERFECT_POCKET_PACE = 1.15;
+// A Perfect strike's moment: the first PERFECT_SLOW seconds of the roll run in slow motion with a gold trail
+let perfectFx = null;
+const PERFECT_SLOW = 0.4;
 function contact(d) {
   const tip = tipPos(d), r = spotR(d), ex = tip.x, ey = tip.y - aim.spotY, dist = Math.hypot(ex, ey);
   if (generous()) {
@@ -3565,6 +3572,15 @@ function draw(t, dt) {
   if (phase === 'replay') drawReplay(dt);
   else {
     for (const [b, k] of tunPop) { const n = k + dt / 0.38; if (n > 1.4) tunPop.delete(b); else tunPop.set(b, n); }
+    if (perfectFx && !table.cue.potted) {
+      const pts = perfectFx.pts, c = table.cue, last = pts[pts.length - 1];
+      if (!last || Math.hypot(c.x - last[0], c.y - last[1]) > 6) pts.push([c.x, c.y]);
+      if (pts.length > 40) pts.shift();
+      const fade = 1 - clamp((perfectFx.t - PERFECT_SLOW - 0.6) / 0.6, 0, 1);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      pts.forEach(([x, y], k) => { const a = (k + 1) / pts.length; ctx.fillStyle = `rgba(255,205,90,${0.35 * a * fade})`; ctx.beginPath(); ctx.arc(x, y, R * (0.35 + 0.6 * a), 0, TAU); ctx.fill(); });
+      ctx.restore();
+    }
     for (const b of table.balls) if (!b.potted && !b.uN) drawLiveBall(b);
     if (!table.cue.potted && !table.cue.uN) drawLiveBall(table.cue);
   }
@@ -3702,7 +3718,14 @@ function frame(now) {
     if (strike.t >= strike.end) {
       table.shoot(strike.angle, strike.power, strike.spin);
       const q = zoom?.ct.quality, c0 = table.cue, fy = c0.y - 50 < 30 ? c0.y + 50 : c0.y - 50;
-      if (q === 'perfect') { sparkle(c0.x, c0.y, '#ffd76a', 30, 170); ring(c0.x, c0.y, '255,215,106', 60, 0.7); float(c0.x, fy, 'Perfect strike!', '#b88a2e', 26); fx.glow = Math.max(fx.glow, 0.6); fx.shake = Math.max(fx.shake, 2); }
+      if (q === 'perfect' && generous()) {
+        table.shot.perfect = true;
+        perfectFx = { t: 0, pts: [] };
+        fx.flashes.push({ x: c0.x, y: c0.y, r: 90, life: 0.3 });
+        [1046.5, 1318.5, 1568, 2093].forEach((f, k) => tone(f, 0.35, 0.05, 'sine', 1, k * 0.05, 0.6));
+        tone(65, 0.35, 0.3, 'sine', 0.7, 0, 0.1);
+      }
+      if (q === 'perfect') { sparkle(c0.x, c0.y, '#ffd76a', 40, 200); ring(c0.x, c0.y, '255,215,106', 90, 0.8); ring(c0.x, c0.y, '255,235,170', 50, 0.5); float(c0.x, fy, 'Perfect strike!', '#b88a2e', 28); fx.glow = Math.max(fx.glow, 1); fx.shake = Math.max(fx.shake, 3); }
       else if (q === 'clean') { sparkle(c0.x, c0.y, '#e2b13c', generous() ? 8 : 14, 110); float(c0.x, fy, 'Clean strike', generous() ? '#7a6a3a' : '#b88a2e', generous() ? 18 : 20); }
       else if (q === 'miscue') { fx.shake = 5; float(c0.x, fy, 'Miscue!', '#b8553f', 22); for (let k = 0; k < 14; k++) { const a = Math.random() * TAU, v = 40 + Math.random() * 90; fx.particles.push({ x: c0.x, y: c0.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 + Math.random() * 0.4, color: '#8fb4e8', r: 1.5 + Math.random() * 2.5 }); } }
       else if (q) float(c0.x, fy, zoom.ct.off ? `Off-centre: pushed ${zoom.ct.off < 0 ? 'left' : 'right'}` : 'Off-centre', q === 'near' ? '#7a6a3a' : '#b8553f', 18);
@@ -3765,7 +3788,8 @@ function frame(now) {
   // table plays at PLAY (0.75×). Never during the slow-motion finish.
   if (phase === 'moving') movingT += dt;
   const creeping = phase === 'moving' && movingT > 2 && table.live().every(b => Math.hypot(b.vx, b.vy) < 35);
-  const want = slow ? 0.25 : phase === 'replay' ? 0.45 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
+  if (perfectFx) { perfectFx.t += dt; if (perfectFx.t > PERFECT_SLOW + 1.2 || phase !== 'moving') perfectFx = null; }
+  const want = slow ? 0.25 : perfectFx && perfectFx.t < PERFECT_SLOW ? 0.4 : phase === 'replay' ? 0.45 : phase !== 'moving' ? 1 : ffwd ? 3 : creeping ? 1.6 : PLAY;
   timeScale = want > timeScale ? want : lerp(timeScale, want, Math.min(1, dt * 10));
   const ck = Math.min(1, dt * 5);
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
