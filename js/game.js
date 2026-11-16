@@ -161,7 +161,8 @@ function findGimmes() {
     for (let i = 0; i < 6; i++) {
       const p = table.pk[i], l = potLine(table, bi, i);
       if (i === hole.gold && !goldUsed) continue;   // no tapping in to the golden pocket
-      if (l && !l.blocked && l.cos > 0.9 && Math.hypot(b.x - p.x, b.y - p.y) < p.cap + 2 * R) { out.push({ bi, pocket: i }); break; }
+      const far = runHas('tapin') ? 4 : 2, straight = runHas('tapin') ? 0.8 : 0.9;
+      if (l && !l.blocked && l.cos > straight && Math.hypot(b.x - p.x, b.y - p.y) < p.cap + far * R) { out.push({ bi, pocket: i }); break; }
     }
   });
   return out;
@@ -334,11 +335,11 @@ function shotWord(d) {
 // A harder strike as the round goes on (the aiming guide is generous): from hole 3 the gold spot shrinks, the
 // tip wobbles wider and faster, and an off-centre hit pushes the ball further off line. strikeK ramps 0 → 1 over
 // holes 3-5 (0 on holes 1-2).
-const strikeK = () => round ? clamp((round.level - 1) / 3, 0, 1) : 0;
-const spotR = d => lerp(0.22, 0.09, d) * (1 - SPOT_SHRINK * strikeK());
+const strikeK = () => round ? clamp((round.level - 1) / 3, 0, 1) + (round.run ? clamp((round.level - 5) * 0.05, 0, 0.6) : 0) : 0;
+const spotR = d => lerp(0.22, 0.09, d) * (1 - SPOT_SHRINK * strikeK()) * runSpot();
 const SPOT_SHRINK = 0.15, WOBBLE_GROW = 0.12, WOBBLE_FAST = 0.15, PUSH_MAX = 3, PUSH_EXTRA = 2;
 function tipPos(d) {
-  const k = strikeK(), A = lerp(0.16, 0.55, d) * (1 + WOBBLE_GROW * k), w = lerp(1.0, 2.5, d) * (1 + WOBBLE_FAST * k), t = swayT * w;
+  const k = strikeK(), A = lerp(0.16, 0.55, d) * (1 + WOBBLE_GROW * k) * runWobble(), w = lerp(1.0, 2.5, d) * (1 + WOBBLE_FAST * k), t = swayT * w;
   let x = aim.spotX + A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
   let y = aim.spotY + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
   const m = Math.hypot(x, y);
@@ -516,12 +517,13 @@ function resolveShot() {
     hs.streak = 0;
   } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); hs.streak = 0; }
   if (!foul && shotLog.length) scorePots();
-  if (!foul && s.pots.length && hole.gold != null && !goldUsed && s.pots.some(p => p.pocket === hole.gold)) {
+  if (!foul && s.pots.length && hole.gold != null && (!goldUsed || runHas('golden')) && s.pots.some(p => p.pocket === hole.gold)) {
     goldUsed = true; holeBonus++;
     const p = table.pk[hole.gold], px = clamp(p.x, 90, W - 90), py = clamp(p.y + (p.y < H / 2 ? 70 : -70), 50, H - 50);
     float(px, py, 'Golden pocket! −1 stroke', '#b88a2e', 22, 2.2); sparkle(p.x, p.y, '#e2b13c', 30, 170); ring(p.x, p.y, '226,177,60', 70, 0.9, p.cap);
     sfx.chime(); buzz([15, 40, 15]); fx.glow = 1;
   }
+  if (round.run && !foul) runAfterShot(s);
   table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
   if (!table.remaining()) finishHole(false);
   else if (strokes >= capOf(round.level)) finishHole(true);
@@ -556,19 +558,20 @@ function finishHole(picked) {
   if (round.level === 0) track('clear1');
   const forLevel = round.level, par = parOf(forLevel), n = picked ? capOf(forLevel) : Math.max(1, strokes - holeBonus), d = n - par;
   round.cards.push({ strokes: n, par, picked, gold: goldUsed });
+  if (round.run) runHoleDone(d);
   hs.points += picked ? 0 : PTS.level * hole.balls.length;
   phase = 'holed'; gimmes = [];
   if (forLevel + 1 < HOLES) saveRun(forLevel + 1);
   setTimeout(() => {
     if (round.level !== forLevel || phase !== 'holed') return;
-    stamp = { text: picked ? 'Picked up' : holeWord(d), sub: `Hole ${forLevel + 1} · ${n} stroke${n === 1 ? '' : 's'} · par ${par}`, color: holeColor(d), t: 0 };
+    stamp = { text: picked ? 'Picked up' : holeWord(d), sub: `Hole ${forLevel + 1} · ${n} stroke${n === 1 ? '' : 's'} · par ${par}${round.run ? ` · ${round.run.bank < 0 ? 'out of strokes' : `${round.run.bank} spare`}` : ''}`, color: holeColor(d), t: 0 };
     sfx.stamp(); fx.shake = 6; buzz(25); sfx.holed(d <= 0);
     if (d < 0) confettiBurst(Math.min(140, 60 + forLevel * 15));
     renderCard9(); updateUI();
   }, 450);
   setTimeout(() => {
     if (round.level !== forLevel || phase !== 'holed') return;
-    if (forLevel + 1 >= HOLES) endRound(); else act();
+    if (round.run) runBetween(); else if (forLevel + 1 >= HOLES) endRound(); else act();
   }, 450 + 1700);
 }
 function endRound() {
@@ -586,6 +589,7 @@ function shareText(r = round) {
   return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⛳ ${toPar(tot)}\n${r.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}\n${gameUrl()}`;
 }
 function showFinal(already) {
+  if (round.run) return runFinal();
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0), parAll = round.cards.reduce((a, c) => a + c.par, 0);
   const cell = c => `<td style="color:${holeColor(c.strokes - c.par)};font-weight:700">${c.strokes}${c.picked ? '*' : ''}</td>`;
   $('card').innerHTML = `

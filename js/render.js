@@ -297,7 +297,7 @@ function catAfterShot() {
   c.hits = (c.hits || 0) + 1;
   const from = { x: c.x, y: c.y, rot: c.rot, sc: CAT_SC }, say = (txt, col) => float(clamp(c.x, 90, W - 90), clamp(c.y - 55, 40, H - 40), txt, col, 19, 1.8);
   meow();
-  if (c.hits >= 2 || hit > 900) {
+  if (c.hits >= (runHas('catnip') ? 1 : 2) || hit > 900) {
     say("The cat's had enough", '#b8553f');
     table.cat = null; table.bumps = table.hole.bumpers;
     catAnim = { from, to: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, t: 0 };
@@ -685,7 +685,7 @@ const rollingWalls = (t, b) => (b.wallPts || []).filter(([x, y]) => { const i = 
 // The ring lights for pots the lines show: the cue ball straight to its first ball (GUIDE_KICK cushions), and the
 // potted ball off at most GUIDE_CUSH cushions.
 const GUIDE_A = 0.55;   // how strong the guide's lines are (1 was the old, bolder look)
-const GUIDE_KICK = 0, GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
+const GUIDE_KICK = 0, GUIDE_CUSH = 1, guideCush = () => runHas('sight') ? 2 : GUIDE_CUSH, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95];
 // The pockets the guide would light for one shot on table t (a perfect strike at pace pw with this spin): only
 // pots of the ball the line follows (the first ball the cue ball meets), with the cue ball straight to it and the
 // potted ball off at most GUIDE_CUSH cushions, and no scratch. startUnpotted uses it (guidePots); it's the same
@@ -693,7 +693,7 @@ const GUIDE_KICK = 0, GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.5
 function guideShownPots(t, angle, pw, spin, side = 0) {
   const s = simulate(t, angle, pw, spin, null, side), b = s.shot.firstHit;
   if (s.shot.scratch || !b || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
-  return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
+  return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= guideCush()).map(q => q.pocket);
 }
 // a path point where the line jumps (the ball came out of a tunnel): move there without drawing
 const gapPt = (x, y) => Object.assign([x, y], { gap: true });
@@ -744,7 +744,7 @@ function drawGuide(c, dx, dy, hit, t) {
     let pots = guideSim.memo.get(mkey);
     if (!pots) {
       pots = new Set();
-      for (const pw of GUIDE_PACES) for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH, sd)) pots.add(i);
+      for (const pw of GUIDE_PACES) for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, guideCush(), sd)) pots.add(i);
       if (guideSim.memo.size >= 400) guideSim.memo.delete(guideSim.memo.keys().next().value);
       guideSim.memo.set(mkey, pots);
     }

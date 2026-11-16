@@ -6,13 +6,14 @@
 
 // The header: the hole you're on, its par and your score.
 function renderCard9() {
+  if (round.run) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${round.level + 1}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Spare <b>${runSpare()}</b></div>`; return; }
   $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`;
 }
 function updateUI() {
   if (!table) return;
   const left = table.remaining(), n = Math.max(0, Math.min(strokes, capOf(round.level)) - holeBonus);
   $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
-  $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
+  $('iLie').innerHTML = round.run ? `Spare strokes<b>${runSpare()}</b>` : `Score<b>${toPar(parTotal())}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';

@@ -4,6 +4,16 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 16 Nov 2026 (night): run prototype (`?run`, not linked anywhere)
+
+- **A roguelike run** (`js/run.js`): endless holes on a `run-<date>` seed (the first six dealt like a round, then four
+  balls, five from hole 11; the strike keeps getting shakier after hole 6), a bank of 3 spare strokes that each hole
+  moves by par minus strokes, and the run ends when it goes below zero. After each hole, pick one of three cards:
+  spare strokes, steady hand, wide pockets, Showman (first trick shot each hole is a stroke back), hot streak, golden
+  touch, catnip, long sight, tap-in pro, second wind, and the cursed heavy cue. Score: the hole you reached; best per
+  seed on the device. Unranked, never saved, tracked or sent. Hooks in game/ui/render/main are guarded by `round.run`
+  and `ballsFor` only changes for `run-` seeds: all course snapshots unchanged.
+
 ## 16 Nov 2026 (late): battery and heat
 
 - **Frame pacing** (`busy` in `js/main.js`). Phones got hot and drained: the loop repainted the whole screen

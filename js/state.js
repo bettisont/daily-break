@@ -31,7 +31,7 @@ const PTS = { pot: 100, bank: 50, combo: 50, multi: 50, level: 100 };
 const HOLES = 6;
 const parKey = seed => 'dailybreak:par:' + seed;
 const parOf = (i, seed = round?.seed) => ballsFor(seed, i) + (i >= 2 ? 1 : 0);
-const capOf = i => parOf(i) + 3;
+const capOf = i => parOf(i) + (round?.run ? Math.min(3, round.run.bank + 1) : 3);   // a run picks up once its spare strokes are gone
 const toPar = n => n === 0 ? 'E' : n > 0 ? `+${n}` : `−${-n}`;
 const cardEmoji = d => d < 0 ? '🟦' : d === 0 ? '🟩' : d === 1 ? '🟨' : '🟥';
 const holeWord = d => d <= -2 ? 'Eagle!' : d === -1 ? 'Birdie!' : d === 0 ? 'Par' : d === 1 ? 'Bogey' : d === 2 ? 'Double bogey' : `${toPar(d)}`;

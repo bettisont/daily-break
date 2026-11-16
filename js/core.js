@@ -163,7 +163,11 @@ const pocketsOf = h => h.shape ? h.shape.pockets : POCKETS;
 const SHORT_MAX = 3;
 const FEATURE_NAMES = { gate: 'One-way gate', sand: 'Sand bunker', cat: 'The cat', tunnel: 'Tunnel' };
 const featureKeys = seed => ruleOn(seed, RULES.TUNNELS_FROM) ? ['sand', 'cat', 'tunnel'] : ruleOn(seed, RULES.NO_GATE_FROM) ? ['sand', 'cat'] : ['gate', 'sand', 'cat'];
-const ballsFor = (seed, i) => Math.min(i + 1, SHORT_MAX);
+// A run (prototype, ?run): an endless string of holes on a 'run-' seed. The first six are dealt like a round; after
+// that four balls a hole, then five from hole 11. Daily and practice seeds never start with 'run-', so their courses
+// are unchanged.
+const isRunSeed = s => typeof s === 'string' && s.startsWith('run-');
+const ballsFor = (seed, i) => isRunSeed(seed) && i >= 6 ? (i < 10 ? 4 : 5) : Math.min(i + 1, SHORT_MAX);
 // Holes 2 to 6 have a golden pocket (pot into it for a stroke back).
 const goldHole = (seed, i) => i >= 1;
 const featureName = h => h.feature ? FEATURE_NAMES[h.feature] : '';

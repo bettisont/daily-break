@@ -48,6 +48,7 @@ function frame(now) {
     if (strike.t >= strike.end) {
       table.shoot(strike.angle, strike.power, strike.spin, strike.side);
       const q = zoom?.ct.quality, c0 = table.cue, fy = c0.y - 50 < 30 ? c0.y + 50 : c0.y - 50;
+      if (runHas('wide')) table.shot.perfect = true;   // (run card: every shot gets the Perfect pockets)
       if (q === 'perfect') {
         table.shot.perfect = true;
         [1318.5, 1568].forEach((f, k) => tone(f, 0.3, 0.03, 'sine', 1, k * 0.06, 0.6));   // a soft two-note lift
@@ -149,9 +150,10 @@ function frame(now) {
 
 resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
-const seedParam = new URLSearchParams(location.search).get('seed');
+const seedParam = new URLSearchParams(location.search).get('seed'), runParam = new URLSearchParams(location.search).get('run');
 const firstVisit = !ls('dailybreak:seenHelp');
-if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
+if (runParam !== null) startRun(runParam || 'run-' + todayKey());
+else if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
 // the first time the page is hidden before today's first shot: how long they'd been here and on which screen
 // (some come back and play later; this is one event per device per day)
 document.addEventListener('visibilitychange', () => {
