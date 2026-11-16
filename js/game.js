@@ -122,8 +122,10 @@ function startHole(i) {
   renderCard9(); updateUI();
 }
 
-// Each shot starts lined up dead centre on the ball with the easiest pot.
+// Each shot starts lined up dead centre on the ball with the easiest pot, with the spin back on Stun
+// (16 Nov: it used to carry over from the last shot, so a draw left set by accident spoiled the next one).
 function lineUp() {
+  aim.spotY = 0; aim.spin = 0;
   phase = 'aim'; gimmes = findGimmes(); focusBall(bestBall(), true);
   if (firstShotEver() && strokes === 0) startOffTarget();
   startUnpotted();
