@@ -103,21 +103,21 @@ const tests = {
     await p.waitForFunction(() => typeof phase !== 'undefined' && phase === 'aim');
     const r = await p.evaluate(days => {
       let n = 0, pots = 0; const bad = [];
-      const full = (a, pw, sp) => { const s = simulate(table, a, pw, sp), f = s.shot.firstHit;
+      const full = (a, pw, sp, sd) => { const s = simulate(table, a, pw, sp, null, sd), f = s.shot.firstHit;
         if (s.shot.scratch || !f || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
         return s.shot.pots.filter(q => q.ball === f && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket); };
       for (const day of days) {
         newRound(day, false);
         for (let hi = 0; hi < HOLES; hi++) {
           startHole(hi); phase = 'aim';
-          for (const sp of [0, 0.6, -0.6]) for (let bi = 0; bi < table.balls.length; bi++) {
+          for (const [sp, sd] of [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.7], [-0.5, -0.7]]) for (let bi = 0; bi < table.balls.length; bi++) {
             const bb = table.balls[bi], c = table.cue, a0 = Math.atan2(bb.y - c.y, bb.x - c.x);
             for (let d = -5; d <= 5; d += 0.37) {
               const a = a0 + d * Math.PI / 180, A = new Set(), B = new Set();
-              for (const pw of GUIDE_PACES) { full(a, pw, sp).forEach(i => A.add(i)); guidePotsAt(table, a, pw, sp, GUIDE_KICK, GUIDE_CUSH).forEach(i => B.add(i)); }
+              for (const pw of GUIDE_PACES) { full(a, pw, sp, sd).forEach(i => A.add(i)); guidePotsAt(table, a, pw, sp, GUIDE_KICK, GUIDE_CUSH, sd).forEach(i => B.add(i)); }
               n++; if (A.size) pots++;
               const ka = [...A].sort().join(), kb = [...B].sort().join();
-              if (ka !== kb) bad.push(`${day} hole ${hi + 1} ball ${bi} spin ${sp} ${d.toFixed(2)}°: full sim ${ka || 'none'}, fast ${kb || 'none'}`);
+              if (ka !== kb) bad.push(`${day} hole ${hi + 1} ball ${bi} spin ${sp} side ${sd} ${d.toFixed(2)}°: full sim ${ka || 'none'}, fast ${kb || 'none'}`);
             }
           }
         }

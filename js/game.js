@@ -122,10 +122,10 @@ function startHole(i) {
   renderCard9(); updateUI();
 }
 
-// Each shot starts lined up dead centre on the ball with the easiest pot, with the spin back on Stun
+// Each shot starts lined up dead centre on the ball with the easiest pot, with the spin back on Stun, no side
 // (16 Nov: it used to carry over from the last shot, so a draw left set by accident spoiled the next one).
 function lineUp() {
-  aim.spotY = 0; aim.spin = 0;
+  aim.spotY = 0; aim.spin = 0; aim.spotX = 0; aim.side = 0;
   phase = 'aim'; gimmes = findGimmes(); focusBall(bestBall(), true);
   if (firstShotEver() && strokes === 0) startOffTarget();
   startUnpotted();
@@ -134,7 +134,7 @@ function lineUp() {
 // A shot never starts with a pot already lined up. If the starting aim (dead centre on the ball with the easiest
 // pot) would light a pocket's ring, turn it the smallest amount (0.5° steps, up to 10° either way) that still hits
 // that ball first but doesn't pot anything the guide would show (the same rule as the guide: guideShownPots).
-const guidePots = angle => GUIDE_PACES.some(pw => guideShownPots(table, angle, pw, aim.spin).length > 0);
+const guidePots = angle => GUIDE_PACES.some(pw => guideShownPots(table, angle, pw, aim.spin, aim.side).length > 0);
 function startUnpotted() {
   if (!guidePots(aim.angle)) return;
   const target = table.balls[aim.bi], a0 = aim.angle, c = table.cue;
@@ -218,13 +218,19 @@ function aimOffset() {
 }
 
 // Where you hit the cue ball (height on its face, -1 top … +1 bottom) sets the spin: high follows, low draws.
+// Left or right of centre (16 Nov) puts side on it: the cue ball comes off cushions bent that way (Table.english).
 const spinFor = y => clamp(-y * 1.4, -0.95, 0.95);
+const sideFor = x => clamp(x * 1.4, -0.95, 0.95);
 function strikeName(spin) {
   return spin >= 0.2 ? 'Follow' : spin > -0.2 ? 'Stun' : 'Draw';
 }
-function setSpot(y, quiet) {
+const sideName = side => side >= 0.2 ? 'right' : side <= -0.2 ? 'left' : '';
+// The spot stays within half the ball's radius of centre, and snaps to the centre line on each axis.
+function setSpot(y, quiet, x = aim.spotX) {
   if (phase !== 'aim') return;
-  aim.spotY = clamp(Math.abs(y) < 0.06 ? 0 : y, -0.5, 0.5); aim.spin = spinFor(aim.spotY);
+  x = Math.abs(x) < 0.06 ? 0 : x; y = Math.abs(y) < 0.06 ? 0 : y;
+  const m = Math.hypot(x, y); if (m > 0.5) { x *= 0.5 / m; y *= 0.5 / m; }
+  aim.spotY = y; aim.spin = spinFor(y); aim.spotX = x; aim.side = sideFor(x);
   spinTouched = true;
   if (!quiet) { sfx.click(); buzz(5); }
   updateUI();
@@ -255,7 +261,7 @@ function act() {
 // bank, a kick or a combination. Players asked for tricky shots to feel tricky, not just long ones.
 // (This only shapes the strike, never the course: holes are generated without it.)
 function contactDiff() {
-  const lie = lieAt(hole, table.cue.x, table.cue.y), extra = Math.abs(aim.spin) * 0.12 + power * 0.1 + (lie === 'rough' ? 0.1 : 0);
+  const lie = lieAt(hole, table.cue.x, table.cue.y), extra = Math.abs(aim.spin) * 0.12 + Math.abs(aim.side) * 0.12 + power * 0.1 + (lie === 'rough' ? 0.1 : 0);
   if (!round || !ruleOn(round.seed, RULES.SHOT_READ_FROM)) {
     const g = shotGeom();
     return clamp(0.05 + 0.75 * clamp((g.d1 + 0.6 * g.d2 - 150) / 1000, 0, 1) + extra, 0, 1);
@@ -288,7 +294,7 @@ function trickiness(r) {
 const READ_PACES = [0.45, 0.3, 0.6, 0.2, 0.75, 0.9];
 const readMemo = { key: null, r: null };
 function readShot() {
-  const key = `${round.level}|${strokes}|${aim.angle.toFixed(4)}|${aim.spin.toFixed(2)}|${table.cue.x.toFixed(1)},${table.cue.y.toFixed(1)}`;
+  const key = `${round.level}|${strokes}|${aim.angle.toFixed(4)}|${aim.spin.toFixed(2)}|${aim.side.toFixed(2)}|${table.cue.x.toFixed(1)},${table.cue.y.toFixed(1)}`;
   if (readMemo.key === key && readMemo.of === table) return readMemo.r;
   let r = null;
   for (const pw of READ_PACES) if ((r = readAt(pw))) break;
@@ -297,7 +303,7 @@ function readShot() {
 }
 function readAt(pw) {
   const s = cloneTable(table), all = [s.cue, ...s.balls], run = all.map(() => 0);
-  s.shoot(aim.angle, pw, aim.spin);
+  s.shoot(aim.angle, pw, aim.spin, aim.side);
   let d1 = 0, cut = 0;
   for (let n = 0; n < 2400 && s.moving(); n++) {
     const px = all.map(b => b.x), py = all.map(b => b.y), cvx = s.cue.vx, cvy = s.cue.vy, had = s.shot.firstHit;
@@ -333,14 +339,14 @@ const spotR = d => lerp(0.22, 0.09, d) * (1 - SPOT_SHRINK * strikeK());
 const SPOT_SHRINK = 0.15, WOBBLE_GROW = 0.12, WOBBLE_FAST = 0.15, PUSH_MAX = 3, PUSH_EXTRA = 2;
 function tipPos(d) {
   const k = strikeK(), A = lerp(0.16, 0.55, d) * (1 + WOBBLE_GROW * k), w = lerp(1.0, 2.5, d) * (1 + WOBBLE_FAST * k), t = swayT * w;
-  let x = A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
+  let x = aim.spotX + A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
   let y = aim.spotY + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
   const m = Math.hypot(x, y);
   if (m > 0.85) { x *= 0.85 / m; y *= 0.85 / m; }
   return { x, y };
 }
-const tipOnSpot = d => { const p = tipPos(d); return Math.hypot(p.x, p.y - aim.spotY) <= spotR(d); };
-const tipInCore = d => { const p = tipPos(d); return Math.hypot(p.x, p.y - aim.spotY) <= spotR(d) * PERFECT_CORE; };
+const tipOnSpot = d => { const p = tipPos(d); return Math.hypot(p.x - aim.spotX, p.y - aim.spotY) <= spotR(d); };
+const tipInCore = d => { const p = tipPos(d); return Math.hypot(p.x - aim.spotX, p.y - aim.spotY) <= spotR(d) * PERFECT_CORE; };
 // Where the tip lands decides the shot. On the spot: exactly as aimed. Off to one side pushes the
 // cue ball off line (up to 3°, which costs more the further it has to travel); too high or low
 // changes the spin; right out at the edge is a miscue.
@@ -350,15 +356,16 @@ const PERFECT_CORE = 0.4, GOOD_PUSH = 0.15;
 // The Perfect edge: for that shot every pocket takes balls 12% further from its centre and lets them in 15% faster.
 const PERFECT_POCKET = 1.12, PERFECT_POCKET_PACE = 1.15;
 function contact(d) {
-  const tip = tipPos(d), r = spotR(d), ex = tip.x, ey = tip.y - aim.spotY, dist = Math.hypot(ex, ey);
-  if (dist <= r * PERFECT_CORE) return { tip, quality: 'perfect', off: 0, spin: aim.spin, power };
-  if (dist <= r) return { tip, quality: 'clean', off: 0, spin: aim.spin, power };   // a Clean goes exactly where you aimed (15 Nov)
+  const tip = tipPos(d), r = spotR(d), ex = tip.x - aim.spotX, ey = tip.y - aim.spotY, dist = Math.hypot(ex, ey), side = aim.side;
+  if (dist <= r * PERFECT_CORE) return { tip, quality: 'perfect', off: 0, spin: aim.spin, side, power };
+  if (dist <= r) return { tip, quality: 'clean', off: 0, spin: aim.spin, side, power };   // a Clean goes exactly where you aimed (15 Nov)
   const over = dist - r;
-  if (Math.abs(tip.x) > 0.6 || over > 0.45) return { tip, quality: 'miscue', off: -Math.sign(tip.x || 1) * 4 * Math.PI / 180, spin: 0, power: power * 0.35 };
+  // (measured from the spot, so a spot set out to one side for side spin isn't itself a miscue)
+  if (Math.abs(ex) > 0.6 || Math.hypot(tip.x, tip.y) > 0.8 || over > 0.45) return { tip, quality: 'miscue', off: -Math.sign(ex || 1) * 4 * Math.PI / 180, spin: 0, side: 0, power: power * 0.35 };
   const pmax = PUSH_MAX + PUSH_EXTRA * strikeK(), base = GOOD_PUSH * Math.abs(ex) / dist;
   const off = -clamp(ex / dist * over * 6 * pmax / PUSH_MAX + Math.sign(ex) * base, -pmax, pmax) * Math.PI / 180;
-  const spin = lerp(aim.spin, spinFor(tip.y), clamp(over * 2.5, 0, 1));
-  return { tip, quality: over < r ? 'near' : 'off', off, spin, power };
+  const spin = lerp(aim.spin, spinFor(tip.y), clamp(over * 2.5, 0, 1)), sd = lerp(aim.side, sideFor(tip.x), clamp(over * 2.5, 0, 1));
+  return { tip, quality: over < r ? 'near' : 'off', off, spin, side: sd, power };
 }
 
 // The skew shown after an off-centre strike: the aimed line, and the line it really took, swung across over 0.25 s
@@ -403,7 +410,7 @@ function drawSkew(dt) {
 }
 function release() {
   const c = table.cue, d = contactDiff(), first = !ls('dailybreak:firstShot');
-  const real = contact(d), ct = first ? { tip: { x: 0, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, power } : real;
+  const real = contact(d), ct = first ? { tip: { x: aim.spotX, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, side: aim.side, power } : real;
   const teach = first && real.quality !== 'clean' && real.quality !== 'perfect' ? { tip: real.tip, quality: real.quality } : null;
   let angle = aim.angle + ct.off;
   const own = angle;
@@ -411,12 +418,12 @@ function release() {
     // the player's first shot ever drops: if their aim and pace wouldn't pot the ball they're aimed at, use the
     // nearest pot line for it (however far off they were; then any other ball's) and the nearest pace that does
     ls('dailybreak:firstShot', '1');
-    const target = table.balls[aim.bi], pots = (a, pw) => { const s = simulate(table, a, pw, ct.spin); return !s.shot.scratch && s.balls[aim.bi].potted; };
+    const target = table.balls[aim.bi], pots = (a, pw) => { const s = simulate(table, a, pw, ct.spin, null, ct.side); return !s.shot.scratch && s.balls[aim.bi].potted; };
     if (target && !target.potted && !pots(angle, ct.power)) {
       const turn = a => Math.abs(Math.atan2(Math.sin(a - angle), Math.cos(a - angle)));
       const lines = allLines(table).filter(l => !l.blocked).sort((x, y) => (x.bi !== aim.bi) - (y.bi !== aim.bi) || turn(x.angle) - turn(y.angle));
       const paces = [ct.power, 0.3, 0.34, 0.26, 0.38, 0.22, 0.42, 0.18].sort((x, y) => Math.abs(x - ct.power) - Math.abs(y - ct.power));
-      const potsAny = (a, pw, bi) => { const s = simulate(table, a, pw, ct.spin); return !s.shot.scratch && s.balls[bi].potted; };
+      const potsAny = (a, pw, bi) => { const s = simulate(table, a, pw, ct.spin, null, ct.side); return !s.shot.scratch && s.balls[bi].potted; };
       found: for (const pw of paces) if (pots(angle, pw)) { ct.power = pw; break found; }
       else if (pw === paces[paces.length - 1]) for (const l of lines) for (const p2 of paces) if (potsAny(l.angle, p2, l.bi)) { angle = l.angle; ct.power = p2; aim.bi = l.bi; break found; }
     }
@@ -425,9 +432,9 @@ function release() {
   const rescue = first ? null : scratchRescue(angle, ct);
   if (rescue) { ls('dailybreak:scratchSaved', '1'); ct.spin = spinFor(rescue.toY); }
   // Will this shot clear the rack? Then the last ball gets the slow-motion treatment.
-  const sim = simulate(table, angle, ct.power, ct.spin), sp = sim.shot.pots;
+  const sim = simulate(table, angle, ct.power, ct.spin, null, ct.side), sp = sim.shot.pots;
   cine = (round.level >= 2 && !sim.remaining() || trickKinds(sim.shot).length) && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
-  strike = { angle, power: ct.power, spin: ct.spin, t: 0, end: teach ? SHOOT_T + TEACH_T : SHOOT_T };
+  strike = { angle, power: ct.power, spin: ct.spin, side: ct.side, t: 0, end: teach ? SHOOT_T + TEACH_T : SHOOT_T };
   // an off-centre strike (Clean included) pushes the line a little: show it bending from the aim to where it really goes
   skew = !first && Math.abs(angle - aim.angle) > 0.02 * Math.PI / 180 ? { from: skewGeom(aim.angle), to: skewGeom(angle), off: (angle - aim.angle) * 180 / Math.PI, q: ct.quality, pots: sp.length > 0, age: 0, said: false } : null;
   zoom = { t: 0, ct, d, from: contactPanel(), teach, end: strike.end };

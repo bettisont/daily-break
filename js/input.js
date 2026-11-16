@@ -94,29 +94,30 @@ function cycleSpin() {
   const i = SPIN_SPOTS.findIndex(([y]) => spinKind(spinFor(y)) === spinKind(aim.spin));
   setSpot(SPIN_SPOTS[(i + 1) % SPIN_SPOTS.length][0]);
 }
-// Spin: drag the gold spot up (follow) or down (draw); a tap puts it where you tapped. The cue ball's
+// Spin: drag the gold spot up (follow) or down (draw), left or right for side; a tap puts it where you tapped. The cue ball's
 // path shows on the table while you drag, so you can see what the spin does.
 const spinEl = $('spinBall'), spinFaceEl = $('spinFace');
 let spinDrag = null;
 const faceY = e => { const r = spinFaceEl.getBoundingClientRect(); return (e.clientY - (r.top + r.height / 2)) / (r.height / 2 - 7); };
+const faceX = e => { const r = spinFaceEl.getBoundingClientRect(); return (e.clientX - (r.left + r.width / 2)) / (r.width / 2 - 7); };
 spinEl.addEventListener('pointerdown', e => {
   e.preventDefault(); ensureAudio();
   if (phase !== 'aim' || hold) return;
   if (spinDemo) stopSpinDemo();
   ls('dailybreak:spinDemo', '1');
-  spinDrag = { id: e.pointerId, y: e.clientY, y0: aim.spotY, moved: false, tapY: faceY(e) };
+  spinDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: aim.spotX, y0: aim.spotY, moved: false, tapX: faceX(e), tapY: faceY(e) };
   try { spinEl.setPointerCapture(e.pointerId); } catch {}
   updateUI();
 });
 spinEl.addEventListener('pointermove', e => {
   const d = spinDrag;
   if (!d || d.id !== e.pointerId) return;
-  const dy = e.clientY - d.y;
-  if (!d.moved && Math.abs(dy) < 4) return;
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+  if (!d.moved && Math.hypot(dx, dy) < 4) return;
   d.moved = true;
-  const before = strikeName(aim.spin);
-  setSpot(d.y0 + dy / 90, true);
-  if (strikeName(aim.spin) !== before) { sfx.click(); buzz(6); }
+  const before = strikeName(aim.spin) + sideName(aim.side);
+  setSpot(d.y0 + dy / 90, true, d.x0 + dx / 90);
+  if (strikeName(aim.spin) + sideName(aim.side) !== before) { sfx.click(); buzz(6); }
   const notch = Math.round(aim.spotY * 10);
   if (notch !== d.notch) { d.notch = notch; sfx.notch(900 - aim.spotY * 700); if (!notch) { tone(520, 0.04, 0.05, 'sine', 1, 0, 0); buzz(8); } }
 });
@@ -124,7 +125,7 @@ const endSpin = e => {
   const d = spinDrag;
   if (!d || d.id !== e.pointerId) return;
   spinDrag = null;
-  if (!d.moved && e.type === 'pointerup' && Math.abs(d.tapY) < 1.1) setSpot(d.tapY);
+  if (!d.moved && e.type === 'pointerup' && Math.hypot(d.tapX, d.tapY) < 1.1) setSpot(d.tapY, false, d.tapX);
   else updateUI();
 };
 spinEl.addEventListener('pointerup', endSpin);
@@ -178,6 +179,7 @@ addEventListener('keydown', e => {
   }
   else if (hold?.kb && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); setPower(power + (e.key === 'ArrowDown' ? 0.05 : -0.05)); }
   else if (phase !== 'aim') return;
+  else if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); if (!hold) setSpot(aim.spotY, false, aim.spotX + (e.key === 'ArrowRight' ? 0.1 : -0.1)); }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const s = e.key === 'ArrowRight' ? 1 : -1; stripOff += s * 6; turnAim(s * deg); }
   else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); if (!hold) setSpot(aim.spotY + (e.key === 'ArrowUp' ? -0.1 : 0.1)); }
   else if (e.key === 's') cycleSpin();

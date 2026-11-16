@@ -4,6 +4,16 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 16 Nov 2026 (evening): sidespin
+
+- **Side on the cue ball** (`aim.spotX`/`aim.side`, `sideFor` in `js/game.js`; `Table.english` and `SIDE_K` 0.32,
+  `SIDE_KEEP` 0.55, `SIDE_WEAR` 0.9986 in `js/physics.js`/`js/core.js`). Drag the gold spot left or right as well as
+  up and down. The cue ball comes off cushions bent towards the side it was struck on: a straight shot into a cushion
+  at half pace with full side comes back about 17° off. It never comes off a cushion faster than it went in (keeps the
+  guide's early-exit bound valid). The strike reads side like spin: +0.12 x |side| difficulty, a near or off hit
+  drifts it towards where the tip landed, a miscue loses it. The guide, spin path and readShot all use it. Generation
+  never sets side: all course snapshots unchanged; fastsim now also checks two side settings (4200 aims).
+
 ## 16 Nov 2026: spin resets after every shot
 
 - **Each shot starts on Stun** (`lineUp` in `js/game.js` sets `aim.spotY` and `aim.spin` back to 0). Before, the spin

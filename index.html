@@ -84,7 +84,7 @@
   #stripVal small{display:block;font:500 8.5px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   #strip.off,#rowB.off,#pull.off{opacity:.5}
   /* spin: a small cue ball; tap to cycle Stun, Follow, Draw. The dot is where the tip will hit. */
-  #spinBall{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;touch-action:none;cursor:ns-resize;color:var(--ink)}
+  #spinBall{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;touch-action:none;cursor:move;color:var(--ink)}
   #spinFace.pulse{animation:spinPulse 1.4s ease-out infinite}
   @keyframes spinPulse{0%{box-shadow:0 3px 0 #1d251f,0 0 0 0 rgba(226,177,60,.8)}100%{box-shadow:0 3px 0 #1d251f,0 0 0 16px rgba(226,177,60,0)}}
   #spinFace{position:relative;width:106px;height:106px;border-radius:50%;background:#2f3a31;box-shadow:0 3px 0 #1d251f,0 5px 12px rgba(60,45,25,.25)}
@@ -92,6 +92,7 @@
   #spinFace .f::before,#spinFace .f::after{content:'';position:absolute;background:rgba(60,45,25,.15)}
   #spinFace .f::before{left:0;right:0;top:50%;height:1px} #spinFace .f::after{top:0;bottom:0;left:50%;width:1px}
   #spinFace .f i{position:absolute;left:0;right:0;font:700 9.5px 'DM Mono',monospace;letter-spacing:.06em;text-align:center;color:rgba(60,45,25,.45);font-style:normal}
+  #spinFace .f i.sd{left:auto;right:auto;top:50%;margin-top:-6px}
   #spinDot{position:absolute;left:50%;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:rgba(226,177,60,.8);border:2px solid #b88a2e;box-shadow:0 1px 3px rgba(0,0,0,.25)}
   #spinBall.drag #spinFace{transform:scale(1.08);box-shadow:0 3px 0 #1d251f,0 0 0 4px rgba(226,177,60,.5)}
   #spinTxt b{display:block;font:800 16px 'DM Sans',sans-serif}
@@ -163,7 +164,7 @@
       <div id="strip" title="Swipe to aim (← →)"><div id="stripFace"></div><div id="stripVal"></div></div>
     </div>
     <div id="rowB">
-      <div id="spinBall" title="Spin: drag the gold spot (up/down arrows)"><div id="spinFace"><div class="f"><i style="top:7%">FOLLOW</i><i style="bottom:7%">DRAW</i><span id="spinDot"></span></div></div><div class="spinCol"><div id="spinTxt"></div><div id="hint" class="mono"></div></div></div>
+      <div id="spinBall" title="Spin: drag the gold spot (up/down arrows; shift + left/right for side)"><div id="spinFace"><div class="f"><i style="top:7%">FOLLOW</i><i style="bottom:7%">DRAW</i><i class="sd" style="left:6%">L</i><i class="sd" style="right:6%">R</i><span id="spinDot"></span></div></div><div class="spinCol"><div id="spinTxt"></div><div id="hint" class="mono"></div></div></div>
     </div>
     <div id="pull" class="pulse" title="Pull down, let go to shoot (or hold Space)"><div id="pullFill"></div><div id="pullCue"></div><div id="pullLab"></div></div>
     <button id="act">…</button>

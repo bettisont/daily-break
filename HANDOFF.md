@@ -91,7 +91,11 @@ cue down the right.
 4. **Spin.** The spin ball (106 px, 92 px under 380 px wide) under the aim strip: drag the gold spot up (follow) or
    down (draw), or tap where you want it; spot clamps to ±0.5 of the radius and snaps to centre within 0.06
    (`setSpot`), spin = `spinFor` (-1.4 x height, capped ±0.95). Names: Follow / Stun / Draw (`strikeName`). Every shot starts back on Stun (`lineUp`, from
-   16 Nov). Spin is
+   16 Nov). **Side** (16 Nov): the spot also moves left/right (`aim.spotX`, side = `sideFor`, 1.4 x, capped ±0.95;
+   the spot stays within 0.5 of centre; shift + left/right on a keyboard). Side bends the cue ball off every cushion
+   towards the side struck (`Table.english`: push along the cushion = `SIDE_K` x side x speed into it, never faster
+   than it went in, `SIDE_KEEP` left after each cushion, `SIDE_WEAR` per step). Generation never sets side, so a
+   zero side runs none of it and no course changes. Spin is
    applied at the cue ball's first contact (follow carries on, draw comes back). **Path hint** (`spinPaths`,
    `cuePath`, `drawSpinPaths`): only while pulling back or dragging the spot, a fading line shows the cue ball's
    first `PATH_STEPS` 120 physics steps (half a second) after it meets the first ball, so a harder pull draws a

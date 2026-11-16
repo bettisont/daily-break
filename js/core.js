@@ -27,6 +27,10 @@ const ruleOn = (seed, from) => !isDailySeed(seed) || seed >= from;
 const W = 500, H = 1000, RAIL = 40, R = 17, DT = 1 / 240, TAU = Math.PI * 2;
 const MAX_SPEED = 2600, ROLL_DECEL = 240, LIN_DAMP = 0.32, STOP = 6;
 const BALL_E = 0.95, BUMPER_E = 0.9, CUSHION_E = 0.78, POT_MAX_SPEED = 1050;
+// Side spin (16 Nov, player shots only: generation never sets it): how hard it bends the cue ball off a cushion (as a
+// share of the speed into it), how much is left after each cushion, and how it wears off as the ball rolls (per step:
+// about half gone in two seconds).
+const SIDE_K = 0.32, SIDE_KEEP = 0.55, SIDE_WEAR = 0.9986;
 // From RULES.FORGIVE_FROM pockets are more forgiving: a ball only rattles out above POT_MAX_FORGIVING (a real
 // smash), so far fewer good shots are lost to pace. Earlier days keep POT_MAX_SPEED.
 const POT_MAX_FORGIVING = 1700;
