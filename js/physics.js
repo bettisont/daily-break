@@ -19,16 +19,17 @@ class Table {
   moving() { return this.live().some(b => b.vx || b.vy || b.uN); }
   remaining() { return this.balls.filter(b => !b.potted).length; }
 
-  shoot(angle, power, spin = 0) {
+  shoot(angle, power, spin = 0, side = 0) {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
     for (const b of this.balls) { b.cush = 0; b.wallPts = []; }
     this.cue.cush = 0; this.cue.wallPts = [];
-    this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false, tunnels: 0 };
+    this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false, tunnels: 0, side };
   }
 
   step() {
     const tl = this.hole.tilt, s = this.shot, mouths = tunMouths(this.hole);
+    if (s && s.side) { s.side *= SIDE_WEAR; if (Math.abs(s.side) < 0.02) s.side = 0; }
     // a ball in the tunnel: underground until it comes out of the other mouth, heading the same way
     if (mouths.length) for (const b of this.live()) if (b.uN && --b.uN === 0) {
       const m = mouths[b.uTo], sp = Math.hypot(b.uVx, b.uVy) || 1;
@@ -139,19 +140,34 @@ class Table {
           const d = Math.sqrt(d2), nx = d ? dx / d : g.nx, ny = d ? dy / d : g.ny;
           b.x = cx + nx * R; b.y = cy + ny * R;
           const vn = b.vx * nx + b.vy * ny;
-          if (vn < 0) { b.vx -= (1 + CUSHION_E) * vn * nx; b.vy -= (1 + CUSHION_E) * vn * ny; hitWall = true; }
+          if (vn < 0) { b.vx -= (1 + CUSHION_E) * vn * nx; b.vy -= (1 + CUSHION_E) * vn * ny; hitWall = true; if (s && s.side && b === this.cue) this.english(nx, ny, vn, sp); }
         }
       } else {
-      if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * CUSHION_E; hitWall = true; }
-      if (b.x > W - R) { b.x = W - R; b.vx = -Math.abs(b.vx) * CUSHION_E; hitWall = true; }
-      if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * CUSHION_E; hitWall = true; }
-      if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy) * CUSHION_E; hitWall = true; }
+      const eng = s && s.side && b === this.cue;
+      if (b.x < R) { const vn = Math.min(0, b.vx); b.x = R; b.vx = Math.abs(b.vx) * CUSHION_E; hitWall = true; if (eng) this.english(1, 0, vn, sp); }
+      if (b.x > W - R) { const vn = Math.min(0, -b.vx); b.x = W - R; b.vx = -Math.abs(b.vx) * CUSHION_E; hitWall = true; if (eng) this.english(-1, 0, vn, sp); }
+      if (b.y < R) { const vn = Math.min(0, b.vy); b.y = R; b.vy = Math.abs(b.vy) * CUSHION_E; hitWall = true; if (eng) this.english(0, 1, vn, sp); }
+      if (b.y > H - R) { const vn = Math.min(0, -b.vy); b.y = H - R; b.vy = -Math.abs(b.vy) * CUSHION_E; hitWall = true; if (eng) this.english(0, -1, vn, sp); }
       }
       // (a touch in a pocket's jaws doesn't count, so a pot that brushes the jaw isn't a 'bank')
       if (hitWall && this.pk.every(p => Math.hypot(b.x - p.x, b.y - p.y) > p.cap + 2 * R)) b.cush = (b.cush || 0) + 1;
       if (hitWall) b.wallPts = [...(b.wallPts || []), [b.x, b.y]];   // every cushion contact and where (for the guide)
       if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
     }
+  }
+
+  // Side spin (16 Nov): the cue ball grips the cushion and comes off bent towards the side it was struck on (right
+  // side, to the shooter's right as they face that cushion), by more the harder it hits. (nx, ny) is the cushion's
+  // normal into the table, vn the speed into it (negative), v0 the ball's speed before the bounce: it never comes off
+  // faster than that (so the guide's bound on how far balls can still roll, in guidePotsAt, still holds). Each
+  // cushion uses some of it up. Only ever runs with side set, so every shot without side (and every generated hole)
+  // plays exactly as before.
+  english(nx, ny, vn, v0) {
+    const s = this.shot, c = this.cue, k = s.side * SIDE_K * -vn;
+    c.vx += ny * k; c.vy -= nx * k;
+    const m = Math.hypot(c.vx, c.vy); if (m > v0) { c.vx *= v0 / m; c.vy *= v0 / m; }
+    s.side *= SIDE_KEEP;
+    if (Math.abs(s.side) < 0.02) s.side = 0;
   }
 
   pot(b, i) {
@@ -339,9 +355,9 @@ function allLines(t) {
   t.balls.forEach((b, bi) => { if (!b.potted) for (let i = 0; i < 6; i++) { const l = potLine(t, bi, i); if (l) out.push(l); } });
   return out;
 }
-function simulate(t, angle, power, spin = 0, path = null) {
+function simulate(t, angle, power, spin = 0, path = null, side = 0) {
   const s = cloneTable(t);
-  s.shoot(angle, power, spin);
+  s.shoot(angle, power, spin, side);
   for (let n = 0; n < 9000 && s.moving(); n++) {
     s.step();
     if (path && n % 6 === 0 && !s.cue.potted) path.push([s.cue.x, s.cue.y]);
@@ -360,9 +376,9 @@ function simulate(t, angle, power, spin = 0, path = null) {
 // a margin for the step-by-step physics).
 // The bound is only used on holes where it holds: no tunnels (they move balls; a gate or sand only takes pace out),
 // and a tilt weaker than the friction.
-function guidePotsAt(t, angle, power, spin, kick, cush) {
+function guidePotsAt(t, angle, power, spin, kick, cush, side = 0) {
   const s = cloneTable(t), h = s.hole, tl = h.tilt;
-  s.shoot(angle, power, spin);
+  s.shoot(angle, power, spin, side);
   const a = ROLL_DECEL - Math.hypot(tl.x, tl.y), k = LIN_DAMP;   // sand only adds friction, so plain felt bounds it
   const bounded = !tunMouths(h).length && a > 20;
   const open = s.pk.filter((_, i) => s.openPocket(i));

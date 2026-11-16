@@ -24,9 +24,10 @@ function updateUI() {
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
 function updateSpinBall() {
-  const a = Math.abs(aim.spotY), name = strikeName(aim.spin);
-  $('spinDot').style.top = `${50 + aim.spotY * 50}%`;
-  $('spinTxt').innerHTML = `<b>${name}</b><small>${name === 'Stun' ? 'stops dead' : `${a > 0.32 ? 'strong' : 'light'} · ${name === 'Follow' ? 'rolls on' : 'comes back'}`}</small>${spinTouched ? '' : '<small>drag the gold spot</small>'}`;
+  const a = Math.abs(aim.spotY), name = strikeName(aim.spin), sd = sideName(aim.side);
+  $('spinDot').style.top = `${50 + aim.spotY * 50}%`; $('spinDot').style.left = `${50 + aim.spotX * 50}%`;
+  const what = name === 'Stun' ? 'stops dead' : `${a > 0.32 ? 'strong' : 'light'} · ${name === 'Follow' ? 'rolls on' : 'comes back'}`;
+  $('spinTxt').innerHTML = `<b>${name}${sd ? ` · ${sd}` : ''}</b><small>${what}</small>${sd ? `<small>bends ${sd} off cushions</small>` : ''}${spinTouched ? '' : '<small>drag the gold spot</small>'}`;
   $('spinBall').classList.toggle('drag', !!spinDrag);
   spinPulse();
 }
@@ -87,12 +88,12 @@ function tickSpinDemo(dt) {
 // drags the gold spot to a spin that keeps it out, and the shot plays with that spin. Once ever.
 function scratchRescue(angle, ct) {
   if (ls('dailybreak:scratchSaved') || !ls('dailybreak:firstShot')) return null;
-  const base = simulate(table, angle, ct.power, ct.spin);
+  const base = simulate(table, angle, ct.power, ct.spin, null, ct.side);
   if (!base.shot.scratch || !base.shot.firstHit) return null;
   const potted = base.shot.pots.map(p => p.ball.n).sort().join();
   for (const y of [0.45, 0.25, 0, -0.25, -0.45]) {
     if (Math.abs(y - aim.spotY) < 0.1) continue;
-    const s = simulate(table, angle, ct.power, spinFor(y));
+    const s = simulate(table, angle, ct.power, spinFor(y), null, ct.side);
     if (!s.shot.scratch && s.shot.pots.map(p => p.ball.n).sort().join() === potted) return { fromY: aim.spotY, toY: y, at: [base.cue.x, base.cue.y] };
   }
   return null;

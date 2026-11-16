@@ -26,7 +26,7 @@ function frame(now) {
     }
     // then, once the close-up has gone, the cue on the table strikes and the balls roll
     if (strike.t >= strike.end) {
-      table.shoot(strike.angle, strike.power, strike.spin);
+      table.shoot(strike.angle, strike.power, strike.spin, strike.side);
       const q = zoom?.ct.quality, c0 = table.cue, fy = c0.y - 50 < 30 ? c0.y + 50 : c0.y - 50;
       if (q === 'perfect') {
         table.shot.perfect = true;

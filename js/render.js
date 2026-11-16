@@ -555,8 +555,8 @@ const spinKind = s => s > 0.2 ? 0 : s < -0.2 ? 2 : 1;
 // The cue ball's first half second after it meets the first ball (or less, if it drops in a pocket).
 // Time, not distance, so a harder hit draws a longer line.
 const PATH_STEPS = 120;
-function cuePath(angle, pw, spin) {
-  const s = cloneTable(table); s.shoot(angle, pw, spin);
+function cuePath(angle, pw, spin, side = 0) {
+  const s = cloneTable(table); s.shoot(angle, pw, spin, side);
   const pts = []; let hitAt = -1, lx = s.cue.x, ly = s.cue.y;
   for (let n = 0; n < 9000 && s.moving(); n++) {
     s.step();
@@ -573,9 +573,9 @@ function cuePath(angle, pw, spin) {
 }
 let spinCache = { key: '', paths: [] };
 function spinPaths() {
-  const pw = hold ? power : lastPower, key = `${aim.angle.toFixed(5)}|${pw.toFixed(3)}|${aim.spin.toFixed(3)}|${strokes}|${hole.i}`;
+  const pw = hold ? power : lastPower, key = `${aim.angle.toFixed(5)}|${pw.toFixed(3)}|${aim.spin.toFixed(3)}|${aim.side.toFixed(3)}|${strokes}|${hole.i}`;
   if (key !== spinCache.key) {
-    const main = { name: strikeName(aim.spin), spin: aim.spin, main: true, ...cuePath(aim.angle, pw, aim.spin) };
+    const main = { name: strikeName(aim.spin), spin: aim.spin, main: true, ...cuePath(aim.angle, pw, aim.spin, aim.side) };
     spinCache = { key, paths: [main] };
   }
   return spinCache.paths;
@@ -689,8 +689,8 @@ const GUIDE_KICK = 0, GUIDE_CUSH = 1, GUIDE_PACES = [0.15, 0.25, 0.35, 0.45, 0.5
 // pots of the ball the line follows (the first ball the cue ball meets), with the cue ball straight to it and the
 // potted ball off at most GUIDE_CUSH cushions, and no scratch. startUnpotted uses it (guidePots); it's the same
 // rule as shownPots in drawGuide, which can call this instead.
-function guideShownPots(t, angle, pw, spin) {
-  const s = simulate(t, angle, pw, spin), b = s.shot.firstHit;
+function guideShownPots(t, angle, pw, spin, side = 0) {
+  const s = simulate(t, angle, pw, spin, null, side), b = s.shot.firstHit;
   if (s.shot.scratch || !b || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
   return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
 }
@@ -728,22 +728,22 @@ function drawGuide(c, dx, dy, hit, t) {
   // The ring, for a perfect strike with the spin you've set, played out in full (tilt and sand included): if the
   // followed ball drops at any pace (GUIDE_PACES), that pocket can light (see finishGuide). It doesn't depend on how hard you pull:
   // the guide shows where the shot goes, assuming the right pace; judging the pace is up to you.
-  const sp = aim.spin;
+  const sp = aim.spin, sd = aim.side;
   // Only pots of the ball the line follows (the first ball the cue ball meets) count. A second ball knocked in by
   // it, or by the cue ball, isn't on any line, so it never lights anything (it used to flicker rings round pockets
   // the line didn't go near while you aimed).
   // Each pace's sim stops as soon as its answer is settled (guidePotsAt), and the answers for the last few hundred aims
   // on this table are kept, so working the aim back and forth over the same spot doesn't simulate it again.
-  const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}`;
+  const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}:${sd.toFixed(2)}`;
   if (guideSim.key !== key) {
     // (kept only while the table is the same one with every ball where it was)
     const at = [table.cue, ...table.balls].map(b => b.potted ? '-' : `${b.x},${b.y}`).join(';') + `;${table.gp}`;
     if (guideSim.memoOf !== table || guideSim.memoAt !== at) { guideSim.memoOf = table; guideSim.memoAt = at; guideSim.memo = new Map(); }
-    const mkey = `${aim.angle}:${sp}`;   // the exact inputs the sims see
+    const mkey = `${aim.angle}:${sp}:${sd}`;   // the exact inputs the sims see
     let pots = guideSim.memo.get(mkey);
     if (!pots) {
       pots = new Set();
-      for (const pw of GUIDE_PACES) for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH)) pots.add(i);
+      for (const pw of GUIDE_PACES) for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH, sd)) pots.add(i);
       if (guideSim.memo.size >= 400) guideSim.memo.delete(guideSim.memo.keys().next().value);
       guideSim.memo.set(mkey, pots);
     }
@@ -886,13 +886,13 @@ function drawFace(x, y, Rb, d, tip, flash, quality) {
   // the miscue zone round the edge
   ctx.strokeStyle = 'rgba(184,85,63,.3)'; ctx.lineWidth = rb * 0.14; ctx.beginPath(); ctx.arc(0, 0, rb * 0.92, 0, TAU); ctx.stroke();
   // the gold spot
-  const on = Math.hypot(tip.x, tip.y - aim.spotY) <= r;
+  const on = Math.hypot(tip.x - aim.spotX, tip.y - aim.spotY) <= r;
   ctx.fillStyle = on ? 'rgba(226,177,60,.75)' : 'rgba(226,177,60,.35)'; ctx.strokeStyle = '#b88a2e'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, aim.spotY * rb, r * rb, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(aim.spotX * rb, aim.spotY * rb, r * rb, 0, TAU); ctx.fill(); ctx.stroke();
   // the perfect core: a bright bullseye
-  const core = Math.hypot(tip.x, tip.y - aim.spotY) <= r * PERFECT_CORE;
+  const core = Math.hypot(tip.x - aim.spotX, tip.y - aim.spotY) <= r * PERFECT_CORE;
   ctx.fillStyle = core ? '#fff3c4' : 'rgba(255,243,196,.75)'; ctx.strokeStyle = '#b88a2e'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(0, aim.spotY * rb, r * rb * PERFECT_CORE, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(aim.spotX * rb, aim.spotY * rb, r * rb * PERFECT_CORE, 0, TAU); ctx.fill(); ctx.stroke();
   // the tip, seen end-on
   const tr = rb * 0.13 * (tip.s || 1);
   ctx.globalAlpha = tip.a ?? 1;

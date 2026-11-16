@@ -41,7 +41,7 @@ let gimmes = [];
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
-let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0 }, power = 0.4, strike = null, strokeStart = null;
+let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0, spotX: 0, side: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [];
 // this hole's golden pocket takes a stroke off the hole, once (holeBonus)
 let holeBonus = 0, goldUsed = false;
