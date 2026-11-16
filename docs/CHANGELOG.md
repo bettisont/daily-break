@@ -4,6 +4,13 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 16 Nov 2026: spin resets after every shot
+
+- **Each shot starts on Stun** (`lineUp` in `js/game.js` sets `aim.spotY` and `aim.spin` back to 0). Before, the spin
+  ball kept whatever the last shot used, so a draw or follow left set by accident carried into the next shot. UI
+  state only: generation, physics and every course snapshot unchanged, so it ships straight away rather than behind a
+  date in `RULES`.
+
 ## 15 Nov 2026 (evening): the strike reads the whole shot (from 17 Nov)
 
 - **Strike difficulty follows how tricky the shot is, not just how long** (`RULES.SHOT_READ_FROM` 2026-11-17;
