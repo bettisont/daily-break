@@ -16,6 +16,7 @@ const SOFT_SHADOW = glowSprite(128, [[0, 'rgba(40,25,10,.55)'], [0.55, 'rgba(40,
 const CLOUD = glowSprite(256, [[0, 'rgba(50,40,30,.10)'], [0.6, 'rgba(50,40,30,.05)'], [1, 'rgba(50,40,30,0)']]);
 const LAMP = glowSprite(256, [[0, 'rgba(255,238,200,.22)'], [0.55, 'rgba(255,238,200,.08)'], [1, 'rgba(255,238,200,0)']]);
 const CLOUD_BUF = document.createElement('canvas');   // the cloud shadows, drawn small (see draw())
+const VIGNETTE_BUF = document.createElement('canvas');   // the vignette, painted once per screen size (see draw())
 const MOTE = glowSprite(16, [[0, 'rgba(255,248,225,.9)'], [1, 'rgba(255,248,225,0)']]);
 function noisePattern(size, alpha) {
   const c = document.createElement('canvas'); c.width = c.height = size;
@@ -1245,9 +1246,17 @@ function draw(t, dt) {
     gg.addColorStop(0, 'rgba(255,200,90,0)'); gg.addColorStop(1, `rgba(255,190,80,${0.35 * fx.glow})`);
     ctx.fillStyle = gg; ctx.fillRect(0, 0, cw, ch);
   }
-  const vg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.35, cw / 2, ch / 2, Math.max(cw, ch) * 0.75);
-  vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, `rgba(40,25,10,${0.28 + clamp((PLAY - timeScale) / PLAY, 0, 1) * 0.45})`);
-  ctx.fillStyle = vg; ctx.fillRect(0, 0, cw, ch);
+  // the vignette: a full-screen radial gradient was being rasterised every frame, so it's painted once per size at a
+  // quarter of the resolution (it's only a soft shade) and stretched over; its strength is the copy's alpha
+  const vb = VIGNETTE_BUF;
+  if (vb.cw !== cw || vb.ch !== ch) {
+    vb.cw = cw; vb.ch = ch; vb.width = Math.ceil(cw / 4); vb.height = Math.ceil(ch / 4);
+    const vc = vb.getContext('2d'), vg = vc.createRadialGradient(vb.width / 2, vb.height / 2, Math.min(vb.width, vb.height) * 0.35, vb.width / 2, vb.height / 2, Math.max(vb.width, vb.height) * 0.75);
+    vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, 'rgba(40,25,10,1)');
+    vc.fillStyle = vg; vc.fillRect(0, 0, vb.width, vb.height);
+  }
+  ctx.globalAlpha = 0.28 + clamp((PLAY - timeScale) / PLAY, 0, 1) * 0.45;
+  ctx.drawImage(vb, 0, 0, cw, ch); ctx.globalAlpha = 1;
   // film grain: hop the noise tile to a new random offset ~12 times a second, so it shimmers in place
   // (sliding it steadily made it read as diagonal rain)
   const gf = Math.floor(t * 12), gx = hash01(gf) * 160, gy = hash01(gf + 0.5) * 160;

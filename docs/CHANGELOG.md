@@ -4,6 +4,18 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 16 Nov 2026 (late): battery and heat
+
+- **Frame pacing** (`busy` in `js/main.js`). Phones got hot and drained: the loop repainted the whole screen
+  (room and table copies, clouds, lamp, vignette, grain) on every display frame, 120 a second on 120 Hz phones, even
+  with nothing happening. Now 60 max while anything moves, animates or is touched (and 1.5 s after), 30 while idle,
+  15 behind the blurred results/intro card (the backdrop blur is redone for every frame drawn under it).
+- **Audio suspended when off or hidden** (`syncAudio` in `js/audio.js`). The AudioContext ran all the time, rolling
+  rumble noise loop and echo included, even with the sound off. `tone`/`noise` do nothing while muted so nothing
+  queues up on the stopped clock. The rumble's gain is only re-targeted when it changes.
+- **Vignette cached** (`VIGNETTE_BUF`): painted once per screen size at quarter resolution instead of a full-screen
+  radial gradient every frame. Looks the same. No physics or generation touched: all course snapshots unchanged.
+
 ## 16 Nov 2026 (evening): sidespin
 
 - **Side on the cue ball** (`aim.spotX`/`aim.side`, `sideFor` in `js/game.js`; `Table.english` and `SIDE_K` 0.32,

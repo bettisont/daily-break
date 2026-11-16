@@ -3,8 +3,28 @@
 
 /* ----- loop ----- */
 
+// Frame pacing (16 Nov 2026: phones were getting hot). Every frame repaints the whole screen several times over
+// (room, table, clouds, lamp, vignette, grain), and a 120 Hz phone was doing it 120 times a second even with
+// nothing happening. Now: at most 60 a second while anything moves or a finger is down, 30 while the table just sits
+// there (only the slow room animations: clouds, plants, record, grain), and 15 behind the blurred card (the blur is
+// redone on every frame drawn under it). The physics steps a fixed DT however often frames come, so no outcome changes.
+let lastInput = 0;
+addEventListener('pointerdown', () => { lastInput = performance.now(); }, { capture: true, passive: true });
+addEventListener('pointermove', () => { lastInput = performance.now(); }, { capture: true, passive: true });
+addEventListener('keydown', () => { lastInput = performance.now(); }, { capture: true, passive: true });
+function busy(now) {
+  return phase !== 'aim' && phase !== 'over' || hold || drag || demo || spinDemo || cine || lip || zoom
+    || now - lastInput < 1500 || fx.shake > 0.05 || fx.glow > 0 || banner || (stamp && stamp.t < 0.5) || trayFly.length
+    || fx.particles.length || fx.rings.length || fx.floats.length || fx.sinks.length || fx.confetti.length || fx.flashes.length
+    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
+}
 function frame(now) {
-  const t = now / 1000, dt = Math.min(0.05, t - (frame.last ?? t));
+  requestAnimationFrame(frame);
+  const active = busy(now), fps = active ? 60 : $('overlay').classList.contains('show') ? 15 : 30;
+  // (4 ms of slack for rAF jitter: on a 120 Hz screen 60 fps is every other frame, at 60 Hz 30 fps is every other)
+  if (frame.drawn != null && now - frame.drawn < 1000 / fps - 4) return;
+  frame.drawn = now;
+  const t = now / 1000, dt = Math.min(active ? 0.05 : 0.1, t - (frame.last ?? t));
   frame.last = t;
   if (hold) {
     const d = contactDiff(), was = tipOnSpot(d);
@@ -100,10 +120,13 @@ function frame(now) {
     if (shotRec && shotRec.length < 3000) shotRec.push([shotSteps * DT, c.uN ? NaN : c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.uN ? NaN : b.x, b.y, b.potted ? 1 : 0])]);
     if (!table.moving() && !(cine && cine.hold > 0)) resolveShot();
   }
-  if (rollGain) {
-    const v = phase === 'moving' && table ? table.live().reduce((a, b) => a + Math.hypot(b.vx, b.vy), 0) : 0;
-    rollGain.gain.setTargetAtTime(Math.min(1, v / 2600) * 0.11, audio.currentTime, 0.05);
-    rollFilter.frequency.setTargetAtTime(180 + Math.min(1, v / 2600) * 320, audio.currentTime, 0.05);
+  if (rollGain && audio.state === 'running') {
+    const v = phase === 'moving' && table ? Math.min(1, table.live().reduce((a, b) => a + Math.hypot(b.vx, b.vy), 0) / 2600) : 0;
+    if (v !== frame.roll) {   // (only when it changes: not a new automation event every frame while all is still)
+      frame.roll = v;
+      rollGain.gain.setTargetAtTime(v * 0.11, audio.currentTime, 0.05);
+      rollFilter.frequency.setTargetAtTime(180 + v * 320, audio.currentTime, 0.05);
+    }
   }
   // the points total counts up rather than jumping
   if (hs && shownPts !== hs.points) {
@@ -122,7 +145,6 @@ function frame(now) {
   tickDemo(dt); tickSpinDemo(dt);
   // a drawing error must never stop the game: log it and carry on with the next frame
   try { draw(t, dt); } catch (e) { console.error(e); }
-  requestAnimationFrame(frame);
 }
 
 resize();

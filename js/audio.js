@@ -27,7 +27,7 @@ function ensureAudio() {
     rollGain = audio.createGain(); rollGain.gain.value = 0; rollFilter = rf;
     rs.connect(rf).connect(rollGain).connect(fxBus); rs.start();
   }
-  if (audio.state === 'suspended') audio.resume();
+  syncAudio();
   if (!musicTimer) { playChord(); musicTimer = setInterval(playChord, 6400); }
 }
 // Sounds can be placed left/right by where they happen on the table (set `pan` around a call with atX).
@@ -37,18 +37,28 @@ function out(node, bus) {
   if (pan && audio.createStereoPanner) { const p = audio.createStereoPanner(); p.pan.value = pan; node.connect(p).connect(bus); }
   else node.connect(bus);
 }
+// A running AudioContext keeps the phone's audio hardware and audio thread awake even when it's silent (the rolling
+// rumble's noise loop and the echo run all the time), which costs battery. So it's suspended while the sound is off
+// or the page is hidden, and resumed otherwise (16 Nov 2026). Nothing is scheduled while muted (tone, noise), so
+// nothing piles up on the stopped clock to burst out on resume.
+function syncAudio() {
+  if (!audio) return;
+  const want = !muted && !document.hidden;
+  if (want && audio.state !== 'running') audio.resume?.().catch(() => {});
+  else if (!want && audio.state === 'running') audio.suspend?.().catch(() => {});
+}
 function unlockAudio() {
   if (!audio) return;
-  if (audio.state !== 'running') audio.resume?.();
+  syncAudio();
   if (!unlockAudio.done) {  // a silent buffer started inside the gesture unlocks iOS Web Audio for good
     unlockAudio.done = true;
     try { const src = audio.createBufferSource(); src.buffer = audio.createBuffer(1, 1, 22050); src.connect(audio.destination); src.start(0); } catch {}
   }
 }
 for (const ev of ['touchend', 'click', 'keydown']) addEventListener(ev, () => { if (!audio) ensureAudio(); unlockAudio(); }, { capture: true, passive: true });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && audio && audio.state !== 'running') audio.resume?.().catch(() => {}); });
+document.addEventListener('visibilitychange', syncAudio);
 function tone(freq, dur, vol, type = 'sine', slide = 1, delay = 0, wet = 0.15, bus = fxBus) {
-  if (!audio) return;
+  if (!audio || muted) return;
   const t = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, t);
   if (slide !== 1) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq * slide), t + dur);
@@ -59,7 +69,7 @@ function tone(freq, dur, vol, type = 'sine', slide = 1, delay = 0, wet = 0.15, b
   o.start(t); o.stop(t + dur + 0.05);
 }
 function noise(dur, vol, freq, type = 'lowpass', delay = 0, q = 0.7, bus = fxBus) {
-  if (!audio) return;
+  if (!audio || muted) return;
   const t = audio.currentTime + delay, src = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
   src.buffer = noiseBuf; f.type = type; f.frequency.value = freq; f.Q.value = q;
   g.gain.setValueAtTime(Math.max(0.0002, vol), t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -116,7 +126,7 @@ const sfx = {
   // a tunnel: a hollow drop going in, a rumble that rolls across underneath, and a thunk coming out
   tunnel(v) { v = clamp(v / 1500, 0.2, 1); tone(240, 0.28, 0.12 * v + 0.05, 'sine', 0.4, 0, 0.5); noise(0.18, 0.1 * v + 0.04, 500, 'lowpass', 0.02); tone(900, 0.03, 0.03, 'triangle', 0.8, 0, 0.2); },
   tunnelRoll(x0, x1, dur) {
-    if (!audio) return;
+    if (!audio || muted) return;
     const t = audio.currentTime + 0.05, src = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
     src.buffer = noiseBuf; f.type = 'lowpass'; f.frequency.value = 170; f.Q.value = 1.2;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.06); g.gain.setValueAtTime(0.5, t + Math.max(0.07, dur - 0.08)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);

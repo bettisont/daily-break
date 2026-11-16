@@ -262,8 +262,13 @@ About half the phones that open the game never shot, so the first shot is heavil
   felt, still markings, pockets) are painted once per hole and view into two device-resolution canvases and copied
   each frame (repainting them was ~8 ms a frame on a software canvas). Two layers because the cat sleeps between them.
   While the camera pushes in (`cam.k` > 1) everything is drawn directly. Shake offsets the copy into `SHAKE_PAD`.
-  Cloud shadows are drawn at quarter resolution (`CLOUD_BUF`). `frame` wraps `draw` in try/catch so a drawing error can
-  never stop the loop (a replay NaN once froze the game).
+  Cloud shadows and the vignette are drawn at quarter resolution (`CLOUD_BUF`, `VIGNETTE_BUF`, the vignette painted
+  once per screen size). `frame` wraps `draw` in try/catch so a drawing error can never stop the loop (a replay NaN
+  once froze the game).
+- **Frame pacing** (`busy`, `frame` in `js/main.js`): at most 60 frames a second while anything moves or animates or a
+  finger has been down in the last 1.5 s, 30 when the table just sits there, 15 behind the blurred card. 120 Hz
+  phones were drawing every frame at 120, which made them hot. A new animation that should be smooth while the
+  player is idle needs a line in `busy`. Physics steps a fixed `DT`, so outcomes don't depend on frame rate.
 - **Audio** (`js/audio.js`): all procedural Web Audio, no files; effects panned by table position (`atX`). Woody ball
   clacks, padded cushion thuds, a deep wooden clunk into the pocket (`sfx.drop`), pot notes climbing a pentatonic
   scale with the streak (`sfx.potNote`), tunnel drop/rumble/thunk (`sfx.tunnel`, `sfx.tunnelRoll`, `sfx.tunnelOut`),

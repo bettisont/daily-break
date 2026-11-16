@@ -199,6 +199,7 @@ $('snd').onclick = () => {
   master?.gain.setTargetAtTime(muted ? 0 : 0.9, audio.currentTime, 0.05);
   musicBus?.gain.setTargetAtTime(musicOn ? 1 : 0, audio.currentTime, 0.4);
   if (musicOn && !muted) playChord();
+  setTimeout(syncAudio, 300);   // suspend once the fade to silence is done (or resume, though ensureAudio already has)
 };
 $('help').onclick = () => { ensureAudio(); showHelp(); };
 setSoundBtns();
