@@ -202,6 +202,9 @@ $('snd').onclick = () => {
   setTimeout(syncAudio, 300);   // suspend once the fade to silence is done (or resume, though ensureAudio already has)
 };
 $('help').onclick = () => { ensureAudio(); showHelp(); };
+// prototype: P switches the new controls off and on (reloads, so the hole restarts from where it was saved)
+$('proto').classList.toggle('off', !PROTO);
+$('proto').onclick = () => { ls('dailybreak:proto', PROTO ? '0' : '1'); location.reload(); };
 setSoundBtns();
 
 function resize() {

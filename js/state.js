@@ -53,5 +53,14 @@ let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, 
 let shotSteps = 0, trayDone = [], lip = null, lipTried = new Set(), shotRec = null, replay = null, replayed = false, follow = null, trayFly = [], catStartle = 0;
 const fx = { particles: [], rings: [], floats: [], sinks: [], confetti: [], flashes: [], shake: 0, glow: 0 };
 let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
+// PROTOTYPE (18 Nov 2026), not for release as it is: controls that explain themselves instead of tutorials.
+// - the white ball's path after contact is always shown (faint) while aiming, and the hole 2 spin demo is gone
+// - while you pull, the close-up of the strike sits next to the white ball on the table, not in the corner
+// - while the tip is on the gold spot, the cue on the table, the close-up and the pull control all light gold
+// - the tip swings in a steady rhythm through the spot instead of drifting (this changes strike difficulty, so a
+//   release would gate it behind a date in RULES)
+// The P button in the header turns it all off and on (stored on this device) to compare with the live game.
+const PROTO = ls('dailybreak:proto') !== '0';
+let spotOn = false;   // the tip is on the gold spot right now (while pulling)
 
 

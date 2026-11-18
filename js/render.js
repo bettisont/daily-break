@@ -584,7 +584,8 @@ function spinPaths() {
 // Shown only while you're pulling back or dragging the spin spot: a dotted line that fades out.
 function drawSpinPaths() {
   const pulling = hold && power >= MIN_PULL, showing = spinDemo || (phase === 'strike' && strike.spinLesson && strike.t < 0);
-  const p = pulling || spinDrag || showing ? spinPaths()[0] : null;
+  const resting = PROTO && phase === 'aim' && !pulling && !spinDrag && !showing && !demo;   // (prototype: always shown, faint)
+  const p = pulling || spinDrag || showing || resting ? spinPaths()[0] : null;
   // a scratch ahead while pulling back: the spin ball pulses (and, the first three times, the table says so)
   const sc = !!(pulling && p?.scratch);
   if (sc !== scratchAhead) { scratchAhead = sc; spinPulse(); }
@@ -607,7 +608,7 @@ function drawSpinPaths() {
   ctx.save(); ctx.lineCap = 'round';
   const n = p.pts.length, rgb = showing ? '226,177,60' : '251,248,240';
   for (let k = 1; k < n; k++) {
-    ctx.strokeStyle = `rgba(${rgb},${0.95 * (1 - k / n) + 0.05})`; ctx.lineWidth = showing ? 6 : 4;
+    ctx.strokeStyle = `rgba(${rgb},${(0.95 * (1 - k / n) + 0.05) * (resting ? 0.5 : 1)})`; ctx.lineWidth = showing ? 6 : resting ? 3 : 4;
     if (p.pts[k].gap) continue;
     ctx.beginPath(); ctx.moveTo(p.pts[k - 1][0], p.pts[k - 1][1]); ctx.lineTo(p.pts[k][0], p.pts[k][1]); ctx.stroke();
   }
@@ -872,7 +873,19 @@ let spinTouched = false, zoom = null;
 // The close-up of the cue ball. While you hold the cue back it sits in the bottom-left corner of the
 // table with the gold spot (where you chose to hit) and the wobbling tip. When you let go it zooms to
 // the middle and plays the strike: the tip comes in and hits where it was, and the contact is graded.
-function contactPanel() { const { cw, ch } = view, Rb = clamp(cw * 0.17, 54, 84); return { x: Rb + 10, y: ch - Rb - 26, R: Rb }; }
+function contactPanel() {
+  const { cw, ch } = view;
+  if (!PROTO || !table) { const Rb = clamp(cw * 0.17, 54, 84); return { x: Rb + 10, y: ch - Rb - 26, R: Rb }; }
+  // prototype: beside the white ball, square to the aim (so it covers neither the aim line nor the cue), on the
+  // side with more room, kept on screen
+  const Rb = clamp(cw * 0.15, 50, 74), b = screenAt(table.cue.x, table.cue.y), br = R * view.s * cam.k;
+  const nx = -Math.sin(aim.angle), ny = Math.cos(aim.angle), gap = Rb + br + 16;
+  const fits = sg => { const x = b.x + nx * gap * sg, y = b.y + ny * gap * sg; return Math.min(x - Rb, cw - x - Rb, y - Rb, ch - y - Rb); };
+  const sg = fits(1) >= fits(-1) ? 1 : -1;
+  return { x: clamp(b.x + nx * gap * sg, Rb + 6, cw - Rb - 6), y: clamp(b.y + ny * gap * sg, Rb + 6, ch - Rb - 30), R: Rb, bx: b.x, by: b.y, br };
+}
+// a table point in css pixels on screen (as draw() places it, camera included)
+function screenAt(x, y) { const { s, ox, oy } = view, S = s * cam.k; return { x: ox + cam.x * s * (1 - cam.k) + x * S, y: oy + cam.y * s * (1 - cam.k) + y * S }; }
 function drawFace(x, y, Rb, d, tip, flash, quality) {
   const rb = Rb * 0.82, r = spotR(d);
   ctx.save(); ctx.translate(x, y);
@@ -912,6 +925,14 @@ function drawFace(x, y, Rb, d, tip, flash, quality) {
 function drawContact(dt) {
   if (hold && power >= MIN_PULL && phase === 'aim') {
     const p = contactPanel(), d = contactDiff();
+    if (PROTO) {
+      // tie the close-up to the white ball: a ring round it and a short link across
+      const col = spotOn ? 'rgba(226,177,60,.95)' : 'rgba(251,248,240,.7)', ux = p.x - p.bx, uy = p.y - p.by, ul = Math.hypot(ux, uy) || 1;
+      ctx.strokeStyle = col; ctx.lineWidth = spotOn ? 3 : 2;
+      ctx.beginPath(); ctx.arc(p.bx, p.by, p.br + 4, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p.bx + ux / ul * (p.br + 4), p.by + uy / ul * (p.br + 4)); ctx.lineTo(p.x - ux / ul * p.R, p.y - uy / ul * p.R); ctx.stroke();
+      if (spotOn) { ctx.save(); ctx.shadowColor = 'rgba(255,210,110,1)'; ctx.shadowBlur = 22 * view.dpr; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(p.x, p.y, p.R + 3, 0, TAU); ctx.stroke(); ctx.restore(); }
+    }
     drawFace(p.x, p.y, p.R, d, tipPos(d), 0, null);
     const word = shotWord(d);
     ctx.font = "700 10px 'DM Mono', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -965,6 +986,9 @@ function drawCue(angle, pull, sk, at = table.cue, through = 0) {
   ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(angle);
   const stick = (ox, oy) => { ctx.beginPath(); ctx.moveTo(-tip + ox, -3 + oy); ctx.lineTo(-tip - len + ox, -6.5 + oy); ctx.lineTo(-tip - len + ox, 6.5 + oy); ctx.lineTo(-tip + ox, 3 + oy); ctx.closePath(); };
   ctx.fillStyle = 'rgba(40,25,10,.22)'; stick(8, 12); ctx.fill();
+  if (PROTO && hold && spotOn && phase === 'aim') {   // prototype: the cue lights gold while the tip is on the spot
+    ctx.save(); ctx.shadowColor = 'rgba(255,210,110,1)'; ctx.shadowBlur = 18 * view.s * view.dpr; ctx.strokeStyle = '#ffd76a'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; stick(0, 0); ctx.stroke(); ctx.restore();
+  }
   const g = ctx.createLinearGradient(-tip, 0, -tip - len, 0);
   g.addColorStop(0, '#f1e3c4'); g.addColorStop(0.58, '#d6a86e'); g.addColorStop(0.6, '#3b2418'); g.addColorStop(0.75, '#c4472f'); g.addColorStop(0.77, '#2a180f'); g.addColorStop(1, '#2a180f');
   ctx.fillStyle = g; stick(0, 0); ctx.fill();

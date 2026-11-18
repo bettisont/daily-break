@@ -29,9 +29,12 @@ function frame(now) {
   if (hold) {
     const d = contactDiff(), was = tipOnSpot(d);
     swayT += dt;
-    if (!was && tipOnSpot(d)) { tone(1046, 0.03, 0.02, 'sine', 1, 0, 0); buzz(3); }
+    if (!was && tipOnSpot(d)) { tone(1046, 0.03, 0.02, 'sine', 1, 0, 0); buzz(PROTO ? 12 : 3); }
     const inCore = tipInCore(d); if (inCore && !frame.core) { tone(1568, 0.03, 0.025, 'sine', 1, 0, 0); buzz(4); } frame.core = inCore;
   }
+  // prototype: the pull control lights gold while the tip is on the spot
+  const on = !!hold && phase === 'aim' && power >= MIN_PULL && tipOnSpot(contactDiff());
+  if (on !== spotOn) { spotOn = on; if (PROTO) $('pull').classList.toggle('onspot', on); }
   if (phase === 'strike') {
     const was = strike.t;
     strike.t += dt;

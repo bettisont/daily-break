@@ -60,7 +60,7 @@ function aimLesson(was, now) {
 // while a hand drags the gold spot down (draw: the path comes back) and up (follow: it rolls on), on a loop.
 let spinDemo = null;
 function spinDemoWanted() {
-  return phase === 'aim' && !hold && !spinDrag && round?.level === 1 && strokes === 0 && !ls('dailybreak:spinDemo') && !$('overlay').classList.contains('show') && !banner;
+  return !PROTO && phase === 'aim' && !hold && !spinDrag && round?.level === 1 && strokes === 0 && !ls('dailybreak:spinDemo') && !$('overlay').classList.contains('show') && !banner;
 }
 function startSpinDemo() {
   spinDemo = { t: 0, y0: aim.spotY };
