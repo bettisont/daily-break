@@ -661,16 +661,13 @@ function drawAim(t) {
   const hit = trace(table, c.x, c.y, dx, dy);
   aimHit = { ball: hit.ball || null, x: c.x + dx * hit.t, y: c.y + dy * hit.t };
   drawGuide(c, dx, dy, hit, t);
-  // prototype: while the tip is on the spot, a bright ring pulses out from the ghost ball and the object ball, so the
+  // prototype: while the tip is on the spot, a thin ring round the ghost ball and the object ball, so the
   // moment shows where you're looking as you shoot (white, not gold: gold on the line already means "this pots")
   if (PROTO && hold && spotOn) {
-    const k = (t * 2.2) % 1, rings = [[aimHit.x, aimHit.y]];
+    const rings = [[aimHit.x, aimHit.y]];
     if (aimHit.ball) rings.push([aimHit.ball.x, aimHit.ball.y]);
-    ctx.save();
-    for (const [x, y] of rings) {
-      ctx.strokeStyle = 'rgba(255,255,250,.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, R + 4, 0, TAU); ctx.stroke();
-      ctx.strokeStyle = `rgba(255,255,250,${0.8 * (1 - k)})`; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(x, y, R + 4 + k * 16, 0, TAU); ctx.stroke();
-    }
+    ctx.save(); ctx.strokeStyle = 'rgba(255,255,250,.8)'; ctx.lineWidth = 2;
+    for (const [x, y] of rings) { ctx.beginPath(); ctx.arc(x, y, R + 4, 0, TAU); ctx.stroke(); }
     ctx.restore();
   }
 }
@@ -960,7 +957,7 @@ function drawContact(dt) {
       ctx.beginPath(); ctx.moveTo(p.bx + ux / ul * (p.br + 4), p.by + uy / ul * (p.br + 4)); ctx.lineTo(p.x - ux / ul * p.R, p.y - uy / ul * p.R); ctx.stroke();
     }
     if (PROTO && spotOn) {
-      { ctx.save(); ctx.shadowColor = 'rgba(255,210,110,1)'; ctx.shadowBlur = 22 * view.dpr; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(p.x, p.y, p.R + 3, 0, TAU); ctx.stroke(); ctx.restore(); }
+      ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, p.R + 2, 0, TAU); ctx.stroke();
     }
     drawFace(p.x, p.y, p.R, d, tipPos(d), 0, null);
     const word = shotWord(d);
@@ -1015,9 +1012,6 @@ function drawCue(angle, pull, sk, at = table.cue, through = 0) {
   ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(angle);
   const stick = (ox, oy) => { ctx.beginPath(); ctx.moveTo(-tip + ox, -3 + oy); ctx.lineTo(-tip - len + ox, -6.5 + oy); ctx.lineTo(-tip - len + ox, 6.5 + oy); ctx.lineTo(-tip + ox, 3 + oy); ctx.closePath(); };
   ctx.fillStyle = 'rgba(40,25,10,.22)'; stick(8, 12); ctx.fill();
-  if (PROTO && hold && spotOn && phase === 'aim') {   // prototype: the cue lights gold while the tip is on the spot
-    ctx.save(); ctx.shadowColor = 'rgba(255,210,110,1)'; ctx.shadowBlur = 18 * view.s * view.dpr; ctx.strokeStyle = '#ffd76a'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; stick(0, 0); ctx.stroke(); ctx.restore();
-  }
   const g = ctx.createLinearGradient(-tip, 0, -tip - len, 0);
   g.addColorStop(0, '#f1e3c4'); g.addColorStop(0.58, '#d6a86e'); g.addColorStop(0.6, '#3b2418'); g.addColorStop(0.75, '#c4472f'); g.addColorStop(0.77, '#2a180f'); g.addColorStop(1, '#2a180f');
   ctx.fillStyle = g; stick(0, 0); ctx.fill();

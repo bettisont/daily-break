@@ -57,9 +57,8 @@ let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 // - the white ball's path after contact is always shown (faint) while aiming, and the hole 2 spin demo is gone
 // - while you pull, the close-up of the strike sits next to the white ball on the table, not in the corner
 // - while the tip is on the gold spot, the cue on the table, the close-up and the pull control all light gold, and
-//   a bright ring pulses round the ghost ball and the object ball (where the eyes are as you shoot)
-// - the tip swings in a steady rhythm through the spot instead of drifting (this changes strike difficulty, so a
-//   release would gate it behind a date in RULES)
+//   a soft ring shows round the ghost ball and the object ball (where the eyes are as you shoot). Toned down
+//   18 Nov: no glow on the cue or blur round the close-up, just thin rings; the tip's drift is the live one.
 // The P button in the header cycles (stored on this device): P1 the close-up beside the white ball, P2 the close-up
 // beside the object ball, P off (the live game).
 const PROTO_MODE = ['0', '1', '2'].includes(ls('dailybreak:proto')) ? +ls('dailybreak:proto') : 1, PROTO = PROTO_MODE > 0;

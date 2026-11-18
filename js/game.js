@@ -339,17 +339,8 @@ const spotR = d => lerp(0.22, 0.09, d) * (1 - SPOT_SHRINK * strikeK());
 const SPOT_SHRINK = 0.15, WOBBLE_GROW = 0.12, WOBBLE_FAST = 0.15, PUSH_MAX = 3, PUSH_EXTRA = 2;
 function tipPos(d) {
   const k = strikeK(), A = lerp(0.16, 0.55, d) * (1 + WOBBLE_GROW * k), w = lerp(1.0, 2.5, d) * (1 + WOBBLE_FAST * k), t = swayT * w;
-  let x, y;
-  if (PROTO) {
-    // prototype: a steady side-to-side swing through the spot, a little faster, with a slight figure-of-eight and a
-    // slow drift up and down, so you can see it coming and time it, but it doesn't hit the dead centre every pass
-    const u = t * 1.3;
-    x = aim.spotX + A * Math.sin(u);
-    y = aim.spotY + A * (0.28 * Math.sin(2 * u) + 0.14 * Math.sin(0.37 * u + 1));
-  } else {
-    x = aim.spotX + A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
-    y = aim.spotY + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
-  }
+  let x = aim.spotX + A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
+  let y = aim.spotY + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
   const m = Math.hypot(x, y);
   if (m > 0.85) { x *= 0.85 / m; y *= 0.85 / m; }
   return { x, y };
