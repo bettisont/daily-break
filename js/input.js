@@ -202,9 +202,12 @@ $('snd').onclick = () => {
   setTimeout(syncAudio, 300);   // suspend once the fade to silence is done (or resume, though ensureAudio already has)
 };
 $('help').onclick = () => { ensureAudio(); showHelp(); };
-// prototype: P switches the new controls off and on (reloads, so the hole restarts from where it was saved)
+// prototype: P cycles P1 (close-up by the white ball) -> P2 (by the object ball) -> off (reloads; the hole carries on
+// from where it was saved)
 $('proto').classList.toggle('off', !PROTO);
-$('proto').onclick = () => { ls('dailybreak:proto', PROTO ? '0' : '1'); location.reload(); };
+$('proto').textContent = PROTO ? 'P' + PROTO_MODE : 'P';
+$('proto').title = ['Prototype off (the live game)', 'Prototype 1: close-up by the white ball', 'Prototype 2: close-up by the object ball'][PROTO_MODE] + ' · tap to change';
+$('proto').onclick = () => { ls('dailybreak:proto', String((PROTO_MODE + 1) % 3)); location.reload(); };
 setSoundBtns();
 
 function resize() {

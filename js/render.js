@@ -658,7 +658,21 @@ function drawAim(t) {
     ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = t * 12; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(fb.x, fb.y, R + 7, 0, TAU); ctx.stroke(); ctx.restore();
   }
-  drawGuide(c, dx, dy, trace(table, c.x, c.y, dx, dy), t);
+  const hit = trace(table, c.x, c.y, dx, dy);
+  aimHit = { ball: hit.ball || null, x: c.x + dx * hit.t, y: c.y + dy * hit.t };
+  drawGuide(c, dx, dy, hit, t);
+  // prototype: while the tip is on the spot, a bright ring pulses out from the ghost ball and the object ball, so the
+  // moment shows where you're looking as you shoot (white, not gold: gold on the line already means "this pots")
+  if (PROTO && hold && spotOn) {
+    const k = (t * 2.2) % 1, rings = [[aimHit.x, aimHit.y]];
+    if (aimHit.ball) rings.push([aimHit.ball.x, aimHit.ball.y]);
+    ctx.save();
+    for (const [x, y] of rings) {
+      ctx.strokeStyle = 'rgba(255,255,250,.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, R + 4, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,250,${0.8 * (1 - k)})`; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(x, y, R + 4 + k * 16, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
 }
 // The guide (simplified 15 Nov 2026): straight lines only, the cue ball to the first thing it
 // meets and the object ball on from there. A line stops at a pocket's edge, and the pocket gets a slowly turning
@@ -878,11 +892,24 @@ function contactPanel() {
   if (!PROTO || !table) { const Rb = clamp(cw * 0.17, 54, 84); return { x: Rb + 10, y: ch - Rb - 26, R: Rb }; }
   // prototype: beside the white ball, square to the aim (so it covers neither the aim line nor the cue), on the
   // side with more room, kept on screen
-  const Rb = clamp(cw * 0.15, 50, 74), b = screenAt(table.cue.x, table.cue.y), br = R * view.s * cam.k;
-  const nx = -Math.sin(aim.angle), ny = Math.cos(aim.angle), gap = Rb + br + 16;
-  const fits = sg => { const x = b.x + nx * gap * sg, y = b.y + ny * gap * sg; return Math.min(x - Rb, cw - x - Rb, y - Rb, ch - y - Rb); };
-  const sg = fits(1) >= fits(-1) ? 1 : -1;
-  return { x: clamp(b.x + nx * gap * sg, Rb + 6, cw - Rb - 6), y: clamp(b.y + ny * gap * sg, Rb + 6, ch - Rb - 30), R: Rb, bx: b.x, by: b.y, br };
+  const Rb = clamp(cw * 0.15, 50, 74), br = R * view.s * cam.k, ob = PROTO_MODE === 2 && aimHit?.ball;
+  let b, nx, ny, sg, gap = Rb + br + 16;
+  const fits = s => { const x = b.x + nx * gap * s, y = b.y + ny * gap * s; return Math.min(x - Rb, cw - x - Rb, y - Rb, ch - y - Rb); };
+  if (ob) {
+    // P2: beside the object ball, square to the way it will roll, on the side the white ball won't go (after a
+    // stun the white ball runs off square to the object ball's line, towards the side it came in from)
+    b = screenAt(ob.x, ob.y); gap += 6;
+    const ux = ob.x - aimHit.x, uy = ob.y - aimHit.y, ul = Math.hypot(ux, uy) || 1;
+    nx = -uy / ul; ny = ux / ul;
+    const v = Math.cos(aim.angle) * nx + Math.sin(aim.angle) * ny;   // which side the white ball heads off to
+    sg = Math.abs(v) > 0.05 ? -Math.sign(v) : fits(1) >= fits(-1) ? 1 : -1;
+    if (fits(sg) < -Rb * 0.5 && fits(-sg) > fits(sg)) sg = -sg;
+  } else {
+    b = screenAt(table.cue.x, table.cue.y);
+    nx = -Math.sin(aim.angle); ny = Math.cos(aim.angle);
+    sg = fits(1) >= fits(-1) ? 1 : -1;
+  }
+  return { x: clamp(b.x + nx * gap * sg, Rb + 6, cw - Rb - 6), y: clamp(b.y + ny * gap * sg, Rb + 6, ch - Rb - 30), R: Rb, bx: b.x, by: b.y, br, link: !ob };
 }
 // a table point in css pixels on screen (as draw() places it, camera included)
 function screenAt(x, y) { const { s, ox, oy } = view, S = s * cam.k; return { x: ox + cam.x * s * (1 - cam.k) + x * S, y: oy + cam.y * s * (1 - cam.k) + y * S }; }
@@ -925,13 +952,15 @@ function drawFace(x, y, Rb, d, tip, flash, quality) {
 function drawContact(dt) {
   if (hold && power >= MIN_PULL && phase === 'aim') {
     const p = contactPanel(), d = contactDiff();
-    if (PROTO) {
+    if (PROTO && p.link) {
       // tie the close-up to the white ball: a ring round it and a short link across
       const col = spotOn ? 'rgba(226,177,60,.95)' : 'rgba(251,248,240,.7)', ux = p.x - p.bx, uy = p.y - p.by, ul = Math.hypot(ux, uy) || 1;
       ctx.strokeStyle = col; ctx.lineWidth = spotOn ? 3 : 2;
       ctx.beginPath(); ctx.arc(p.bx, p.by, p.br + 4, 0, TAU); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(p.bx + ux / ul * (p.br + 4), p.by + uy / ul * (p.br + 4)); ctx.lineTo(p.x - ux / ul * p.R, p.y - uy / ul * p.R); ctx.stroke();
-      if (spotOn) { ctx.save(); ctx.shadowColor = 'rgba(255,210,110,1)'; ctx.shadowBlur = 22 * view.dpr; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(p.x, p.y, p.R + 3, 0, TAU); ctx.stroke(); ctx.restore(); }
+    }
+    if (PROTO && spotOn) {
+      { ctx.save(); ctx.shadowColor = 'rgba(255,210,110,1)'; ctx.shadowBlur = 22 * view.dpr; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(p.x, p.y, p.R + 3, 0, TAU); ctx.stroke(); ctx.restore(); }
     }
     drawFace(p.x, p.y, p.R, d, tipPos(d), 0, null);
     const word = shotWord(d);

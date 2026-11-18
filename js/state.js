@@ -56,11 +56,14 @@ let hitStop = 0, spinFx = null, shownPts = 0, swayT = 0;
 // PROTOTYPE (18 Nov 2026), not for release as it is: controls that explain themselves instead of tutorials.
 // - the white ball's path after contact is always shown (faint) while aiming, and the hole 2 spin demo is gone
 // - while you pull, the close-up of the strike sits next to the white ball on the table, not in the corner
-// - while the tip is on the gold spot, the cue on the table, the close-up and the pull control all light gold
+// - while the tip is on the gold spot, the cue on the table, the close-up and the pull control all light gold, and
+//   a bright ring pulses round the ghost ball and the object ball (where the eyes are as you shoot)
 // - the tip swings in a steady rhythm through the spot instead of drifting (this changes strike difficulty, so a
 //   release would gate it behind a date in RULES)
-// The P button in the header turns it all off and on (stored on this device) to compare with the live game.
-const PROTO = ls('dailybreak:proto') !== '0';
+// The P button in the header cycles (stored on this device): P1 the close-up beside the white ball, P2 the close-up
+// beside the object ball, P off (the live game).
+const PROTO_MODE = ['0', '1', '2'].includes(ls('dailybreak:proto')) ? +ls('dailybreak:proto') : 1, PROTO = PROTO_MODE > 0;
 let spotOn = false;   // the tip is on the gold spot right now (while pulling)
+let aimHit = null;    // what the aim line meets first: { ball (or null), x, y } (the ghost ball's centre)
 
 
