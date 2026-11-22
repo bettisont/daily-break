@@ -27,8 +27,8 @@ on par, and the trick replays are the best moment of a round.
   x2, then the streak, which pulls down out of the streak meter. Finally the shot's score flies into the header's
   Points, which only then counts up (`ptsHold`). Asked for in the playtests: the multiplier was already working on
   each shot, but you couldn't see it. A version that explained every step on the table ("Bank: the ball came off a
-  cushion", a running record, the whole sum) had too much text on screen. So the table shows only numbers ("+200",
-  "x2.5"), and tapping the Points chip (ⓘ) opens the breakdown of the round's shots, newest first (`logShot`,
+  cushion", a running record, the whole sum) had too much text on screen, and numbers alone didn't say why. So each
+  number on the table gets one word ("100 POT", "+200 BANK", "x2.5 STREAK", "+900 CLEARED"), and tapping the Points chip (ⓘ) opens the breakdown of the round's shots, newest first (`logShot`,
   `showShotLog`): each line with what it was for (`TRICK_WHY`) and the sum. After the first tally, a one-off tip
   points to it.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the

@@ -685,32 +685,33 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, bonus = null) 
   const st = $('stage').getBoundingClientRect(), cx = st.left + st.width / 2, cy = st.top + st.height * 0.3;
   const el = document.createElement('div');
   el.id = 'tally'; el.style.left = cx + 'px'; el.style.top = cy + 'px';
-  el.innerHTML = `<div class="tn">${fmtPts(base)}</div>`;
+  el.innerHTML = `<div class="tn">${fmtPts(base)}</div><div class="tl">${baseLabel}</div>`;
   document.body.appendChild(el);
   ptsHold = true;
-  const n = el.querySelector('.tn'), timers = [];
+  const n = el.querySelector('.tn'), tl = el.querySelector('.tl'), timers = [];
   tally = { el, timers };
   const at = (ms, f) => timers.push(setTimeout(f, ms));
   const pop = cls => { n.classList.remove('pop', 'smash'); void n.offsetWidth; n.classList.add(cls); };
   tone(660, 0.1, 0.05, 'triangle', 1.5, 0, 0.3);
-  let t = 650, now = base;
-  const gap = items.length > 4 ? 560 : 700;
-  // each trick element: "+200" appears under the number, then flies up into it
-  const addIn = (pts, cls, i, after) => {
+  let t = 750, now = base;
+  const gap = items.length > 4 ? 650 : 820;
+  // each trick element: "+200 BANK" appears under the number, then flies up into it (one word says what it's for:
+  // 22 Nov playtest, the numbers alone didn't say why; full sentences were too much)
+  const addIn = (pts, label, cls, i, after) => {
     const it = document.createElement('div');
-    at(t, () => { it.className = `ti ${cls}`; it.textContent = `+${fmtPts(pts)}`; el.appendChild(it); tone(784 * Math.pow(2, i / 7), 0.08, 0.04, 'triangle', 1, 0, 0.3); });
+    at(t, () => { tl.classList.add('gone'); it.className = `ti ${cls}`; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small>`; el.appendChild(it); tone(784 * Math.pow(2, i / 7), 0.08, 0.04, 'triangle', 1, 0, 0.3); });
     at(t + gap - 300, () => it.classList.add('in'));
     at(t + gap - 120, () => { it.remove(); after(); pop('pop'); tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8); });
     t += gap;
   };
-  items.forEach(([, pts], i) => addIn(pts, '', i, () => { rollNum(n, now, now + pts, 200); now += pts; }));
+  items.forEach(([label, pts], i) => addIn(pts, label, '', i, () => { rollNum(n, now, now + pts, 200); now += pts; }));
   // each multiplier pulls down onto the number and smashes into it
   muls.forEach(([label, m], i) => {
     const chip = document.createElement('div');
     t += 200;
     at(t, () => {
       const src = label === 'Streak' && $('iLie') ? $('iLie').getBoundingClientRect() : { left: cx - 40, top: st.top - 40, width: 80, height: 30 };
-      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.textContent = `×${m}`;
+      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
       chip.style.left = src.left + src.width / 2 + 'px'; chip.style.top = src.top + src.height / 2 + 'px';
       document.body.appendChild(chip);
     });
@@ -735,7 +736,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, bonus = null) 
   });
   // the table-clear bonus, last and flat (it isn't multiplied)
   const total = gain + (bonus ? bonus[1] : 0);
-  if (bonus) { t += 150; addIn(bonus[1], 'clear', 0, () => { rollNum(n, gain, total, 240); n.classList.remove('hot'); sfx.chime(); }); }
+  if (bonus) { t += 150; addIn(bonus[1], 'Cleared', 'clear', 0, () => { rollNum(n, gain, total, 240); n.classList.remove('hot'); sfx.chime(); }); }
   // then the shot's score flies into the header's Points
   at(t + 450, () => {
     const dst = $('ptsVal'), a = n.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;

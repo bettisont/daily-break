@@ -55,8 +55,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     which ones are hit (`tg`).
     No text is shown as they happen: `trickBang` gives the pocket or contact a flash, rings, sparks, shake, hit-stop
     and `sfx.bang`, all scaled by `shotQ` (elements so far, +2 for the golden pocket). After the replay, `scoreTrick`
-    runs the tally (`showTally`, a fixed overlay over the stage, numbers only). The base comes first, then each
-    element's "+200" flies into the number one by one. Then each multiplier chip (`.tchip`: golden from the top, the
+    runs the tally (`showTally`, a fixed overlay over the stage: numbers, each with a one-word label). The base comes
+    first ("100 POT"), then each element's "+200 BANK" flies into the number one by one. Then each multiplier chip (`.tchip`: golden from the top, the
     streak from the streak meter) drops onto the number and smashes. Last, the shot's score flies into `#ptsVal`.
     `logShot` keeps the breakdown, with what each line was for (`TRICK_WHY`) and the sum, in `round.shotLog`
     (newest first, at most 30). Tapping the Points chip (`#ptsChip`) shows it (`showShotLog`), and the
