@@ -50,8 +50,9 @@ const TRICK_PTS = { pot: 100, part: 200 };
 const trickFlag = new URLSearchParams(location.search).has('trick');
 // a daily seed from the switch date on, a practice course once today is past it, or anything under ?trick
 const trickOn = seed => trickFlag || (!!RULES.TRICK_SCORE_FROM && (isDailySeed(seed) ? seed : todayKey()) >= RULES.TRICK_SCORE_FROM);
-// what each element adds: 200, except Quick (a shot taken within QUICK_S seconds of the aim starting), 100
-const partPts = k => k === 'Quick' ? 100 : TRICK_PTS.part;
+// what each element adds: 200, except Quick (a shot taken within QUICK_S seconds of the aim starting) and Kick, 100
+// (a kick came up more than anything in every playtest, often by accident: halved on 22 Nov)
+const partPts = k => k === 'Quick' || k === 'Kick' ? 100 : TRICK_PTS.part;
 const QUICK_S = 5;
 const fmtPts = n => Math.round(n).toLocaleString('en-US');
 

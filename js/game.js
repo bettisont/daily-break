@@ -154,15 +154,15 @@ const tgtPos = (o, clock) => { const u = 0.5 - 0.5 * Math.cos(TAU * (clock / o.p
 // after every physics step while the balls roll: has a rolling ball crossed a target?
 function tgtStep() {
   tgtClock += DT;
-  if (!tshot || !targets.length) return;
+  // (only before anything drops, like Cannon: a ball wandering through after the pot doesn't count, 22 Nov playtest)
+  if (!tshot || !targets.length || tshot.balls > 0) return;
   for (const o of targets) {
     if (o.hit || tshot.tgt.includes(o)) continue;
     const p = tgtPos(o, tgtClock);
     const b = [table.cue, ...table.balls].find(b => !b.potted && !b.uN && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < TGT_R);
     if (!b) continue;
     tshot.tgt.push(o); o.pendClock = tgtClock;
-    if (tshot.balls > 0) { o.hit = true; o.hitClock = tgtClock; trickPart('Target'); trickBang(p.x, p.y, shotQ(tshot), 'Target'); }
-    else { sfx.trick('Target'); ring(p.x, p.y, '255,215,106', 60, 0.6, TGT_R); sparkle(p.x, p.y, '#ffe08a', 12, 120); }   // it counts once something drops
+    sfx.trick('Target'); ring(p.x, p.y, '255,215,106', 60, 0.6, TGT_R); sparkle(p.x, p.y, '#ffe08a', 12, 120);   // it counts once something drops
   }
 }
 
@@ -605,12 +605,10 @@ function resolveShot() {
     strokes++;   // the penalty stroke
     if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
     say(`${foul} · +1 stroke`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
-    if (tshot && (tshot.parts.length || tshot.gold)) say("Tricks don't count on a foul", table.cue.y + 84, '#7a6a3a', 16);
     if (tshot) for (const o of tshot.tgt) o.hit = false;   // a target crossed on a foul comes back
     breakStreak();
-  } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); breakStreak(); }
+  } else if (!shotLog.length) { if (!round.trick) say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); breakStreak(); }   // (trick scoring: the streak meter cracks instead)
   if (!foul && shotLog.length) round.trick ? scoreTrick() : scorePots();
-  else if (!foul && tshot?.tgt.length) say('Targets only count on a shot that pots', table.cue.y + 84, '#7a6a3a', 16);
   if (!round.trick && !foul && s.pots.length && hole.gold != null && !goldUsed && s.pots.some(p => p.pocket === hole.gold)) {
     goldUsed = true; holeBonus++;
     const p = table.pk[hole.gold], px = clamp(p.x, 90, W - 90), py = clamp(p.y + (p.y < H / 2 ? 70 : -70), 50, H - 50);
@@ -713,7 +711,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
   const n = el.querySelector('.tn'), tl = el.querySelector('.tl'), timers = [];
   tally = { el, timers };
   const at = (ms, f) => timers.push(setTimeout(f, ms));
-  const pop = cls => { n.classList.remove('pop', 'smash'); void n.offsetWidth; n.classList.add(cls); };
+  const pop = cls => { n.classList.remove('pop', 'smash', 'win'); void n.offsetWidth; n.classList.add(cls); };
   tone(660, 0.1, 0.05, 'triangle', 1.5, 0, 0.3);
   let t = 750, now = base;
   const gap = items.length > 4 ? 650 : 820;
@@ -743,11 +741,12 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
     at(t + 300, () => spinTo(n, chip, from, to, 550));
     at(t + 880, () => {
       chip.classList.add('melt'); setTimeout(() => chip.remove(), 300);
-      pop('smash'); if (label === 'Streak') n.classList.add('hot');
-      sfx.clunk();
-      fx.shake = Math.max(fx.shake, 5 + m * 2); hitStop = Math.max(hitStop, 0.06);
-      sparkle(W / 2, H * 0.3, '#ffe08a', 40, 320); sparkle(W / 2, H * 0.3, '#ff9a3c', 20, 240);
-      buzz([25, 30, 40]);
+      // a bright rising chime (higher for a bigger multiplier) and a warm golden bloom that swells and settles: no thud
+      // or shake (22 Nov playtest)
+      pop('win'); if (label === 'Streak') n.classList.add('hot');
+      sfx.ding(m);
+      sparkle(W / 2, H * 0.3, '#ffe9a8', 30, 180); sparkle(W / 2, H * 0.3, '#ffd06a', 16, 120);
+      buzz([12, 20, 12]);
     });
     now = to;
     t += 1150;

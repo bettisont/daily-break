@@ -51,8 +51,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     ring (`TGT_R` 2 R) sliding along a straight seeded track (`rngFor('<seed>:targets:<i>')`, never the hole's RNG).
     `tgtClock` advances by `DT` per physics step while the balls roll (`tgtStep`, called from the step loop in
     `main.js`) and by `dt * PLAY` otherwise. It holds still in the replay, which redraws them from
-    `shotClock0 + replay.T`. A rolling ball within `TGT_R` crosses one. If something has already dropped, it scores
-    at once; otherwise it scores at the first drop. With no pot it stays, and on a foul it comes back. Saved runs keep
+    `shotClock0 + replay.T`. A rolling ball within `TGT_R` crosses one, only before anything drops (`tgtStep`
+    stops checking once `tshot.balls > 0`), and it scores at the first drop. With no pot it stays, and on a foul it comes back. Saved runs keep
     which ones are hit (`tg`).
     There are no replays under trick scoring (`resolveShot` skips `startReplay`). No text is shown as they happen: `trickBang` gives the pocket or contact a flash, rings, sparks, shake, hit-stop
     and `sfx.bang`, all scaled by `shotQ` (elements so far, +2 for the golden pocket). After the replay, `scoreTrick`
@@ -75,7 +75,9 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     players today", from the tally, with the player count on purpose for trick scoring). A saved run or result
     scored the other way isn't resumed or shown (`r.trick` must match).
   - Rank: `mode: 'trick'`, higher is better, in `TRICK_BUCKET` 50-point buckets (the worker's `t:<day>`).
-  - The help screen and intro still describe par (decided: no onboarding change). Revisit before the switch date.
+  - The intro and help describe trick scoring when it's on (`TRICK_INTRO`, `TRICK_HELP` in `js/ui.js`). Text on the
+    table under trick scoring is only for something going wrong (scratch, miscue, pushed off line, rattled out, out
+    of shots). The multiplier lands with `sfx.ding` and a CSS golden bloom (`.tn.win`). Kick is +100 (`partPts`).
 - **Date switches** (`RULES` in `js/core.js`, checked with `ruleOn(seed, from)`; a practice seed, anything that isn't
   a `YYYY-MM-DD`, always gets the newest rules):
   - `FORGIVE_FROM` 2026-11-16: a ball rattles out of a pocket only above `POT_MAX_FORGIVING` 1700 (was

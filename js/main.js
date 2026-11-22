@@ -51,8 +51,8 @@ function frame(now) {
       if (q === 'perfect') {
         table.shot.perfect = true;
         [1318.5, 1568].forEach((f, k) => tone(f, 0.3, 0.03, 'sine', 1, k * 0.06, 0.6));   // a soft two-note lift
-        sparkle(c0.x, c0.y, '#ffd76a', 18, 130); ring(c0.x, c0.y, '255,215,106', 50, 0.6); float(c0.x, fy, 'Perfect strike!', '#b88a2e', 22); fx.glow = Math.max(fx.glow, 0.35); }
-      else if (q === 'clean') { sparkle(c0.x, c0.y, '#e2b13c', 8, 110); float(c0.x, fy, 'Clean strike', '#7a6a3a', 18); }
+        sparkle(c0.x, c0.y, '#ffd76a', 18, 130); ring(c0.x, c0.y, '255,215,106', 50, 0.6); if (!round.trick) float(c0.x, fy, 'Perfect strike!', '#b88a2e', 22); fx.glow = Math.max(fx.glow, 0.35); }
+      else if (q === 'clean') { sparkle(c0.x, c0.y, '#e2b13c', 8, 110); if (!round.trick) float(c0.x, fy, 'Clean strike', '#7a6a3a', 18); }
       else if (q === 'miscue') { fx.shake = 5; float(c0.x, fy, 'Miscue!', '#b8553f', 22); for (let k = 0; k < 14; k++) { const a = Math.random() * TAU, v = 40 + Math.random() * 90; fx.particles.push({ x: c0.x, y: c0.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 + Math.random() * 0.4, color: '#8fb4e8', r: 1.5 + Math.random() * 2.5 }); } }
       else if (q) float(c0.x, fy, zoom.ct.off ? `Off-centre: pushed ${zoom.ct.off < 0 ? 'left' : 'right'}` : 'Off-centre', q === 'near' ? '#7a6a3a' : '#b8553f', 18);
       sfx.clack(strike.power * 1600);
@@ -97,8 +97,8 @@ function frame(now) {
       const done = b.potted || (!b.vx && !b.vy) || lip.t > 5;
       if (done) {
         const fy = clamp(p.y + (p.y < H / 2 ? 80 : -80), 60, H - 60), fxp = clamp(p.x, 100, W - 100);
-        if (b.potted) { float(fxp, fy, 'It dropped!', '#2f6b4f', 28, 2); if (!round.trick) confettiBurst(60); fx.glow = 1; buzz([20, 30, 40]); }
-        else { float(fxp, fy, 'So close!', '#b8553f', 26, 2); tone(330, 0.5, 0.06, 'triangle', 0.6, 0, 0.3); p.wobble = 1; fx.shake = 3; catStartle = 1; }
+        if (b.potted) { if (!round.trick) float(fxp, fy, 'It dropped!', '#2f6b4f', 28, 2); if (!round.trick) confettiBurst(60); fx.glow = 1; buzz([20, 30, 40]); }
+        else { if (!round.trick) float(fxp, fy, 'So close!', '#b8553f', 26, 2); tone(330, 0.5, 0.06, 'triangle', 0.6, 0, 0.3); p.wobble = 1; fx.shake = 3; catStartle = 1; }
         lip = null;
       } else { slow = true; tk = 1.5; tx = (b.x + clamp(p.x, 0, W)) / 2; ty = (b.y + clamp(p.y, 0, H)) / 2; }
     }

@@ -199,7 +199,24 @@ async function shareResult(b) {
   try { await navigator.clipboard.writeText(text); b.textContent = 'Copied!'; }
   catch { b.textContent = 'Select the text to copy'; }
 }
+// trick scoring's intro and the scoring part of its help (22 Nov: the par wording was wrong for it)
+const TRICK_INTRO = `
+    <div class="k mono">Daily Break · daily pool</div>
+    <h2>Six holes. Pot with style.</h2>
+    <div class="howto">
+      <p>🎱 Clear each hole within the shots you have. Every pot is 100 points.</p>
+      <p>✨ Tricks add more: a bank, a combination, two in one, a moving target… The better the shot, the bigger the bang.</p>
+      <p>🔥 Pot on shot after shot to build a streak up to ×3. It multiplies every shot; a miss resets it.</p>
+      <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
+    </div>
+    <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
+const TRICK_HELP = `
+      <p>🎱 <b>Six holes, scored in points.</b> Each hole gives you a few shots (shown above the table): clear its balls before they run out. Every pot is <b>100</b>. A foul (a scratch, or hitting nothing) costs a shot and resets your streak, and anything it pots scores nothing.</p>
+      <p>✨ <b>Tricks</b> add to a shot that pots. <b>+200</b> each: a <b>bank</b> (the ball comes off a cushion), a <b>combination</b> (potted by another ball), a <b>cannon</b> (the cue ball hits two balls before one drops), <b>two or three in one</b>, a pot through a <b>tunnel</b>, or a ball rolling through a moving <b>target</b> ring before anything drops. <b>+100</b>: a <b>kick</b> (the cue ball hits a cushion first) or a <b>quick</b> shot (taken while the gold ring round the cue ball is still running).</p>
+      <p>🔥 <b>Streak:</b> every shot that pots raises it, ×1, ×1.5, ×2, ×2.5, up to ×3, from hole to hole, and it multiplies the whole shot. A miss or a foul resets it. From hole 2 the <b>golden pocket</b> doubles the first shot into it.</p>
+      <p>ⓘ Tap <b>Points</b> at the top to see how each shot added up.</p>`;
 function showIntro() {
+  if (round?.trick) { $('card').innerHTML = TRICK_INTRO; $('overlay').classList.add('show'); return; }
   $('card').innerHTML = `
     <div class="k mono">Daily Break · daily pool</div>
     <h2>Six holes. Fewest shots wins.</h2>
@@ -214,17 +231,17 @@ function showIntro() {
 function showHelp() {
   $('card').innerHTML = `
     <div class="k mono">How to play</div>
-    <h2>Six holes. Fewest shots wins.</h2>
+    <h2>${round?.trick ? 'Six holes. Pot with style.' : 'Six holes. Fewest shots wins.'}</h2>
     <div class="howto">
-      <p>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3 (at most three balls a hole). Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>
+      ${round?.trick ? TRICK_HELP : ''}<p ${round?.trick ? 'hidden' : ''}>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3 (at most three balls a hole). Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. To go for a different ball, <b>tap it on the table</b>.</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dashed line shows where the cue ball goes and the solid line where the object ball goes; it lights up when the shot really goes in.</p>
       <p>3 · <b>Spin:</b> <b>drag the gold spot</b> on the little cue ball: up for <b>follow</b> (rolls on), middle for <b>stun</b> (stops), down for <b>draw</b> (comes back). It's the same spot you aim for when you shoot.</p>
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
-      <p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>
+      ${round?.trick ? '' : '<p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>'}
       <p>⛰️ From hole 3 the table can <b>tilt</b>, and brass <b>bumpers</b> or a closed pocket can appear.</p>
-      <p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${featureKeys(round?.seed).includes('tunnel') ? '<p>🕳️ Some holes have a <b>tunnel</b> instead: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. Trick shots (two in one, a bank, a combination or a kick) get an instant replay.</p>
+      <p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${featureKeys(round?.seed).includes('tunnel') ? '<p>🕳️ Some holes have a <b>tunnel</b> instead: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}${round?.trick ? '' : '<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. Trick shots (two in one, a bank, a combination or a kick) get an instant replay.</p>'}
       <p>🔷 From hole 3 the <b>table changes shape</b> from hole to hole: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
       <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
       <p>📅 Everyone plays the same holes each day. One ranked round per day, plus up to 3 practice rounds on random courses.</p>

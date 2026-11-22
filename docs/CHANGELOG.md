@@ -40,6 +40,12 @@ on par, and the trick replays are the best moment of a round.
   the drop and its note, plus `sfx.bang` on a trick shot (no per-kind sound, boom or golden chime); in the tally, a tick
   as each trick lands, quiet reel ticks and a clunk per multiplier, no chime at the end. No confetti under trick
   scoring.
+- **Second tidy-up**: no "Perfect strike!", "Clean strike", "Miss", "Streak over", "It dropped!", "So close!" or
+  target and foul notes on the table under trick scoring; only text that explains something going wrong stays
+  (scratch, miscue, pushed off line, rattled out, out of shots). Targets, like Cannon, only count when crossed
+  before anything drops. Kick halved to +100 (`partPts`). The multiplier lands with a bright rising chime
+  (`sfx.ding`, higher for a bigger multiplier) and a golden bloom behind the number; the thud and the shake went.
+  The intro and help describe trick scoring when it's on (`TRICK_INTRO`, `TRICK_HELP`).
 - **No replays** under trick scoring: they held up the tally, which already shows what the shot did (playtest: "annoying").
   The live slow-motion push-in on a trick or the last ball stays. Par days keep their replays.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the
