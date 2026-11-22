@@ -594,7 +594,8 @@ function drawReplay(dt) {
 // Par: a miss just costs its stroke; a foul adds a penalty stroke. Clear the balls to finish the hole, or pick
 // up once you reach par + 3. A trick shot is replayed first (startReplay), then scored.
 function resolveShot() {
-  if (!replayed && shotRec && shotRec.length > 20 && trickKinds(table.shot).length) { startReplay(trickKinds(table.shot)); return; }
+  // (trick scoring has no replays: 22 Nov playtest, they held up the tally, which already shows what the shot did)
+  if (!round.trick && !replayed && shotRec && shotRec.length > 20 && trickKinds(table.shot).length) { startReplay(trickKinds(table.shot)); return; }
   shotRec = null;
   catAfterShot();
   const s = table.shot, c = table.cue;

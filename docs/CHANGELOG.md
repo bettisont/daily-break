@@ -31,6 +31,8 @@ on par, and the trick replays are the best moment of a round.
   number on the table gets one word ("100 POT", "+200 BANK", "x2.5 STREAK", "+900 CLEARED"), and tapping the Points chip (ⓘ) opens the breakdown of the round's shots, newest first (`logShot`,
   `showShotLog`): each line with what it was for (`TRICK_WHY`) and the sum. After the first tally, a one-off tip
   points to it.
+- **No replays** under trick scoring: they held up the tally, which already shows what the shot did (playtest: "annoying").
+  The live slow-motion push-in on a trick or the last ball stays. Par days keep their replays.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the
   tally. A picked-up hole just says "Out of shots". The next hole waits for the tally to land.
 - **No points for clearing the table** (it was 300 a ball, shown as a flat step after the multipliers). Playtest: a
