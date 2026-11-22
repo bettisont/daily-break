@@ -16,7 +16,7 @@ function busy(now) {
   return phase !== 'aim' && phase !== 'over' || hold || drag || demo || spinDemo || cine || lip || zoom
     || now - lastInput < 1500 || fx.shake > 0.05 || fx.glow > 0 || banner || (stamp && stamp.t < 0.5) || trayFly.length
     || fx.particles.length || fx.rings.length || fx.floats.length || fx.sinks.length || fx.confetti.length || fx.flashes.length
-    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || streakGlowBusy() || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
+    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || streakGlowBusy() || targets.some(o => !o.hit) || (phase === 'aim' && round?.trick && aimClock <= QUICK_S) || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
 }
 function frame(now) {
   requestAnimationFrame(frame);
@@ -58,7 +58,7 @@ function frame(now) {
       sfx.clack(strike.power * 1600);
       const c = table.cue;
       for (let k = 0; k < 8; k++) fx.particles.push({ x: c.x - Math.cos(strike.angle) * R, y: c.y - Math.sin(strike.angle) * R, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, life: 0.5, color: '#7fa0d8', r: 1.5 });
-      acc = 0; movingT = 0; phase = 'moving'; updateUI();
+      acc = 0; movingT = 0; phase = 'moving'; shotClock0 = tgtClock; updateUI();
       shotRec = []; shotSteps = 0; replayed = false; lip = null; lipTried = new Set();
       follow = { x: c.x, y: c.y, angle: strike.angle, power: strike.power, t: 0 };
       cam.k += 0.03 + 0.04 * strike.power;   // a small push in on the strike, which eases back
@@ -114,7 +114,7 @@ function frame(now) {
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
   if (phase === 'moving') {
     if (hitStop > 0) hitStop -= dt;   // a blink of freeze on big moments
-    else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; shotSteps++; } }
+    else { acc += dt * timeScale; while (acc >= DT) { table.step(); tgtStep(); acc -= DT; shotSteps++; } }
     const c = table.cue, last = curTrail?.pts[curTrail.pts.length - 1];
     if (curTrail && !c.potted && last && Math.hypot(c.x - last[0], c.y - last[1]) > 14) curTrail.pts.push([c.x, c.y]);
     if (shotRec && shotRec.length < 3000) shotRec.push([shotSteps * DT, c.uN ? NaN : c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.uN ? NaN : b.x, b.y, b.potted ? 1 : 0])]);
@@ -141,6 +141,12 @@ function frame(now) {
     replay.T += dt * replay.speed;
     if (replay.T >= replay.endT) { replay = null; replayed = true; phase = 'moving'; resolveShot(); }
   }
+  // trick scoring: targets slide at the table's pace between shots (tgtStep moves them on physics time while the balls
+  // roll; they hold still through the replay), and the Quick clock runs while you aim, once the banner and card are gone
+  if (phase !== 'moving' && phase !== 'replay') tgtClock += dt * PLAY;
+  if (phase === 'aim' && !banner && !$('overlay').classList.contains('show')) aimClock += dt;
+  if (demo || spinDemo) aimClock = QUICK_S + 1;   // no Quick while a lesson is showing
+  tickQuick();
   if (follow) follow.t += dt;
   tickDemo(dt); tickSpinDemo(dt);
   // a drawing error must never stop the game: log it and carry on with the next frame

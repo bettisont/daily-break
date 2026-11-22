@@ -17,6 +17,7 @@ function ring(x, y, color, grow = 50, life = 0.6, r = R) { fx.rings.push({ x, y,
 
 function onEvent(type, e) {
   if (type === 'hit') {
+    if (tshot && (e.a === table.cue || e.b === table.cue)) trickCueHit(e.a === table.cue ? e.b : e.a, e.x, e.y);
     if (audio && audio.currentTime - lastHit > 0.015) { lastHit = audio.currentTime; atX(e.x, () => sfx.clack(e.speed)); }
     if (e.speed > 500) ring(e.x, e.y, '255,250,235', 18, 0.35, 4);
     if (e.speed > 250) fx.flashes.push({ x: e.x, y: e.y, r: 10 + Math.min(40, e.speed / 45), life: 0.2 });
@@ -86,7 +87,19 @@ function onEvent(type, e) {
 // Trick scoring: the moment a ball drops, work out which trick elements it adds and burst them out of the pocket,
 // so a bank feels like a bank while the balls are still rolling. Every element shown here is what the shot scores
 // (scoreTrick), unless the shot turns out to be a foul. Returns how many bursts it showed.
-const TRICK_LOOK = { Extra: '#c4472f', Bank: '#3b5ea6', Kick: '#6a4b8c', Combo: '#dc7a30', Tunnel: '#2f6b4f' };
+const TRICK_LOOK = { Extra: '#c4472f', Bank: '#3b5ea6', Kick: '#6a4b8c', Combo: '#dc7a30', Tunnel: '#2f6b4f', Cannon: '#86372b', Target: '#b88a2e', Quick: '#3d8758' };
+// one trick element: counted for the shot (scoreTrick adds it up) and burst out at (x, y), the i-th in a stack
+function trickBurst(kind, label, x, y, i = 0, dir = -1) {
+  const t = tshot;
+  t.parts.push(kind); t.has[kind] = true;
+  const fx0 = clamp(x, 90, W - 90), fy0 = clamp(y, 60, H - 60);
+  setTimeout(() => {
+    float(fx0, clamp(fy0 + dir * i * 44, 40, H - 40), `${label}! +${partPts(kind)}`, TRICK_LOOK[kind], 30, 1.8);
+    sfx.trick(kind, t.balls);
+    fx.shake = Math.max(fx.shake, 5 + i * 1.5); buzz([20, 30, 20]);
+    sparkle(x, y, '#ffd76a', 26, 220); ring(x, y, '255,215,106', 120, 0.8, 22);
+  }, i * 140);
+}
 function trickDrop(b, pocket, tx, ty) {
   const s = table.shot, t = tshot, got = [];
   t.balls++;
@@ -95,25 +108,62 @@ function trickDrop(b, pocket, tx, ty) {
   if (s.kick && !t.has.Kick) got.push(['Kick', 'Kick']);
   if (s.firstHit && s.firstHit !== b && !t.has.Combo) got.push(['Combo', 'Combo']);
   if (!t.has.Tunnel && (t.tun.has(b) || t.tun.has(table.cue))) got.push(['Tunnel', 'Tunnel']);
-  for (const [kind] of got) { t.parts.push(kind); t.has[kind] = true; }
+  if (t.cueHits.size >= 2 && !t.has.Cannon) got.push(['Cannon', 'Cannon']);
+  if (t.quick && !t.has.Quick) got.push(['Quick', 'Quick']);
+  // targets crossed before anything dropped count now that something has
+  for (const o of t.tgt) if (!o.hit) { o.hit = true; o.hitClock = o.pendClock; got.push(['Target', 'Target']); }
   const gold = pocket === hole.gold && !goldUsed && !t.gold;
   if (gold) t.gold = true;
   // the bursts stack up from the pocket towards the middle of the table, one after another
-  const dir = ty < H / 2 ? 1 : -1, x = clamp(tx, 90, W - 90);
-  let y = clamp(ty, 60, H - 60) + dir * 56;
-  got.forEach(([kind, label], i) => {
-    setTimeout(() => {
-      float(x, y + dir * i * 44, `${label}! +${TRICK_PTS.part}`, TRICK_LOOK[kind], 30, 1.8);
-      sfx.trick(kind, t.balls);
-      fx.shake = Math.max(fx.shake, 5 + i * 1.5); buzz([20, 30, 20]);
-      sparkle(tx, ty, '#ffd76a', 26, 220); ring(tx, ty, '255,215,106', 120, 0.8, 22);
-    }, i * 140);
-  });
+  const dir = ty < H / 2 ? 1 : -1, y = clamp(ty, 60, H - 60) + dir * 56;
+  got.forEach(([kind, label], i) => trickBurst(kind, label, tx, y, i, dir));
   if (gold) setTimeout(() => {
-    float(x, y + dir * got.length * 44, 'Golden pocket! ×2', '#b88a2e', 28, 2);
+    float(clamp(tx, 90, W - 90), clamp(y + dir * got.length * 44, 40, H - 40), 'Golden pocket! ×2', '#b88a2e', 28, 2);
     sfx.chime(); fx.glow = 1; sparkle(tx, ty, '#e2b13c', 30, 170);
   }, got.length * 140);
   return got.length + (gold ? 1 : 0);
+}
+// Cannon: the cue ball touches a second object ball. Once something has dropped it bursts right there; before that,
+// trickDrop picks it up at the first pot.
+function trickCueHit(o, x, y) {
+  const t = tshot;
+  t.cueHits.add(o);
+  if (t.cueHits.size >= 2 && t.balls > 0 && !t.has.Cannon) trickBurst('Cannon', 'Cannon', x, y);
+}
+
+// Targets (trick scoring, 22 Nov): touch-free gold rings, one from hole 2 and two from hole 4, each sliding to and
+// fro on its own straight track. Any ball rolling through one on a shot that pots scores it (+200, like a trick
+// element) and it's gone. They come from their own seeded random numbers, never the hole's, so courses don't change
+// and everyone gets the same targets. They move on tgtClock: physics time while the balls roll (so slow motion and
+// fast-forward stay in step), the table's PLAY pace otherwise.
+const TGT_R = 2 * R;
+function makeTargets(seed, i, h, pk) {
+  const n = i >= 3 ? 2 : i >= 1 ? 1 : 0, rnd = rngFor(`${seed}:targets:${i}`), out = [], m = TGT_R + 10;
+  const onFelt = (x, y) => (h.shape ? freeIn(h.shape, x, y, m) : x > m && x < W - m && y > m && y < H - m) && pk.every(p => Math.hypot(p.x - x, p.y - y) > 100);
+  for (let k = 0; k < n; k++) for (let tries = 0; tries < 300; tries++) {
+    const ax = rnd() * W, ay = rnd() * H, a = rnd() * TAU, len = 150 + rnd() * 170, bx = ax + Math.cos(a) * len, by = ay + Math.sin(a) * len;
+    let ok = true;
+    for (let q = 0; q <= 12 && ok; q++) ok = onFelt(lerp(ax, bx, q / 12), lerp(ay, by, q / 12));
+    if (!ok || out.some(o => Math.hypot((o.ax + o.bx) / 2 - (ax + bx) / 2, (o.ay + o.by) / 2 - (ay + by) / 2) < 220)) continue;
+    out.push({ ax, ay, bx, by, period: 4 + rnd() * 2, phase: rnd(), hit: false });
+    break;
+  }
+  return out;
+}
+const tgtPos = (o, clock) => { const u = 0.5 - 0.5 * Math.cos(TAU * (clock / o.period + o.phase)); return { x: lerp(o.ax, o.bx, u), y: lerp(o.ay, o.by, u) }; };
+// after every physics step while the balls roll: has a rolling ball crossed a target?
+function tgtStep() {
+  tgtClock += DT;
+  if (!tshot || !targets.length) return;
+  for (const o of targets) {
+    if (o.hit || tshot.tgt.includes(o)) continue;
+    const p = tgtPos(o, tgtClock);
+    const b = [table.cue, ...table.balls].find(b => !b.potted && !b.uN && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < TGT_R);
+    if (!b) continue;
+    tshot.tgt.push(o); o.pendClock = tgtClock;
+    if (tshot.balls > 0) { o.hit = true; o.hitClock = tgtClock; trickBurst('Target', 'Target', p.x, p.y); }
+    else { float(clamp(p.x, 90, W - 90), clamp(p.y - 40, 40, H - 40), 'Target! Now pot one', '#b88a2e', 18, 1.6); sfx.trick('Target'); ring(p.x, p.y, '255,215,106', 60, 0.6, TGT_R); }
+  }
 }
 
 /* ----- round / hole flow ----- */
@@ -143,6 +193,7 @@ function startHole(i) {
   table = new Table(hole, onEvent);
   trayFly = []; trayDone = [];
   strokes = 0; holeBonus = 0; goldUsed = false; tshot = null; thole = { pts: 0, tricks: [] };
+  targets = round.trick ? makeTargets(round.seed, i, hole, table.pk) : []; tgtClock = 0;
   // a cat hole: the cat hops up from its cushion onto the felt as the hole starts
   catAnim = table.cat ? { from: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, to: { x: table.cat.x, y: table.cat.y, rot: table.cat.rot, sc: CAT_SC }, t: -0.9 } : null;
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
@@ -163,7 +214,7 @@ function startHole(i) {
 // (16 Nov: it used to carry over from the last shot, so a draw left set by accident spoiled the next one).
 function lineUp() {
   aim.spotY = 0; aim.spin = 0; aim.spotX = 0; aim.side = 0;
-  phase = 'aim'; gimmes = findGimmes(); focusBall(bestBall(), true);
+  phase = 'aim'; gimmes = findGimmes(); focusBall(bestBall(), true); aimClock = 0;
   if (firstShotEver() && strokes === 0) startOffTarget();
   startUnpotted();
   updateUI();
@@ -490,7 +541,8 @@ function release() {
     $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand">👆</div>');
   }
   shotLog = [];
-  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), gold: false } : null;
+  // Quick: let go within QUICK_S of the aim starting (never while a lesson is showing: aimClock is pushed past it then)
+  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false, quick: !first && aimClock <= QUICK_S } : null;
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
@@ -553,9 +605,11 @@ function resolveShot() {
     if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
     say(`${foul} · +1 stroke`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
     if (tshot && (tshot.parts.length || tshot.gold)) say("Tricks don't count on a foul", table.cue.y + 84, '#7a6a3a', 16);
+    if (tshot) for (const o of tshot.tgt) o.hit = false;   // a target crossed on a foul comes back
     breakStreak();
   } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); breakStreak(); }
   if (!foul && shotLog.length) round.trick ? scoreTrick() : scorePots();
+  else if (!foul && tshot?.tgt.length) say('Targets only count on a shot that pots', table.cue.y + 84, '#7a6a3a', 16);
   if (!round.trick && !foul && s.pots.length && hole.gold != null && !goldUsed && s.pots.some(p => p.pocket === hole.gold)) {
     goldUsed = true; holeBonus++;
     const p = table.pk[hole.gold], px = clamp(p.x, 90, W - 90), py = clamp(p.y + (p.y < H / 2 ? 70 : -70), 50, H - 50);
@@ -581,7 +635,7 @@ function scorePots() {
 }
 // a miss or a foul ends the streak; under trick scoring the edge glow fizzles out with it
 function breakStreak() {
-  if (round.trick && hs.streak >= 2) sfx.fizzle();
+  if (round.trick && hs.streak >= 2) { sfx.fizzle(); crackStreakMeter(); }
   hs.streak = 0;
 }
 // Trick scoring: a shot that potted something, with no foul. 100 a pot, 200 for each trick element seen as the balls
@@ -590,14 +644,14 @@ function scoreTrick() {
   const t = tshot || { parts: [], gold: false };
   hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
   const pots = shotLog.length, mult = streakMult(hs.streak), gold = t.gold ? 2 : 1;
-  const gain = Math.round((TRICK_PTS.pot * pots + TRICK_PTS.part * t.parts.length) * gold * mult);
+  const gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * gold * mult);
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   if (t.gold) goldUsed = true;
   setTimeout(() => { const el = $('ptsVal'); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0);
   const n = k => t.parts.filter(p => p === k).length, bits = [pots === 1 ? `Pot ${TRICK_PTS.pot}` : `${pots} pots ${TRICK_PTS.pot * pots}`];
   const ex = n('Extra');
   if (ex) bits.push(`${ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`} +${TRICK_PTS.part * ex}`);
-  for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel']) if (n(k)) bits.push(`${k}${n(k) > 1 ? ` ×${n(k)}` : ''} +${TRICK_PTS.part * n(k)}`);
+  for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target', 'Quick']) if (n(k)) bits.push(`${k}${n(k) > 1 ? ` ×${n(k)}` : ''} +${partPts(k) * n(k)}`);
   if (t.gold) bits.push('Golden ×2');
   if (mult > 1) bits.push(`Streak ×${mult}`);
   const big = t.parts.length > 0;
@@ -658,7 +712,7 @@ function endRound() {
   setTimeout(() => { if (phase === 'over') showFinal(false); }, 2300);
 }
 // Trick scoring's share card: the points and best streak, then one line per hole with an emoji per trick element
-// (🎱 an extra ball, ↩️ bank, 🦵 kick, 🔗 combination, 🚇 tunnel; – none, ✖️ picked up).
+// (🎱 an extra ball, ↩️ bank, 🦵 kick, 🔗 combination, 🚇 tunnel, 💥 cannon, 🎯 target, ⚡ quick; – none, ✖️ picked up).
 function trickShareText(r) {
   const holes = r.cards.map((c, k) => `${k + 1} ${(c.tricks || []).map(x => TRICK_EMOJI[x] || '').join('') || '–'}${c.picked ? ' ✖️' : ''}`);
   return `Daily Break ${isDailySeed(r.seed) && r.ranked !== false ? dayLabel(r.seed) : 'practice'} 🎱 ${fmtPts(r.points || 0)}${r.bestStreak > 1 ? ` · ×${streakMult(r.bestStreak)} streak` : ''}\n${holes.join('\n')}\n${gameUrl()}`;
@@ -682,7 +736,7 @@ function trickFinalHtml(already) {
     <table class="card-par card-trick mono"><tr><th>Hole</th>${round.cards.map((c, k) => `<th>${k + 1}</th>`).join('')}</tr>
       <tr><th>Pts</th>${round.cards.map(c => `<td style="font-weight:700;color:${c.picked ? '#b8553f' : 'inherit'}">${shortPts(c.pts || 0)}${c.picked ? '*' : ''}</td>`).join('')}</tr>
       <tr><th>Tricks</th>${round.cards.map(c => `<td class="em">${(c.tricks || []).map(x => TRICK_EMOJI[x]).join('') || '–'}</td>`).join('')}</tr></table>
-    <div class="k mono">🎱 extra ball · ↩️ bank · 🦵 kick · 🔗 combo · 🚇 tunnel${round.cards.some(c => c.picked) ? ' · * picked up' : ''}</div>`;
+    <div class="k mono">🎱 extra ball · ↩️ bank · 🦵 kick · 🔗 combo · 🚇 tunnel · 💥 cannon · 🎯 target · ⚡ quick${round.cards.some(c => c.picked) ? ' · * picked up' : ''}</div>`;
 }
 function showFinal(already) {
   if (round.trick) {
@@ -740,7 +794,7 @@ function saveRun(nextLevel) {
   if (!round.ranked || !isDailySeed(round.seed) || round.done || ls(parKey(round.seed))) return;
   const fresh = nextLevel != null;
   ls(runKey(), JSON.stringify({
-    par: true, trick: round.trick, hole: fresh ? { pts: 0, tricks: [] } : thole, level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
+    par: true, trick: round.trick, hole: fresh ? { pts: 0, tricks: [] } : thole, tg: fresh ? null : targets.map(o => o.hit ? 1 : 0), level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
     points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes, bonus: fresh ? 0 : holeBonus, gold: !fresh && goldUsed,
     cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
   }));
@@ -758,6 +812,7 @@ function resumeRun() {
     if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
     strokes = r.strokes || 0; holeBonus = r.bonus || 0; goldUsed = !!r.gold;
     if (round.trick && r.hole) thole = { pts: r.hole.pts || 0, tricks: r.hole.tricks || [] };
+    if (round.trick && Array.isArray(r.tg)) r.tg.forEach((v, k) => { if (targets[k]) targets[k].hit = !!v; });
     lineUp();
     saveRun();   // startHole saved a fresh layout; put the real one back so a second reload can't reset the balls
   }

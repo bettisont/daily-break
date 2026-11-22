@@ -74,6 +74,16 @@
   @keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.35)}100%{transform:scale(1)}}
   #info b{transform-origin:left center}
   #info b.hot{color:#c4472f}
+  /* trick scoring: the streak meter under the multiplier, and the Quick bar draining across the top of the pull cue */
+  #iLie .smbar{display:block;height:5px;margin-top:3px;border-radius:3px;background:#e0d6bf;overflow:hidden}
+  #iLie .smbar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#f0b43c,#e8742a 60%,#d8452a);transition:width .45s cubic-bezier(.2,1.4,.4,1)}
+  #iLie.max .smbar i{animation:hot .7s ease-in-out infinite alternate}
+  @keyframes hot{from{filter:brightness(1);box-shadow:0 0 0 rgba(232,116,42,0)}to{filter:brightness(1.25);box-shadow:0 0 8px rgba(232,116,42,.9)}}
+  #iLie.crack{animation:crack .6s}
+  #iLie.crack .smbar{background:#e8a99a}
+  @keyframes crack{0%,100%{transform:none}15%{transform:translateX(-4px)}30%{transform:translateX(4px)}45%{transform:translateX(-3px)}60%{transform:translateX(2px)}}
+  #quickBar{position:absolute;left:0;top:0;height:6px;width:0;z-index:2;background:linear-gradient(90deg,#f0d060,#e2b13c);box-shadow:0 0 6px rgba(240,208,96,.8);opacity:0;transition:opacity .2s}
+  #quickBar.on{opacity:1}
   #card9 .c b.bump{display:inline-block;animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #info b small{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5a6556;font-weight:400;margin-left:4px}
   .round{width:30px;height:30px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}
@@ -172,7 +182,7 @@
     <div id="rowB">
       <div id="spinBall" title="Spin: drag the gold spot (up/down arrows; shift + left/right for side)"><div id="spinFace"><div class="f"><i style="top:7%">FOLLOW</i><i style="bottom:7%">DRAW</i><i class="sd" style="left:6%">L</i><i class="sd" style="right:6%">R</i><span id="spinDot"></span></div></div><div class="spinCol"><div id="spinTxt"></div><div id="hint" class="mono"></div></div></div>
     </div>
-    <div id="pull" class="pulse" title="Pull down, let go to shoot (or hold Space)"><div id="pullFill"></div><div id="pullCue"></div><div id="pullLab"></div></div>
+    <div id="pull" class="pulse" title="Pull down, let go to shoot (or hold Space)"><div id="quickBar"></div><div id="pullFill"></div><div id="pullCue"></div><div id="pullLab"></div></div>
     <button id="act">…</button>
   </div>
 </div>

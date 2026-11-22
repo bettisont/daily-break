@@ -16,8 +16,8 @@ function updateUI() {
   if (round.trick) {
     const cap = capOf(round.level), shots = Math.max(0, cap - strokes), m = streakMult(hs.streak);
     $('iHole').innerHTML = `Hole ${round.level + 1} · ${hole.balls.length} ball${hole.balls.length === 1 ? '' : 's'}<b>${shots} shot${shots === 1 ? '' : 's'} left<small>${left} left</small></b>`;
-    $('iLie').innerHTML = `Streak<b class="${m > 1 ? 'hot' : ''}">×${m}</b>`;
-  } else $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
+    updateStreakMeter(m);
+  } else { $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`; $('iLie').classList.remove('max'); }
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
@@ -26,6 +26,30 @@ function updateUI() {
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
     gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : round.trick ? `Shot<b>${strokes + 1}</b><small>of ${capOf(round.level)}</small>` : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`;
   updateMeter(); updateAimUI(); updateSpinBall();
+}
+// Trick scoring's streak meter (22 Nov): the multiplier, and a bar under it that fills and heats up from x1 to x3,
+// with a flame from x2, pulsing at x3. Built once and updated, so its animations aren't restarted every update.
+function updateStreakMeter(m) {
+  const el = $('iLie');
+  if (!$('smX')) el.innerHTML = 'Streak<b><span id="smX"></span></b><span class="smbar"><i id="smFill"></i></span>';
+  $('smX').textContent = `×${m}${m >= 2 ? ' 🔥' : ''}`;
+  $('smX').parentElement.classList.toggle('hot', m > 1);
+  $('smFill').style.width = `${(m - 1) / 2 * 100}%`;
+  el.classList.toggle('max', m >= 3);
+}
+// a reset: the meter shakes and flashes red as it drains
+function crackStreakMeter() {
+  const el = $('iLie');
+  el.classList.remove('crack'); void el.offsetWidth; el.classList.add('crack');
+  setTimeout(() => el.classList.remove('crack'), 700);
+}
+// Quick: a bar across the top of the pull cue that drains over QUICK_S seconds while you aim
+function tickQuick() {
+  const el = $('quickBar');
+  if (!el) return;
+  const on = round?.trick && phase === 'aim' && aimClock <= QUICK_S;
+  el.classList.toggle('on', !!on);
+  if (on) el.style.width = `${(1 - aimClock / QUICK_S) * 100}%`;
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
 function updateSpinBall() {

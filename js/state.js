@@ -51,7 +51,10 @@ const trickFlag = new URLSearchParams(location.search).has('trick');
 // a daily seed from the switch date on, a practice course once today is past it, or anything under ?trick
 const trickOn = seed => trickFlag || (!!RULES.TRICK_SCORE_FROM && (isDailySeed(seed) ? seed : todayKey()) >= RULES.TRICK_SCORE_FROM);
 // the share card's emoji for each trick element
-const TRICK_EMOJI = { Extra: '🎱', Bank: '↩️', Kick: '🦵', Combo: '🔗', Tunnel: '🚇' };
+const TRICK_EMOJI = { Extra: '🎱', Bank: '↩️', Kick: '🦵', Combo: '🔗', Tunnel: '🚇', Cannon: '💥', Target: '🎯', Quick: '⚡' };
+// what each element adds: 200, except Quick (a shot taken within QUICK_S seconds of the aim starting), 100
+const partPts = k => k === 'Quick' ? 100 : TRICK_PTS.part;
+const QUICK_S = 5;
 const fmtPts = n => Math.round(n).toLocaleString('en-US');
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
@@ -61,6 +64,9 @@ let hs = null, shotLog = [];
 let holeBonus = 0, goldUsed = false;
 // trick scoring: this shot's trick elements as they drop (tshot), this hole's points and tricks (thole)
 let tshot = null, thole = { pts: 0, tricks: [] };
+// trick scoring: this hole's moving targets, their clock (physics time while the balls roll), and how long this aim
+// has run (for Quick)
+let targets = [], tgtClock = 0, shotClock0 = 0, aimClock = 0;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 // Animation: a ball on the lip gets slow motion and a heartbeat (lip),

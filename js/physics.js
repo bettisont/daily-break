@@ -75,7 +75,7 @@ class Table {
               if (s.spin) { const k = s.spin * 0.7 * Math.max(0, cueVn), sx = cueA ? nx : -nx, sy = cueA ? ny : -ny; this.cue.vx += sx * k; this.cue.vy += sy * k; if (Math.abs(s.spin) > 0.15 && cueVn > 150) this.ev('spin', { spin: s.spin, x: this.cue.x, y: this.cue.y, speed: cueVn }); }
             }
           }
-          this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+          this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, a, b });   // (a, b: which balls, for trick scoring's Cannon)
         }
         a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
       }

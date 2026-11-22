@@ -43,12 +43,22 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
   - Trick elements are counted as each ball drops (`trickDrop`, into `tshot`), and that same list is what gets
     scored (`scoreTrick`). An extra ball in the shot (the 2nd and 3rd drop), a bank (each ball that came off a
     cushion), a kick (once), a combination (once: a potted ball that isn't the one the cue ball hit first) and a
-    tunnel (once: the potted ball or the cue ball went through; `tshot.tun` is filled from the `tunnelIn` event).
+    tunnel (once: the potted ball or the cue ball went through; `tshot.tun` is filled from the `tunnelIn` event), a
+    cannon (once: the cue ball touched 2+ object balls, `tshot.cueHits` from the `hit` event's `a`/`b`), Quick (+100,
+    once: released with `aimClock` <= `QUICK_S` 5 s, off during lessons) and each target crossed.
+  - Targets (`makeTargets`, `tgtPos`, `tgtStep`, `drawTargets`): one from hole 2 and two from hole 4, each a gold
+    ring (`TGT_R` 2 R) sliding along a straight seeded track (`rngFor('<seed>:targets:<i>')`, never the hole's RNG).
+    `tgtClock` advances by `DT` per physics step while the balls roll (`tgtStep`, called from the step loop in
+    `main.js`) and by `dt * PLAY` otherwise. It holds still in the replay, which redraws them from
+    `shotClock0 + replay.T`. A rolling ball within `TGT_R` crosses one. If something has already dropped, it scores
+    at once; otherwise it scores at the first drop. With no pot it stays, and on a foul it comes back. Saved runs keep
+    which ones are hit (`tg`).
     Each one bursts from the pocket with `sfx.trick(kind)`. After the replay, `scoreTrick` floats the total and the
     breakdown.
-  - The header shows Hole and Points (`#ptsVal`, counting up). The info bar shows shots left, the streak (×1.5 in red
-    once it's hot) and the tilt. The screen edges glow with the streak (`drawStreakGlow`: four colour steps, painted
-    once per size, cross-faded, breathing at ×3).
+  - The header shows Hole and Points (`#ptsVal`, counting up). The info bar shows shots left, the streak meter
+    (`updateStreakMeter`; `crackStreakMeter` on a reset) and the tilt. The lamp warms with the streak
+    (`drawLampWarmth`, flickering at ×3). The Quick bar (`#quickBar`, `tickQuick`) drains across the top of the pull
+    cue.
   - Cards carry `pts` and `tricks`. The result card (`trickFinalHtml`) and share text (`trickShareText`) show points,
     best streak, and per hole its points and an emoji per trick element (`TRICK_EMOJI`). A saved run or result
     scored the other way isn't resumed or shown (`r.trick` must match).

@@ -1089,6 +1089,7 @@ function draw(t, dt) {
     drawTable(t, dt);
   }
   drawTableCat(t, dt);
+  drawTargets(t);
 
   // (the dotted trail of where the cue ball has been is no longer drawn: it cluttered the table; `trails` still records it)
   for (const m of marks) {
@@ -1233,6 +1234,7 @@ function draw(t, dt) {
   }
   ctx.globalAlpha = 1;
   ctx.drawImage(LAMP, W / 2 - H * 0.75, H / 2 - H * 0.75, H * 1.5, H * 1.5);
+  drawLampWarmth(t, dt);
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1246,7 +1248,6 @@ function draw(t, dt) {
     gg.addColorStop(0, 'rgba(255,200,90,0)'); gg.addColorStop(1, `rgba(255,190,80,${0.35 * fx.glow})`);
     ctx.fillStyle = gg; ctx.fillRect(0, 0, cw, ch);
   }
-  drawStreakGlow(t, dt, cw, ch);
   // the vignette: a full-screen radial gradient was being rasterised every frame, so it's painted once per size at a
   // quarter of the resolution (it's only a soft shade) and stretched over; its strength is the copy's alpha
   const vb = VIGNETTE_BUF;
@@ -1265,43 +1266,38 @@ function draw(t, dt) {
 }
 
 
-// Trick scoring: the screen's edges glow with the streak (22 Nov). Nothing at x1; from x1.5 a warm glow that gets
-// brighter and hotter at each step (amber, orange, deep orange, hot gold) and breathes at x3; a miss or foul fades it
-// out fast. Each step's glow is painted once per screen size at a quarter of the resolution (like the vignette) and
-// cross-faded, so it costs one stretched image a frame, never a gradient.
-const STREAK_COLS = ['250,180,50', '250,135,35', '240,90,30', '255,205,40'];
-const streakBufs = STREAK_COLS.map(() => Object.assign(document.createElement('canvas'), { cw: 0, ch: 0 }));
+// Trick scoring: the streak warms the lamp over the table (22 Nov; it replaced a glow round the screen's edges, which
+// looked ugly). Nothing at x1; each step after that adds a warmer, brighter pool of light, and at x3 it flickers like
+// a flame. A miss or foul drops it back quickly. One extra sprite drawn as light: no new gradients per frame.
+const WARM_LAMP = glowSprite(256, [[0, 'rgba(255,170,70,.34)'], [0.5, 'rgba(255,150,60,.14)'], [1, 'rgba(255,140,50,0)']]);
 let streakLvl = 0;
 const streakTarget = () => round?.trick && hs ? (streakMult(hs.streak) - 1) * 2 : 0;   // 0 at x1 ... 4 at x3
 const streakGlowBusy = () => Math.abs(streakLvl - streakTarget()) > 0.01 || streakLvl > 3.5;
-function streakBuf(i, cw, ch) {
-  const b = streakBufs[i];
-  if (b.cw === cw && b.ch === ch) return b;
-  b.cw = cw; b.ch = ch; b.width = Math.ceil(cw / 4); b.height = Math.ceil(ch / 4);
-  const c = b.getContext('2d'), w = b.width, h = b.height;
-  // an inset glow: strongest right at the edges, gone by a fifth of the way in
-  c.clearRect(0, 0, w, h);
-  const edge = Math.min(w, h) * 0.16;
-  for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, 0, edge, 0, 0, w, edge], [0, h, 0, h - edge, 0, h - edge, w, edge], [0, 0, edge, 0, 0, 0, edge, h], [w, 0, w - edge, 0, w - edge, 0, edge, h]]) {
-    const g = c.createLinearGradient(x0, y0, x1, y1);
-    g.addColorStop(0, `rgba(${STREAK_COLS[i]},1)`); g.addColorStop(0.18, `rgba(${STREAK_COLS[i]},.7)`); g.addColorStop(0.5, `rgba(${STREAK_COLS[i]},.22)`); g.addColorStop(1, `rgba(${STREAK_COLS[i]},0)`);
-    c.fillStyle = g; c.fillRect(rx, ry, rw, rh);
-  }
-  return b;
-}
-function drawStreakGlow(t, dt, cw, ch) {
+function drawLampWarmth(t, dt) {
   const want = streakTarget();
-  // up eases in over about half a second; a reset drops away in about a quarter
-  streakLvl = want > streakLvl ? Math.min(want, streakLvl + dt * 4) : Math.max(want, streakLvl - dt * 12);
+  streakLvl = want > streakLvl ? Math.min(want, streakLvl + dt * 3) : Math.max(want, streakLvl - dt * 8);
   if (streakLvl < 0.01) return;
-  const strength = 0.4 + 0.45 * Math.min(streakLvl, 4) / 4;   // brighter as it climbs
-  const pulse = streakLvl > 3.5 ? 0.8 + 0.2 * Math.sin(t * 5) : 1;   // breathing at x3
-  // cross-fade from the step below to the step it's on (the first step fades in out of nothing)
-  const i0 = clamp(Math.ceil(streakLvl) - 1, 0, 3), frac = clamp(streakLvl - i0, 0, 1);
-  // saturated and painted on (the room's edges are already light and warm: added light barely showed there)
+  const flicker = streakLvl > 3.5 ? 0.85 + 0.1 * Math.sin(t * 11) + 0.05 * Math.sin(t * 23 + 1) : 1;
+  ctx.globalAlpha = Math.min(1, streakLvl / 4) * flicker;
+  const r = H * (0.7 + 0.08 * streakLvl / 4);
+  ctx.drawImage(WARM_LAMP, W / 2 - r, H / 2 - r, r * 2, r * 2);
+  ctx.globalAlpha = 1;
+}
+// Trick scoring's moving targets: a faint track, and a gold ring sliding along it. In the replay they follow the
+// replay's clock, and one that was hit on this shot vanishes at the moment it was crossed.
+function drawTargets(t) {
+  if (!targets.length) return;
+  const clock = phase === 'replay' && replay ? shotClock0 + replay.T : tgtClock;
   ctx.save();
-  if (i0 > 0 && frac < 1) { ctx.globalAlpha = strength * pulse * (1 - frac); ctx.drawImage(streakBuf(i0 - 1, cw, ch), 0, 0, cw, ch); }
-  ctx.globalAlpha = strength * pulse * (i0 > 0 ? frac : Math.min(1, frac));
-  ctx.drawImage(streakBuf(i0, cw, ch), 0, 0, cw, ch);
+  for (const o of targets) {
+    if (o.hit && !(phase === 'replay' && o.hitClock != null && o.hitClock > clock && o.hitClock >= shotClock0)) continue;
+    ctx.strokeStyle = 'rgba(251,248,240,.22)'; ctx.lineWidth = 2; ctx.setLineDash([3, 9]); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(o.ax, o.ay); ctx.lineTo(o.bx, o.by); ctx.stroke(); ctx.setLineDash([]);
+    const p = tgtPos(o, clock), k = 0.75 + 0.25 * Math.sin(t * 4);
+    ctx.fillStyle = `rgba(255,214,110,${0.14 + 0.08 * k})`; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(226,177,60,${0.75 + 0.25 * k})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R * 0.45, 0, TAU); ctx.stroke();
+    ctx.fillStyle = 'rgba(226,177,60,.9)'; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, TAU); ctx.fill();
+  }
   ctx.restore();
 }

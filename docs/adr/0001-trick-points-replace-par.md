@@ -11,8 +11,9 @@ stroke back, and a playtest round went -9, so that was dropped.
 ## Decision
 
 The ranked score becomes points, and strokes are only the hole's budget (par + 3).
-- A pot is 100. Each trick element adds +200 and they stack: an extra ball in one shot, a bank, a kick, a combination
-  or a tunnel.
+- A pot is 100. Each trick element adds +200 and they stack: an extra ball in one shot, a bank, a kick, a combination,
+  a tunnel, a cannon (the cue ball touches two object balls) or a moving target crossed. A Quick shot (released
+  within 5 s) adds +100. Targets and Quick only count on a shot that pots.
 - The streak multiplier (x1 to x3, +0.5 for each potting shot in a row, carried across holes) multiplies every shot.
   A shot that pots nothing, or a foul, resets it. This is what stops farming: a set-up shot throws the streak away.
 - The first pot into the golden pocket doubles that shot.
@@ -20,7 +21,10 @@ The ranked score becomes points, and strokes are only the hole's budget (par + 3
 - A foul costs a stroke and resets the streak; balls it pots stay down but score 0.
 - Tap-ins are removed.
 - Rank: a separate `trick` mode on the server, in buckets of 50 points, higher is better.
-- No onboarding card and no help change: the live bursts, the breakdown and the edge glow teach it.
+- Moving targets are touch-free and come from their own seeded numbers, so no course changes. Solid moving obstacles
+  were left for later: they'd change the physics and hole generation.
+- No onboarding card and no help change: the live bursts, the breakdown, the streak meter and the warming lamp teach
+  it.
 
 ## Consequences
 

@@ -161,6 +161,9 @@ const sfx = {
     if (kind === 'Bank') { tone(660, 0.16, 0.08, 'triangle', 1, 0, 0.4); tone(990, 0.22, 0.08, 'triangle', 1, 0.09, 0.5); tone(1320, 0.3, 0.05, 'sine', 1, 0.18, 0.6); }
     else if (kind === 'Kick') { tone(90, 0.25, 0.3, 'sine', 0.6, 0, 0.1); tone(440, 0.3, 0.07, 'sawtooth', 2.2, 0.03, 0.4); }
     else if (kind === 'Combo') [587.33, 739.99, 880, 1174.66].forEach((f, k) => tone(f, 0.18, 0.06, 'triangle', 1, k * 0.055, 0.5));
+    else if (kind === 'Cannon') { tone(70, 0.35, 0.35, 'sine', 0.5, 0, 0.3); noise(0.25, 0.3, 600, 'lowpass', 0, 1); tone(880, 0.2, 0.05, 'square', 0.5, 0.05, 0.4); }
+    else if (kind === 'Target') { [1046.5, 1318.5, 1568, 2093].forEach((f, k) => tone(f, 0.22, 0.045, 'sine', 1, k * 0.04, 0.6)); }
+    else if (kind === 'Quick') { tone(1200, 0.12, 0.06, 'square', 2, 0, 0.2); tone(2400, 0.1, 0.03, 'sine', 1, 0.06, 0.3); }
     else if (kind === 'Tunnel') { tone(160, 0.5, 0.18, 'sine', 3, 0, 0.5); noise(0.4, 0.15, 900, 'bandpass', 0, 2); tone(1046.5, 0.3, 0.05, 'sine', 1, 0.3, 0.6); }
     noise(0.05, 0.18, 4000, 'highpass', 0, 0.7);
   },
