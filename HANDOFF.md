@@ -55,10 +55,12 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     which ones are hit (`tg`).
     No text is shown as they happen: `trickBang` gives the pocket or contact a flash, rings, sparks, shake, hit-stop
     and `sfx.bang`, all scaled by `shotQ` (elements so far, +2 for the golden pocket). After the replay, `scoreTrick`
-    runs the tally (`showTally`, a fixed overlay over the stage). The base comes first, then each element's flat points
-    ("+200 Bank") fly into the number one by one and add a receipt line under it. Then each multiplier chip (`.tchip`:
-    golden from the top, the streak from the streak meter) drops onto the number and smashes. Last, the shot's score
-    flies into `#ptsVal`. A shot that clears the table adds the clear bonus as the last step (`scoreTrick(clear)`;
+    runs the tally (`showTally`, a fixed overlay over the stage, numbers only). The base comes first, then each
+    element's "+200" flies into the number one by one. Then each multiplier chip (`.tchip`: golden from the top, the
+    streak from the streak meter) drops onto the number and smashes. Last, the shot's score flies into `#ptsVal`.
+    `logShot` keeps the breakdown, with what each line was for (`TRICK_WHY`) and the sum, in `round.shotLog`
+    (newest first, at most 30). Tapping the Points chip (`#ptsChip`) shows it (`showShotLog`), and the
+    `dailybreak:shotLogTip` flag shows a one-off tip. A shot that clears the table adds the clear bonus as the last step (`scoreTrick(clear)`;
     a table cleared on a foul gets a tally of its own). There are no hole or round stamps under trick scoring:
     `finishHole` waits for `tally` to finish before the next hole or the card. `ptsHold` holds the header's count-up until it lands, and `endTally` cuts it short (a new
     shot, a new round).

@@ -175,7 +175,7 @@ function newRound(seed, ranked) {
   round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
-  tshot = null; thole = { pts: 0, tricks: [] }; endTally();
+  tshot = null; thole = { pts: 0, tricks: [] }; endTally(); round.shotLog = [];
   const saved = ranked ? ls(parKey(seed)) : null;
   if (!saved && resumeRun()) return;
   startHole(0);
@@ -657,13 +657,14 @@ function scoreTrick(clear = 0) {
   const nb = hole.balls.length, bonus = clear ? ['Table cleared', clear, `${nb} ball${nb === 1 ? '' : 's'} × ${TRICK_PTS.clear}`] : null;
   showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots, pots === 1 ? '1 ball potted' : `${pots} balls potted`], items, muls, gain, bonus);
 }
-// what each element is for, said under its points in the tally
+// what each element is for, in the breakdown behind the Points chip
 const TRICK_WHY = { Bank: 'the ball came off a cushion', Kick: 'the cue ball hit a cushion first', Combo: 'potted by another ball', Tunnel: 'through the tunnel', Cannon: 'the cue ball hit two balls', Target: 'through a moving target', Quick: `shot in under ${QUICK_S} seconds` };
-// The shot's tally (22 Nov, from the first playtests: show the multiplier working on the shot). After the replay the
-// base (100 a pot) comes up mid-table; each trick element's flat points then come in one at a time, labelled, and fly
-// into it as the number rolls up, leaving a line underneath of what was added; then each multiplier (the golden
-// pocket's x2, then the streak, which pulls down out of the streak meter) drops onto the number and smashes into it;
-// and the shot's score flies into the header's Points, which only then counts up (ptsHold).
+// The shot's tally (22 Nov, shaped by the playtests: show the multiplier working on the shot, but keep the table
+// clear: only numbers). After the replay the base (100 a pot) comes up mid-table; each trick element's flat points
+// ("+200") come in one at a time and fly into it as the number rolls up; each multiplier (the golden pocket's x2, then
+// the streak, pulled down out of the streak meter) drops onto the number and smashes into it; a clear adds its flat
+// bonus last; and the shot's score flies into the header's Points, which only then counts up (ptsHold). What each
+// number was for is kept (logShot) and shown when the Points chip is tapped (showShotLog).
 let tally = null;
 function rollNum(el, from, to, ms, pre = '') {
   const t0 = performance.now();
@@ -678,105 +679,101 @@ function endTally() {
   const el = $('ptsVal');
   if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 }
-// Paced so each step can be read (22 Nov playtest: too fast to see why a shot scored what it did): every step says
-// what it's for, and the whole sum is held on screen before it flies into the total.
 function showTally([baseLabel, base, baseWhy], items, muls, gain, bonus = null) {
   endTally();
+  logShot([baseLabel, base, baseWhy], items, muls, gain, bonus);
   const st = $('stage').getBoundingClientRect(), cx = st.left + st.width / 2, cy = st.top + st.height * 0.3;
   const el = document.createElement('div');
   el.id = 'tally'; el.style.left = cx + 'px'; el.style.top = cy + 'px';
-  el.innerHTML = `<div class="tw">${baseWhy}</div><div class="tn">${fmtPts(base)}</div><div class="tb"><span>${baseLabel} ${fmtPts(base)}</span></div>`;
+  el.innerHTML = `<div class="tn">${fmtPts(base)}</div>`;
   document.body.appendChild(el);
   ptsHold = true;
-  const n = el.querySelector('.tn'), tb = el.querySelector('.tb'), tw = el.querySelector('.tw'), timers = [];
+  const n = el.querySelector('.tn'), timers = [];
   tally = { el, timers };
   const at = (ms, f) => timers.push(setTimeout(f, ms));
   const pop = cls => { n.classList.remove('pop', 'smash'); void n.offsetWidth; n.classList.add(cls); };
-  const add = html => tb.insertAdjacentHTML('beforeend', `<span>${html}</span>`);
-  const why = text => { tw.textContent = text; tw.classList.remove('show'); void tw.offsetWidth; tw.classList.add('show'); };
-  why(baseWhy);
   tone(660, 0.1, 0.05, 'triangle', 1.5, 0, 0.3);
-  let t = 900, now = base;
-  const gap = items.length > 4 ? 850 : 1050;
-  // each trick element: "+200 BANK" and what it's for appear under the number, hold, then fly up into it
-  items.forEach(([label, pts, reason], i) => {
+  let t = 650, now = base;
+  const gap = items.length > 4 ? 560 : 700;
+  // each trick element: "+200" appears under the number, then flies up into it
+  const addIn = (pts, cls, i, after) => {
     const it = document.createElement('div');
-    at(t, () => {
-      it.className = 'ti'; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small><em>${reason}</em>`;
-      el.appendChild(it);
-      tone(784 * Math.pow(2, i / 7), 0.08, 0.04, 'triangle', 1, 0, 0.3);
-    });
-    at(t + gap - 330, () => it.classList.add('in'));
-    at(t + gap - 150, () => {
-      it.remove(); rollNum(n, now, now + pts, 220); now += pts; pop('pop'); add(`${label} +${fmtPts(pts)}`); why(`${label}: ${reason}`);
-      tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8);
-    });
+    at(t, () => { it.className = `ti ${cls}`; it.textContent = `+${fmtPts(pts)}`; el.appendChild(it); tone(784 * Math.pow(2, i / 7), 0.08, 0.04, 'triangle', 1, 0, 0.3); });
+    at(t + gap - 300, () => it.classList.add('in'));
+    at(t + gap - 120, () => { it.remove(); after(); pop('pop'); tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8); });
     t += gap;
-  });
-  // each multiplier, labelled with where it comes from, pulls down onto the number and smashes into it
-  muls.forEach(([label, m, reason], i) => {
+  };
+  items.forEach(([, pts], i) => addIn(pts, '', i, () => { rollNum(n, now, now + pts, 200); now += pts; }));
+  // each multiplier pulls down onto the number and smashes into it
+  muls.forEach(([label, m], i) => {
     const chip = document.createElement('div');
-    t += 250;
+    t += 200;
     at(t, () => {
       const src = label === 'Streak' && $('iLie') ? $('iLie').getBoundingClientRect() : { left: cx - 40, top: st.top - 40, width: 80, height: 30 };
-      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}: ${reason}</small>`;
+      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.textContent = `×${m}`;
       chip.style.left = src.left + src.width / 2 + 'px'; chip.style.top = src.top + src.height / 2 + 'px';
       document.body.appendChild(chip);
-      why(`${label} ×${m}: ${reason}`);
     });
-    // it hangs at the top for a moment so it can be read, then pulls down
-    at(t + 650, () => {
+    at(t + 380, () => {
       const nr = n.getBoundingClientRect(), r0 = chip.getBoundingClientRect();
       chip.classList.add('drop');
       chip.style.transform = `translate(-50%,-50%) translate(${nr.left + nr.width / 2 - (r0.left + r0.width / 2)}px, ${nr.top + nr.height / 2 - (r0.top + r0.height / 2)}px)`;
       tone(300, 0.45, 0.04, 'sine', 3, 0, 0.3);   // a rising whoosh as it pulls down
     });
-    at(t + 1100, () => {
+    at(t + 830, () => {
       chip.classList.add('smash');
       setTimeout(() => chip.remove(), 260);
       const to = i === muls.length - 1 ? gain : now * m;
-      rollNum(n, now, to, 380); now = to; pop('smash');
+      rollNum(n, now, to, 340); now = to; pop('smash');
       if (label === 'Streak') n.classList.add('hot');
-      add(`<b>× ${m} ${label.toLowerCase()}</b>`);
       sfx.boom(Math.round(m * 2)); sfx.bang(Math.min(6, 2 + Math.round(m * 1.2)));
       fx.shake = Math.max(fx.shake, 5 + m * 2); hitStop = Math.max(hitStop, 0.06);
       sparkle(W / 2, H * 0.3, '#ffe08a', 40, 320); sparkle(W / 2, H * 0.3, '#ff9a3c', 20, 240); ring(W / 2, H * 0.3, '255,214,110', 200, 0.7, 30);
       buzz([25, 30, 40]);
     });
-    t += 1500;
+    t += 1200;
   });
-  // the table-clear bonus, last and flat: it comes in like a trick and adds on
+  // the table-clear bonus, last and flat (it isn't multiplied)
   const total = gain + (bonus ? bonus[1] : 0);
-  if (bonus) {
-    const it = document.createElement('div'), [label, pts, reason] = bonus;
-    t += 200;
-    at(t, () => { it.className = 'ti clear'; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small><em>${reason}</em>`; el.appendChild(it); tone(880, 0.1, 0.05, 'triangle', 1, 0, 0.3); });
-    at(t + 900, () => it.classList.add('in'));
-    at(t + 1080, () => {
-      it.remove(); rollNum(n, gain, total, 260); n.classList.remove('hot'); pop('pop'); add(`<b class="cl">+ ${fmtPts(pts)} cleared</b>`); why(`${label}: ${reason}`);
-      sfx.chime(); buzz(12);
-    });
-    t += 1300;
-  }
-  // the whole sum, held so it can be read: (100 + 200 + 200) × 2 × 2.5 = 2,500 (+ 900 for a clear = 3,400)
-  const sum = [base, ...items.map(x => x[1])].map(fmtPts).join(' + ');
-  const plain = !items.length && !muls.length && !bonus;   // nothing to add up: no "100 = 100"
-  if (!plain) at(t + 200, () => {
-    tw.classList.remove('show');
-    const shot = `${muls.length && items.length ? `(${sum})` : sum}${muls.map(([, m]) => ` × ${m}`).join('')}`;
-    tb.innerHTML = `<span class="eq">${bonus ? `${shot} + ${fmtPts(bonus[1])} clear` : shot} = <b>${fmtPts(total)}</b></span>`;
-  });
-  t += 200 + (items.length || muls.length ? 1600 : 700);
+  if (bonus) { t += 150; addIn(bonus[1], 'clear', 0, () => { rollNum(n, gain, total, 240); n.classList.remove('hot'); sfx.chime(); }); }
   // then the shot's score flies into the header's Points
-  at(t, () => {
+  at(t + 450, () => {
     const dst = $('ptsVal'), a = n.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
     n.textContent = `+${fmtPts(total)}`;
-    tb.style.opacity = 0;
-    n.style.transition = 'transform .6s cubic-bezier(.5,0,.8,.4), opacity .6s';
+    n.style.transition = 'transform .55s cubic-bezier(.5,0,.8,.4), opacity .55s';
     n.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
     n.style.opacity = 0.7;
   });
-  at(t + 600, () => { endTally(); sfx.chime(); buzz(10); });
+  at(t + 1000, () => {
+    endTally(); sfx.chime(); buzz(10);
+    // once per device: say where the explanation is
+    if (!ls('dailybreak:shotLogTip')) { ls('dailybreak:shotLogTip', '1'); $('ptsChip')?.classList.add('tip'); float(W / 2, H * 0.2, 'Tap Points to see how it added up', '#2f6b4f', 18, 3); }
+  });
+}
+// Every scored shot this round, newest first, for the breakdown behind the Points chip.
+function logShot([baseLabel, base, baseWhy], items, muls, gain, bonus) {
+  const lines = [[baseWhy, fmtPts(base)], ...items.map(([label, pts, why]) => [`${label} <small>${why}</small>`, `+${fmtPts(pts)}`])];
+  for (const [label, m, why] of muls) lines.push([`${label} <small>${why}</small>`, `×${m}`]);
+  if (bonus) lines.push([`${bonus[0]} <small>${bonus[2]}</small>`, `+${fmtPts(bonus[1])}`]);
+  const sum = [base, ...items.map(x => x[1])].map(fmtPts).join(' + '), shot = `${muls.length && items.length ? `(${sum})` : sum}${muls.map(([, m]) => ` × ${m}`).join('')}`;
+  const total = gain + (bonus ? bonus[1] : 0);
+  (round.shotLog ||= []).unshift({ hole: round.level + 1, shot: strokes, lines, eq: lines.length > 1 ? `${bonus && (items.length || muls.length) ? `${shot} + ${fmtPts(bonus[1])}` : shot} = ${fmtPts(total)}` : '', total });
+  round.shotLog.length = Math.min(round.shotLog.length, 30);
+}
+function showShotLog() {
+  const log = round.shotLog || [];
+  $('card').innerHTML = `
+    <div class="k mono">How your points added up</div>
+    <h2>${log.length ? 'Your shots' : 'No points yet'}</h2>
+    ${log.length ? '' : '<p class="k">Pot a ball: each shot that scores is explained here.</p>'}
+    <div class="shotlog">${log.map((r, k) => `
+      <div class="sl${k ? '' : ' last'}">
+        <div class="slh mono">Hole ${r.hole} · shot ${r.shot}${k ? '' : ' · last shot'}<b>+${fmtPts(r.total)}</b></div>
+        ${r.lines.map(([a, b]) => `<div class="sll"><span>${a}</span><b>${b}</b></div>`).join('')}
+        ${r.eq ? `<div class="sle mono">${r.eq}</div>` : ''}
+      </div>`).join('')}</div>
+    <div class="row"><button class="btn primary" data-close>Back to the table</button></div>`;
+  $('overlay').classList.add('show');
 }
 // Trick shots: a pot on a shot without a foul that's a double or triple (two or three balls), a kick (the cue ball
 // hit a cushion before its first ball), a bank (the potted ball hit a cushion first), a combination (a single pot

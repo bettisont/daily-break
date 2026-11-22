@@ -6,7 +6,7 @@
 
 // The header: the hole you're on, its par and your score (trick scoring: the hole and your points, which count up).
 function renderCard9() {
-  if (round.trick) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c score">Points <b id="ptsVal">${fmtPts(shownPts)}</b></div>`; return; }
+  if (round.trick) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><button class="c score" id="ptsChip" title="How your points added up">Points <b id="ptsVal">${fmtPts(shownPts)}</b><i>ⓘ</i></button>`; return; }
   $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`;
 }
 function updateUI() {
@@ -241,6 +241,11 @@ function showHelp() {
     ${feedbackLink()}`;
   $('overlay').classList.add('show');
 }
+// trick scoring: the Points chip opens the breakdown of your shots
+$('card9').addEventListener('click', e => {
+  if (!round?.trick || !e.target.closest('#ptsChip')) return;
+  ensureAudio(); sfx.click(); $('ptsChip').classList.remove('tip'); showShotLog();
+});
 $('card').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
