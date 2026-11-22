@@ -53,9 +53,13 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     `shotClock0 + replay.T`. A rolling ball within `TGT_R` crosses one. If something has already dropped, it scores
     at once; otherwise it scores at the first drop. With no pot it stays, and on a foul it comes back. Saved runs keep
     which ones are hit (`tg`).
-    Each one bursts from the pocket with `sfx.trick(kind)`. After the replay, `scoreTrick` runs the tally
-    (`showTally`: base and breakdown, then the golden x2 and streak chips slam in as the number rolls up, then it
-    flies into `#ptsVal`; `ptsHold` holds the header's count-up until it lands, `endTally` cuts it short).
+    No text is shown as they happen: `trickBang` gives the pocket or contact a flash, rings, sparks, shake, hit-stop
+    and `sfx.bang`, all scaled by `shotQ` (elements so far, +2 for the golden pocket). After the replay, `scoreTrick`
+    runs the tally (`showTally`, a fixed overlay over the stage). The base comes first, then each element's flat points
+    ("+200 Bank") fly into the number one by one and add a receipt line under it. Then each multiplier chip (`.tchip`:
+    golden from the top, the streak from the streak meter) drops onto the number and smashes. Last, the shot's score
+    flies into `#ptsVal`. `ptsHold` holds the header's count-up until it lands, and `endTally` cuts it short (a new
+    shot, a new round).
   - The header shows Hole and Points (`#ptsVal`, counting up). The info bar shows shots left, the streak meter
     (`updateStreakMeter`; `crackStreakMeter` on a reset) and the tilt. The lamp warms with the streak
     (`drawLampWarmth`, flickering at ×3). The Quick bar (`#quickBar`, `tickQuick`) drains across the top of the pull

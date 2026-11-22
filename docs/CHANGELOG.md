@@ -17,14 +17,16 @@ on par, and the trick replays are the best moment of a round.
   A miss or a foul resets it. Clearing a hole adds 300 per ball; picking up adds nothing.
 - **Strokes are only a budget.** You pick up at par + 3, as before. A foul still costs a stroke, and the balls it pots
   stay down but score 0. There's no stroke back from the golden pocket (it doubles instead) and no tap-ins.
-- **Instant feedback**: as each ball drops, its trick elements burst from the pocket ("Bank! +200"), each with its own
-  sound and a shake, stacking on multi-ball shots. After the replay, a breakdown floats up
-  ("Pot 100 · Bank +200 · Streak x2"). The header shows points (counting up) and the info bar shows shots left and the
-  streak.
-- **The tally** (`showTally`, after the replay): the shot's base points pop up mid-table with the breakdown, then
-  the golden pocket's x2 and the streak's multiplier slam in one after another as the number rolls up, and the result
-  flies into the header's Points, which only then counts up (`ptsHold`). Asked for after the first playtest: the
-  multiplier was working on each shot but you couldn't see it.
+- **At the pot, a bang, not words** (`trickBang`). The pocket (or the contact, for a cannon or a target) gets a
+  flash, rings, sparks, a shake, a freeze-frame and a boom that grow with how good the shot is so far (`shotQ`). No
+  text pops up on the table. A first version burst a label per trick ("Bank! +200"); the playtest found them too much.
+  The header shows points (counting up) and the info bar shows shots left and the streak.
+- **The tally** (`showTally`, after the replay). The base (100 a pot) comes up mid-table. Each trick element's flat
+  points then come in one by one, labelled ("+200 Bank"), and fly into it as the number rolls up, leaving a line
+  underneath of what was added. Each multiplier then drops onto the number and smashes into it: the golden pocket's
+  x2, then the streak, which pulls down out of the streak meter. Finally the shot's score flies into the header's
+  Points, which only then counts up (`ptsHold`). Asked for in the playtests: the multiplier was already working on
+  each shot, but you couldn't see it.
 - **The streak shows** as a meter under the multiplier in the info bar (`updateStreakMeter`). It fills and heats up,
   shows a flame from x2, pulses at x3, and shakes red as it drains on a reset. The lamp over the table also warms
   (`drawLampWarmth`: one extra light sprite) and flickers at x3. An edge glow round the screen was tried first and

@@ -72,13 +72,13 @@ function onEvent(type, e) {
     const left = table.balls.filter(o => !o.potted && o !== b).length;
     atX(tx, () => sfx.potNote(k, k >= 1)); buzz([18, 40, 12]);
     if (k >= 2) sfx.boom(k);
-    const burst = tshot ? trickDrop(b, e.pocket, tx, ty) : 0;
+    if (tshot) trickDrop(b, e.pocket, tx, ty);
     if (!tshot && shotLog.length >= 2) { sfx.multi(shotLog.length); float(W / 2, H * 0.22, shotLog.length === 2 ? 'Double!' : shotLog.length === 3 ? 'Triple!' : `${shotLog.length} in one!`, '#c4472f', 26, 1.4); }
     fx.glow = Math.min(1, 0.35 + k * 0.15);
     const fy = clamp(ty, 60, H - 60) + (ty < H / 2 ? 40 : -40), fxp = clamp(tx, 60, W - 60);
     const tags = [bank && 'Bank', combo && 'Combo'].filter(Boolean).join(' · ');
     ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18 + k * 6, 160 + k * 20);
-    if (tshot ? !burst : true) float(fxp, fy, tshot ? (left ? `${left} to go` : 'Table cleared!') : tags ? tags + '!' : left ? `${left} to go` : 'Level clear!', left ? '#b88a2e' : '#2f6b4f', 18 + Math.min(6, k * 1.5));
+    if (!tshot) float(fxp, fy, tshot ? (left ? `${left} to go` : 'Table cleared!') : tags ? tags + '!' : left ? `${left} to go` : 'Level clear!', left ? '#b88a2e' : '#2f6b4f', 18 + Math.min(6, k * 1.5));
     if (k >= 2) fx.shake = Math.min(9, 2 + k * 1.5);
     if (cine && b.n === cine.n) { cine.hold = 0.9; ring(tx, ty, '226,177,60', 160, 1.3, 24); sparkle(tx, ty, '#e2b13c', 50, 260); }
   }
@@ -87,48 +87,50 @@ function onEvent(type, e) {
 // Trick scoring: the moment a ball drops, work out which trick elements it adds and burst them out of the pocket,
 // so a bank feels like a bank while the balls are still rolling. Every element shown here is what the shot scores
 // (scoreTrick), unless the shot turns out to be a foul. Returns how many bursts it showed.
-const TRICK_LOOK = { Extra: '#c4472f', Bank: '#3b5ea6', Kick: '#6a4b8c', Combo: '#dc7a30', Tunnel: '#2f6b4f', Cannon: '#86372b', Target: '#b88a2e', Quick: '#3d8758' };
-// one trick element: counted for the shot (scoreTrick adds it up) and burst out at (x, y), the i-th in a stack
-function trickBurst(kind, label, x, y, i = 0, dir = -1) {
-  const t = tshot;
-  t.parts.push(kind); t.has[kind] = true;
-  const fx0 = clamp(x, 90, W - 90), fy0 = clamp(y, 60, H - 60);
-  setTimeout(() => {
-    float(fx0, clamp(fy0 + dir * i * 44, 40, H - 40), `${label}! +${partPts(kind)}`, TRICK_LOOK[kind], 30, 1.8);
-    sfx.trick(kind, t.balls);
-    fx.shake = Math.max(fx.shake, 5 + i * 1.5); buzz([20, 30, 20]);
-    sparkle(x, y, '#ffd76a', 26, 220); ring(x, y, '255,215,106', 120, 0.8, 22);
-  }, i * 140);
+// One trick element: counted for the shot (scoreTrick adds them up and the tally shows each one). Nothing is written
+// on the table as it happens (22 Nov playtest: the little pop-ups were too much); instead the pot or contact gets a
+// bang that grows with how good the shot is so far (trickBang).
+function trickPart(kind) { tshot.parts.push(kind); tshot.has[kind] = true; }
+// how good is this shot so far: one for each trick element and each ball after the first, two for the golden pocket
+const shotQ = t => t.parts.length + (t.gold ? 2 : 0);
+function trickBang(x, y, q, kind) {
+  const k = Math.min(q, 6);
+  if (k <= 0) return;
+  hitStop = Math.max(hitStop, 0.05 + 0.02 * k);
+  fx.shake = Math.max(fx.shake, 3 + k * 1.6);
+  fx.flashes.push({ x, y, r: 40 + k * 22, life: 0.18 + 0.04 * k });
+  ring(x, y, '255,236,170', 90 + k * 45, 0.5 + 0.08 * k, 18);
+  if (k >= 2) ring(x, y, '255,170,70', 150 + k * 50, 0.8 + 0.08 * k, 24);
+  sparkle(x, y, '#ffe08a', 20 + k * 22, 200 + k * 70);
+  sparkle(x, y, '#ff9a3c', 8 + k * 10, 140 + k * 60);
+  fx.glow = Math.max(fx.glow, Math.min(1, 0.25 + 0.15 * k));
+  sfx.bang(k); if (kind) sfx.trick(kind, tshot?.balls || 1);
+  buzz(k >= 3 ? [30, 30, 40, 30, 50] : [20, 30, 25]);
 }
 function trickDrop(b, pocket, tx, ty) {
   const s = table.shot, t = tshot, got = [];
   t.balls++;
-  if (t.balls >= 2) got.push(['Extra', t.balls === 2 ? 'Double' : t.balls === 3 ? 'Triple' : `${t.balls} in one`]);
-  if ((b.cush || 0) > 0) got.push(['Bank', 'Bank']);
-  if (s.kick && !t.has.Kick) got.push(['Kick', 'Kick']);
-  if (s.firstHit && s.firstHit !== b && !t.has.Combo) got.push(['Combo', 'Combo']);
-  if (!t.has.Tunnel && (t.tun.has(b) || t.tun.has(table.cue))) got.push(['Tunnel', 'Tunnel']);
-  if (t.cueHits.size >= 2 && !t.has.Cannon) got.push(['Cannon', 'Cannon']);
-  if (t.quick && !t.has.Quick) got.push(['Quick', 'Quick']);
+  if (t.balls >= 2) got.push('Extra');
+  if ((b.cush || 0) > 0) got.push('Bank');
+  if (s.kick && !t.has.Kick) got.push('Kick');
+  if (s.firstHit && s.firstHit !== b && !t.has.Combo) got.push('Combo');
+  if (!t.has.Tunnel && (t.tun.has(b) || t.tun.has(table.cue))) got.push('Tunnel');
+  if (t.cueHits.size >= 2 && !t.has.Cannon) got.push('Cannon');
+  if (t.quick && !t.has.Quick) got.push('Quick');
   // targets crossed before anything dropped count now that something has
-  for (const o of t.tgt) if (!o.hit) { o.hit = true; o.hitClock = o.pendClock; got.push(['Target', 'Target']); }
+  for (const o of t.tgt) if (!o.hit) { o.hit = true; o.hitClock = o.pendClock; got.push('Target'); }
+  got.forEach(trickPart);
   const gold = pocket === hole.gold && !goldUsed && !t.gold;
-  if (gold) t.gold = true;
-  // the bursts stack up from the pocket towards the middle of the table, one after another
-  const dir = ty < H / 2 ? 1 : -1, y = clamp(ty, 60, H - 60) + dir * 56;
-  got.forEach(([kind, label], i) => trickBurst(kind, label, tx, y, i, dir));
-  if (gold) setTimeout(() => {
-    float(clamp(tx, 90, W - 90), clamp(y + dir * got.length * 44, 40, H - 40), 'Golden pocket! ×2', '#b88a2e', 28, 2);
-    sfx.chime(); fx.glow = 1; sparkle(tx, ty, '#e2b13c', 30, 170);
-  }, got.length * 140);
+  if (gold) { t.gold = true; sfx.chime(); }
+  trickBang(tx, ty, shotQ(t), got.find(k => k !== 'Quick'));
   return got.length + (gold ? 1 : 0);
 }
-// Cannon: the cue ball touches a second object ball. Once something has dropped it bursts right there; before that,
+// Cannon: the cue ball touches a second object ball. Once something has dropped it bangs right there; before that,
 // trickDrop picks it up at the first pot.
 function trickCueHit(o, x, y) {
   const t = tshot;
   t.cueHits.add(o);
-  if (t.cueHits.size >= 2 && t.balls > 0 && !t.has.Cannon) trickBurst('Cannon', 'Cannon', x, y);
+  if (t.cueHits.size >= 2 && t.balls > 0 && !t.has.Cannon) { trickPart('Cannon'); trickBang(x, y, shotQ(t), 'Cannon'); }
 }
 
 // Targets (trick scoring, 22 Nov): touch-free gold rings, one from hole 2 and two from hole 4, each sliding to and
@@ -161,8 +163,8 @@ function tgtStep() {
     const b = [table.cue, ...table.balls].find(b => !b.potted && !b.uN && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < TGT_R);
     if (!b) continue;
     tshot.tgt.push(o); o.pendClock = tgtClock;
-    if (tshot.balls > 0) { o.hit = true; o.hitClock = tgtClock; trickBurst('Target', 'Target', p.x, p.y); }
-    else { float(clamp(p.x, 90, W - 90), clamp(p.y - 40, 40, H - 40), 'Target! Now pot one', '#b88a2e', 18, 1.6); sfx.trick('Target'); ring(p.x, p.y, '255,215,106', 60, 0.6, TGT_R); }
+    if (tshot.balls > 0) { o.hit = true; o.hitClock = tgtClock; trickPart('Target'); trickBang(p.x, p.y, shotQ(tshot), 'Target'); }
+    else { sfx.trick('Target'); ring(p.x, p.y, '255,215,106', 60, 0.6, TGT_R); sparkle(p.x, p.y, '#ffe08a', 12, 120); }   // it counts once something drops
   }
 }
 
@@ -647,64 +649,102 @@ function scoreTrick() {
   const gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * gold * mult);
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   if (t.gold) goldUsed = true;
-  const n = k => t.parts.filter(p => p === k).length, bits = [pots === 1 ? `Pot ${TRICK_PTS.pot}` : `${pots} pots ${TRICK_PTS.pot * pots}`];
-  const ex = n('Extra');
-  if (ex) bits.push(`${ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`} +${TRICK_PTS.part * ex}`);
-  for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target', 'Quick']) if (n(k)) bits.push(`${k}${n(k) > 1 ? ` ×${n(k)}` : ''} +${partPts(k) * n(k)}`);
-  showTally(TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0), gold, mult, gain, bits.join(' · '));
+  const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
+  if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex]);
+  for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target', 'Quick']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k)]);
+  const muls = [...(t.gold ? [['Golden', 2]] : []), ...(mult > 1 ? [['Streak', mult]] : [])];
+  showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots], items, muls, gain);
 }
-// The shot's tally (22 Nov, asked for after the first playtest: the multiplier should be seen working on the shot).
-// The base points pop up mid-table with the breakdown, the golden pocket's x2 and then the streak's multiplier slam in
-// one after another as the number rolls up to the total, and the result flies into the header's Points, which only
-// then counts up (ptsHold keeps it waiting).
+// The shot's tally (22 Nov, from the first playtests: show the multiplier working on the shot). After the replay the
+// base (100 a pot) comes up mid-table; each trick element's flat points then come in one at a time, labelled, and fly
+// into it as the number rolls up, leaving a line underneath of what was added; then each multiplier (the golden
+// pocket's x2, then the streak, which pulls down out of the streak meter) drops onto the number and smashes into it;
+// and the shot's score flies into the header's Points, which only then counts up (ptsHold).
 let tally = null;
-function rollNum(el, from, to, ms) {
+function rollNum(el, from, to, ms, pre = '') {
   const t0 = performance.now();
-  const step = now => { const k = Math.min(1, (now - t0) / ms), e = 1 - (1 - k) ** 3; el.textContent = fmtPts(from + (to - from) * e); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
+  const step = now => { const k = Math.min(1, (now - t0) / ms), e = 1 - (1 - k) ** 3; el.textContent = pre + fmtPts(from + (to - from) * e); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
 function endTally() {
   if (!tally) return;
   tally.timers.forEach(clearTimeout); tally.el.remove(); tally = null;
+  document.querySelectorAll('.tchip').forEach(c => c.remove());
   ptsHold = false;
   const el = $('ptsVal');
   if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 }
-function showTally(base, gold, mult, gain, bits) {
+function showTally([baseLabel, base], items, muls, gain) {
   endTally();
+  const st = $('stage').getBoundingClientRect(), cx = st.left + st.width / 2, cy = st.top + st.height * 0.3;
   const el = document.createElement('div');
-  el.id = 'tally';
-  el.innerHTML = `<div class="tn">${fmtPts(base)}</div><div class="tm"></div><div class="tb">${bits}</div>`;
-  $('stage').appendChild(el);
+  el.id = 'tally'; el.style.left = cx + 'px'; el.style.top = cy + 'px';
+  el.innerHTML = `<div class="tn">${fmtPts(base)}</div><div class="tb"><span>${baseLabel} ${fmtPts(base)}</span></div>`;
+  document.body.appendChild(el);
   ptsHold = true;
-  const n = el.querySelector('.tn'), m = el.querySelector('.tm'), timers = [];
+  const n = el.querySelector('.tn'), tb = el.querySelector('.tb'), timers = [];
   tally = { el, timers };
   const at = (ms, f) => timers.push(setTimeout(f, ms));
-  tone(880, 0.08, 0.05, 'triangle', 1.5, 0, 0.3);
-  let t = 380, now = base;
-  // a multiplier slams in: the chip drops onto the number, the number rolls up, a thump and a shake
-  const slam = (label, cls, to, k) => {
+  const pop = cls => { n.classList.remove('pop', 'smash'); void n.offsetWidth; n.classList.add(cls); };
+  const add = html => tb.insertAdjacentHTML('beforeend', `<span>${html}</span>`);
+  tone(660, 0.1, 0.05, 'triangle', 1.5, 0, 0.3);
+  let t = 450, now = base;
+  const gap = items.length > 3 ? 300 : 400;
+  // each trick element: "+200 BANK" appears under the number, then flies up into it
+  items.forEach(([label, pts], i) => {
+    const it = document.createElement('div');
     at(t, () => {
-      const c = document.createElement('span'); c.className = `chip ${cls}`; c.textContent = label; m.appendChild(c);
-      rollNum(n, now, to, 320); now = to;
-      n.classList.remove('pop'); void n.offsetWidth; n.classList.add('pop');
-      if (cls === 'streak') n.classList.add('hot');
-      sfx.boom(k); fx.shake = Math.max(fx.shake, 3 + k); buzz([15, 25, 15]);
+      it.className = 'ti'; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small>`;
+      el.appendChild(it);
+      tone(784 * Math.pow(2, i / 7), 0.08, 0.04, 'triangle', 1, 0, 0.3);
     });
-    t += 520;
-  };
-  if (gold > 1) slam('Golden ×2', 'gold', base * gold, 2);
-  if (mult > 1) { slam(`Streak ×${mult}`, 'streak', gain, Math.round(mult * 2)); at(t - 520, () => sfx.streakUp(hs.streak)); }
-  // then the total flies up into the header's Points and the total counts up as it lands
-  at(t + 150, () => {
+    at(t + 200, () => it.classList.add('in'));
+    at(t + 380, () => {
+      it.remove(); rollNum(n, now, now + pts, 180); now += pts; pop('pop'); add(`${label} +${fmtPts(pts)}`);
+      tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8);
+    });
+    t += gap;
+  });
+  // each multiplier pulls down onto the number and smashes into it
+  muls.forEach(([label, m], i) => {
+    const chip = document.createElement('div');
+    t += 220;
+    at(t, () => {
+      const src = label === 'Streak' && $('iLie') ? $('iLie').getBoundingClientRect() : { left: cx - 40, top: st.top - 40, width: 80, height: 30 };
+      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.textContent = `×${m}`;
+      chip.style.left = src.left + src.width / 2 + 'px'; chip.style.top = src.top + src.height / 2 + 'px';
+      document.body.appendChild(chip);
+      const nr = n.getBoundingClientRect();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        chip.classList.add('drop');
+        chip.style.transform = `translate(-50%,-50%) translate(${nr.left + nr.width / 2 - (src.left + src.width / 2)}px, ${nr.top + nr.height / 2 - (src.top + src.height / 2)}px)`;
+      }));
+      tone(300, 0.4, 0.04, 'sine', 3, 0, 0.3);   // a rising whoosh as it pulls down
+    });
+    at(t + 430, () => {
+      chip.classList.add('smash');
+      setTimeout(() => chip.remove(), 260);
+      const to = i === muls.length - 1 ? gain : now * m;
+      rollNum(n, now, to, 280); now = to; pop('smash');
+      if (label === 'Streak') n.classList.add('hot');
+      add(`<b>${label} ×${m}</b>`);
+      sfx.boom(Math.round(m * 2)); sfx.bang(Math.min(6, 2 + Math.round(m * 1.2)));
+      fx.shake = Math.max(fx.shake, 5 + m * 2); hitStop = Math.max(hitStop, 0.06);
+      sparkle(W / 2, H * 0.3, '#ffe08a', 40, 320); sparkle(W / 2, H * 0.3, '#ff9a3c', 20, 240); ring(W / 2, H * 0.3, '255,214,110', 200, 0.7, 30);
+      buzz([25, 30, 40]);
+    });
+    t += 700;
+  });
+  // then the shot's score flies into the header's Points
+  at(t + 250, () => {
     const dst = $('ptsVal'), a = n.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
     n.textContent = `+${fmtPts(gain)}`;
-    el.querySelector('.tb').style.opacity = 0; m.style.opacity = 0;
+    tb.style.opacity = 0;
     n.style.transition = 'transform .5s cubic-bezier(.5,0,.8,.4), opacity .5s';
     n.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
     n.style.opacity = 0.7;
   });
-  at(t + 650, () => { endTally(); sfx.chime(); buzz(10); });
+  at(t + 750, () => { endTally(); sfx.chime(); buzz(10); });
 }
 // Trick shots: a pot on a shot without a foul that's a double or triple (two or three balls), a kick (the cue ball
 // hit a cushion before its first ball), a bank (the potted ball hit a cushion first), a combination (a single pot
