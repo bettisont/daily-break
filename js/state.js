@@ -66,7 +66,7 @@ let holeBonus = 0, goldUsed = false;
 let tshot = null, thole = { pts: 0, tricks: [] };
 // trick scoring: this hole's moving targets, their clock (physics time while the balls roll), and how long this aim
 // has run (for Quick)
-let targets = [], tgtClock = 0, shotClock0 = 0, aimClock = 0;
+let targets = [], tgtClock = 0, shotClock0 = 0, aimClock = 0, ptsHold = false;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 // Animation: a ball on the lip gets slow motion and a heartbeat (lip),

@@ -84,6 +84,18 @@
   @keyframes crack{0%,100%{transform:none}15%{transform:translateX(-4px)}30%{transform:translateX(4px)}45%{transform:translateX(-3px)}60%{transform:translateX(2px)}}
   #quickBar{position:absolute;left:0;top:0;height:6px;width:0;z-index:2;background:linear-gradient(90deg,#f0d060,#e2b13c);box-shadow:0 0 6px rgba(240,208,96,.8);opacity:0;transition:opacity .2s}
   #quickBar.on{opacity:1}
+  /* trick scoring: the shot's tally, mid-table */
+  #tally{position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);z-index:3;pointer-events:none;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;animation:tallyIn .25s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes tallyIn{from{transform:translate(-50%,-50%) scale(.4);opacity:0}}
+  #tally .tn{font:800 50px/1 'DM Sans',sans-serif;color:#b88a2e;letter-spacing:-.02em;text-shadow:0 0 0 #fff,0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0,0 4px 14px rgba(60,45,25,.35);font-variant-numeric:tabular-nums}
+  #tally .tn.hot{color:#d8552a}
+  #tally .tn.pop{animation:tallyPop .35s cubic-bezier(.2,1.8,.4,1)}
+  @keyframes tallyPop{0%{transform:scale(1)}30%{transform:scale(1.35)}100%{transform:scale(1)}}
+  #tally .tm{display:flex;gap:6px;min-height:28px;transition:opacity .2s}
+  #tally .chip{white-space:nowrap;font:800 16px 'DM Sans',sans-serif;padding:3px 10px;border-radius:12px;color:#fbf8f0;box-shadow:0 3px 8px rgba(60,45,25,.3);animation:slam .32s cubic-bezier(.2,1.6,.4,1)}
+  #tally .chip.gold{background:#c99a3a} #tally .chip.streak{background:#d8552a}
+  @keyframes slam{from{transform:scale(2.6) rotate(-8deg);opacity:0}}
+  #tally .tb{font:500 10.5px 'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#4c574a;background:rgba(251,248,240,.92);padding:4px 10px;border-radius:10px;max-width:92vw;transition:opacity .2s}
   #card9 .c b.bump{display:inline-block;animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #info b small{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5a6556;font-weight:400;margin-left:4px}
   .round{width:30px;height:30px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}

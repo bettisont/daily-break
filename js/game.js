@@ -173,7 +173,7 @@ function newRound(seed, ranked) {
   round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
-  tshot = null; thole = { pts: 0, tricks: [] };
+  tshot = null; thole = { pts: 0, tricks: [] }; endTally();
   const saved = ranked ? ls(parKey(seed)) : null;
   if (!saved && resumeRun()) return;
   startHole(0);
@@ -647,17 +647,64 @@ function scoreTrick() {
   const gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * gold * mult);
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   if (t.gold) goldUsed = true;
-  setTimeout(() => { const el = $('ptsVal'); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0);
   const n = k => t.parts.filter(p => p === k).length, bits = [pots === 1 ? `Pot ${TRICK_PTS.pot}` : `${pots} pots ${TRICK_PTS.pot * pots}`];
   const ex = n('Extra');
   if (ex) bits.push(`${ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`} +${TRICK_PTS.part * ex}`);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target', 'Quick']) if (n(k)) bits.push(`${k}${n(k) > 1 ? ` ×${n(k)}` : ''} +${partPts(k) * n(k)}`);
-  if (t.gold) bits.push('Golden ×2');
-  if (mult > 1) bits.push(`Streak ×${mult}`);
-  const big = t.parts.length > 0;
-  float(W / 2, H * 0.3, `+${fmtPts(gain)}`, '#b88a2e', big ? 34 : 26, 2.2);
-  float(W / 2, H * 0.3 + 44, bits.join(' · '), '#5a6556', 15, 2.6);
-  if (hs.streak >= 2) { float(W / 2, H * 0.3 + 82, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.8); sfx.streakUp(hs.streak); }
+  showTally(TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0), gold, mult, gain, bits.join(' · '));
+}
+// The shot's tally (22 Nov, asked for after the first playtest: the multiplier should be seen working on the shot).
+// The base points pop up mid-table with the breakdown, the golden pocket's x2 and then the streak's multiplier slam in
+// one after another as the number rolls up to the total, and the result flies into the header's Points, which only
+// then counts up (ptsHold keeps it waiting).
+let tally = null;
+function rollNum(el, from, to, ms) {
+  const t0 = performance.now();
+  const step = now => { const k = Math.min(1, (now - t0) / ms), e = 1 - (1 - k) ** 3; el.textContent = fmtPts(from + (to - from) * e); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function endTally() {
+  if (!tally) return;
+  tally.timers.forEach(clearTimeout); tally.el.remove(); tally = null;
+  ptsHold = false;
+  const el = $('ptsVal');
+  if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+}
+function showTally(base, gold, mult, gain, bits) {
+  endTally();
+  const el = document.createElement('div');
+  el.id = 'tally';
+  el.innerHTML = `<div class="tn">${fmtPts(base)}</div><div class="tm"></div><div class="tb">${bits}</div>`;
+  $('stage').appendChild(el);
+  ptsHold = true;
+  const n = el.querySelector('.tn'), m = el.querySelector('.tm'), timers = [];
+  tally = { el, timers };
+  const at = (ms, f) => timers.push(setTimeout(f, ms));
+  tone(880, 0.08, 0.05, 'triangle', 1.5, 0, 0.3);
+  let t = 380, now = base;
+  // a multiplier slams in: the chip drops onto the number, the number rolls up, a thump and a shake
+  const slam = (label, cls, to, k) => {
+    at(t, () => {
+      const c = document.createElement('span'); c.className = `chip ${cls}`; c.textContent = label; m.appendChild(c);
+      rollNum(n, now, to, 320); now = to;
+      n.classList.remove('pop'); void n.offsetWidth; n.classList.add('pop');
+      if (cls === 'streak') n.classList.add('hot');
+      sfx.boom(k); fx.shake = Math.max(fx.shake, 3 + k); buzz([15, 25, 15]);
+    });
+    t += 520;
+  };
+  if (gold > 1) slam('Golden ×2', 'gold', base * gold, 2);
+  if (mult > 1) { slam(`Streak ×${mult}`, 'streak', gain, Math.round(mult * 2)); at(t - 520, () => sfx.streakUp(hs.streak)); }
+  // then the total flies up into the header's Points and the total counts up as it lands
+  at(t + 150, () => {
+    const dst = $('ptsVal'), a = n.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
+    n.textContent = `+${fmtPts(gain)}`;
+    el.querySelector('.tb').style.opacity = 0; m.style.opacity = 0;
+    n.style.transition = 'transform .5s cubic-bezier(.5,0,.8,.4), opacity .5s';
+    n.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
+    n.style.opacity = 0.7;
+  });
+  at(t + 650, () => { endTally(); sfx.chime(); buzz(10); });
 }
 // Trick shots: a pot on a shot without a foul that's a double or triple (two or three balls), a kick (the cue ball
 // hit a cushion before its first ball), a bank (the potted ball hit a cushion first), a combination (a single pot

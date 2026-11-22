@@ -129,7 +129,7 @@ function frame(now) {
     }
   }
   // the points total counts up rather than jumping
-  if (hs && shownPts !== hs.points) {
+  if (hs && shownPts !== hs.points && !ptsHold) {
     const d = hs.points - shownPts;
     shownPts = Math.abs(d) < 3 ? hs.points : shownPts + Math.ceil(Math.abs(d) * Math.min(1, dt * 8)) * Math.sign(d);
     const el = document.getElementById('ptsVal');

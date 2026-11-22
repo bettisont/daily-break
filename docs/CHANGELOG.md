@@ -21,6 +21,10 @@ on par, and the trick replays are the best moment of a round.
   sound and a shake, stacking on multi-ball shots. After the replay, a breakdown floats up
   ("Pot 100 · Bank +200 · Streak x2"). The header shows points (counting up) and the info bar shows shots left and the
   streak.
+- **The tally** (`showTally`, after the replay): the shot's base points pop up mid-table with the breakdown, then
+  the golden pocket's x2 and the streak's multiplier slam in one after another as the number rolls up, and the result
+  flies into the header's Points, which only then counts up (`ptsHold`). Asked for after the first playtest: the
+  multiplier was working on each shot but you couldn't see it.
 - **The streak shows** as a meter under the multiplier in the info bar (`updateStreakMeter`). It fills and heats up,
   shows a flame from x2, pulses at x3, and shakes red as it drains on a reset. The lamp over the table also warms
   (`drawLampWarmth`: one extra light sprite) and flickers at x3. An edge glow round the screen was tried first and
