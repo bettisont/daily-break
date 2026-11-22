@@ -58,7 +58,9 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     runs the tally (`showTally`, a fixed overlay over the stage). The base comes first, then each element's flat points
     ("+200 Bank") fly into the number one by one and add a receipt line under it. Then each multiplier chip (`.tchip`:
     golden from the top, the streak from the streak meter) drops onto the number and smashes. Last, the shot's score
-    flies into `#ptsVal`. `ptsHold` holds the header's count-up until it lands, and `endTally` cuts it short (a new
+    flies into `#ptsVal`. A shot that clears the table adds the clear bonus as the last step (`scoreTrick(clear)`;
+    a table cleared on a foul gets a tally of its own). There are no hole or round stamps under trick scoring:
+    `finishHole` waits for `tally` to finish before the next hole or the card. `ptsHold` holds the header's count-up until it lands, and `endTally` cuts it short (a new
     shot, a new round).
   - The header shows Hole and Points (`#ptsVal`, counting up). The info bar shows shots left, the streak meter
     (`updateStreakMeter`; `crackStreakMeter` on a reset) and the tilt. The lamp warms with the streak

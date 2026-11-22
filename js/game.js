@@ -610,7 +610,7 @@ function resolveShot() {
     if (tshot) for (const o of tshot.tgt) o.hit = false;   // a target crossed on a foul comes back
     breakStreak();
   } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); breakStreak(); }
-  if (!foul && shotLog.length) round.trick ? scoreTrick() : scorePots();
+  if (!foul && shotLog.length) round.trick ? scoreTrick(table.remaining() ? 0 : TRICK_PTS.clear * hole.balls.length) : scorePots();
   else if (!foul && tshot?.tgt.length) say('Targets only count on a shot that pots', table.cue.y + 84, '#7a6a3a', 16);
   if (!round.trick && !foul && s.pots.length && hole.gold != null && !goldUsed && s.pots.some(p => p.pocket === hole.gold)) {
     goldUsed = true; holeBonus++;
@@ -642,7 +642,7 @@ function breakStreak() {
 }
 // Trick scoring: a shot that potted something, with no foul. 100 a pot, 200 for each trick element seen as the balls
 // dropped (trickDrop), doubled by the golden pocket, times the streak. The breakdown floats up once the replay is done.
-function scoreTrick() {
+function scoreTrick(clear = 0) {
   const t = tshot || { parts: [], gold: false };
   hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
   const pots = shotLog.length, mult = streakMult(hs.streak), gold = t.gold ? 2 : 1;
@@ -653,7 +653,9 @@ function scoreTrick() {
   if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target', 'Quick']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
   const muls = [...(t.gold ? [['Golden', 2, 'into the golden pocket']] : []), ...(mult > 1 ? [['Streak', mult, `${hs.streak} potting shots in a row`]] : [])];
-  showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots, pots === 1 ? '1 ball potted' : `${pots} balls potted`], items, muls, gain);
+  // clearing the table: its bonus comes last, after the multipliers (it isn't multiplied); finishHole adds the points
+  const nb = hole.balls.length, bonus = clear ? ['Table cleared', clear, `${nb} ball${nb === 1 ? '' : 's'} × ${TRICK_PTS.clear}`] : null;
+  showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots, pots === 1 ? '1 ball potted' : `${pots} balls potted`], items, muls, gain, bonus);
 }
 // what each element is for, said under its points in the tally
 const TRICK_WHY = { Bank: 'the ball came off a cushion', Kick: 'the cue ball hit a cushion first', Combo: 'potted by another ball', Tunnel: 'through the tunnel', Cannon: 'the cue ball hit two balls', Target: 'through a moving target', Quick: `shot in under ${QUICK_S} seconds` };
@@ -678,7 +680,7 @@ function endTally() {
 }
 // Paced so each step can be read (22 Nov playtest: too fast to see why a shot scored what it did): every step says
 // what it's for, and the whole sum is held on screen before it flies into the total.
-function showTally([baseLabel, base, baseWhy], items, muls, gain) {
+function showTally([baseLabel, base, baseWhy], items, muls, gain, bonus = null) {
   endTally();
   const st = $('stage').getBoundingClientRect(), cx = st.left + st.width / 2, cy = st.top + st.height * 0.3;
   const el = document.createElement('div');
@@ -743,17 +745,32 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
     });
     t += 1500;
   });
-  // the whole sum, held so it can be read: (100 + 200 + 200) × 2 × 2.5 = 2,500
+  // the table-clear bonus, last and flat: it comes in like a trick and adds on
+  const total = gain + (bonus ? bonus[1] : 0);
+  if (bonus) {
+    const it = document.createElement('div'), [label, pts, reason] = bonus;
+    t += 200;
+    at(t, () => { it.className = 'ti clear'; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small><em>${reason}</em>`; el.appendChild(it); tone(880, 0.1, 0.05, 'triangle', 1, 0, 0.3); });
+    at(t + 900, () => it.classList.add('in'));
+    at(t + 1080, () => {
+      it.remove(); rollNum(n, gain, total, 260); n.classList.remove('hot'); pop('pop'); add(`<b class="cl">+ ${fmtPts(pts)} cleared</b>`); why(`${label}: ${reason}`);
+      sfx.chime(); buzz(12);
+    });
+    t += 1300;
+  }
+  // the whole sum, held so it can be read: (100 + 200 + 200) × 2 × 2.5 = 2,500 (+ 900 for a clear = 3,400)
   const sum = [base, ...items.map(x => x[1])].map(fmtPts).join(' + ');
-  at(t + 200, () => {
+  const plain = !items.length && !muls.length && !bonus;   // nothing to add up: no "100 = 100"
+  if (!plain) at(t + 200, () => {
     tw.classList.remove('show');
-    tb.innerHTML = `<span class="eq">${muls.length && items.length ? `(${sum})` : sum}${muls.map(([, m]) => ` × ${m}`).join('')} = <b>${fmtPts(gain)}</b></span>`;
+    const shot = `${muls.length && items.length ? `(${sum})` : sum}${muls.map(([, m]) => ` × ${m}`).join('')}`;
+    tb.innerHTML = `<span class="eq">${bonus ? `${shot} + ${fmtPts(bonus[1])} clear` : shot} = <b>${fmtPts(total)}</b></span>`;
   });
   t += 200 + (items.length || muls.length ? 1600 : 700);
   // then the shot's score flies into the header's Points
   at(t, () => {
     const dst = $('ptsVal'), a = n.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
-    n.textContent = `+${fmtPts(gain)}`;
+    n.textContent = `+${fmtPts(total)}`;
     tb.style.opacity = 0;
     n.style.transition = 'transform .6s cubic-bezier(.5,0,.8,.4), opacity .6s';
     n.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
@@ -788,6 +805,21 @@ function finishHole(picked) {
   }
   phase = 'holed'; gimmes = [];
   if (forLevel + 1 < HOLES) saveRun(forLevel + 1);
+  if (tr) {
+    // Trick scoring (22 Nov playtest): no stamp ("Trick clear!", "Cleared"); the tally already shows the points and
+    // the clear bonus, and the stamp got in its way. Out of shots just says so. The next hole waits for the tally.
+    if (picked) float(W / 2, H * 0.45, 'Out of shots', '#7a6a3a', 22, 1.8);
+    else if (clear && !tally) showTally(['Table cleared', clear, `${hole.balls.length} ball${hole.balls.length === 1 ? '' : 's'} × ${TRICK_PTS.clear}`], [], [], clear);   // (cleared on a foul: no shot tally to add it to)
+    sfx.holed(!picked);
+    if (!picked && th.tricks.length) confettiBurst(Math.min(140, 60 + forLevel * 15));
+    const go = () => {
+      if (round.level !== forLevel || phase !== 'holed') return;
+      if (tally) return setTimeout(go, 200);
+      if (forLevel + 1 >= HOLES) endRound(); else act();
+    };
+    setTimeout(go, picked ? 1500 : 700);
+    return;
+  }
   setTimeout(() => {
     if (round.level !== forLevel || phase !== 'holed') return;
     const good = tr ? !picked : d <= 0, party = tr ? !picked && th.tricks.length > 0 : d < 0;
@@ -808,13 +840,12 @@ function endRound() {
   round.done = true; round.points = hs.points; phase = 'over';
   if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak, ...(round.trick ? { trick: true } : {}) })); sendResult(); }
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
-  stamp = round.trick ? { text: 'Round over', sub: `${fmtPts(round.points)} pts · best streak ×${streakMult(round.bestStreak)}`, color: '#b88a2e', t: 0 }
-    : { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
+  if (round.trick) { setTimeout(() => { if (phase === 'over') showFinal(false); }, 600); return; }   // straight to the card
+  stamp = { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
   sfx.stamp(); fx.shake = 6;
   setTimeout(() => { if (phase === 'over') showFinal(false); }, 2300);
 }
-// Trick scoring's share card: the points and best streak, then one line per hole with an emoji per trick element
-// (🎱 an extra ball, ↩️ bank, 🦵 kick, 🔗 combination, 🚇 tunnel, 💥 cannon, 🎯 target, ⚡ quick; – none, ✖️ picked up).
+// Trick scoring's share text: the points and the rank line.
 // (22 Nov playtest: a line of emoji per hole was too much; now just the points and how you did against everyone)
 function trickShareText(r) {
   const rank = trickRankLine(r);

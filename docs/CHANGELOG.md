@@ -29,6 +29,9 @@ on par, and the trick replays are the best moment of a round.
   each shot, but you couldn't see it. Then slowed down so each step can be read (about 1 s a trick, 1.5 s a
   multiplier). Every step says what it's for (`TRICK_WHY`: "Bank: the ball came off a cushion", "Streak x2.5: 4
   potting shots in a row"), and the whole sum ("(100 + 200 + 200) x 2 x 2.5 = 2,500") holds before it flies.
+- **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the
+  tally. The clear bonus is now the tally's last step ("+900 Table cleared: 3 balls x 300", after the multipliers,
+  since it isn't multiplied). A picked-up hole just says "Out of shots". The next hole waits for the tally to land.
 - **The streak shows** as a meter under the multiplier in the info bar (`updateStreakMeter`). It fills and heats up,
   shows a flame from x2, pulses at x3, and shakes red as it drains on a reset. The lamp over the table also warms
   (`drawLampWarmth`: one extra light sprite) and flickers at x3. An edge glow round the screen was tried first and
