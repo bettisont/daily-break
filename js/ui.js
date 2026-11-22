@@ -4,22 +4,27 @@
 
 /* ----- UI ----- */
 
-// The header: the hole you're on, its par and your score.
+// The header: the hole you're on, its par and your score (trick scoring: the hole and your points, which count up).
 function renderCard9() {
+  if (round.trick) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c score">Points <b id="ptsVal">${fmtPts(shownPts)}</b></div>`; return; }
   $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`;
 }
 function updateUI() {
   if (!table) return;
   const left = table.remaining(), n = Math.max(0, Math.min(strokes, capOf(round.level)) - holeBonus);
   $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
-  $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
+  if (round.trick) {
+    const cap = capOf(round.level), shots = Math.max(0, cap - strokes), m = streakMult(hs.streak);
+    $('iHole').innerHTML = `Hole ${round.level + 1} · ${hole.balls.length} ball${hole.balls.length === 1 ? '' : 's'}<b>${shots} shot${shots === 1 ? '' : 's'} left<small>${left} left</small></b>`;
+    $('iLie').innerHTML = `Streak<b class="${m > 1 ? 'hot' : ''}">×${m}</b>`;
+  } else $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`;
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold);
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
-    gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`;
+    gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : round.trick ? `Shot<b>${strokes + 1}</b><small>of ${capOf(round.level)}</small>` : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`;
   updateMeter(); updateAimUI(); updateSpinBall();
 }
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
@@ -163,6 +168,7 @@ function updateAimUI() {
 
 // Today's finished ranked round (this one, or the one saved on this device), or null if it isn't done yet.
 function todaysResult() {
+  if (trickFlag) return round.done ? round : null;
   if (round.ranked && isDailySeed(round.seed) && round.done) return round;
   try { const r = JSON.parse(ls(parKey(todayKey()))); if (Array.isArray(r?.cards)) return { seed: todayKey(), ...r }; } catch {}
   return null;
@@ -241,7 +247,7 @@ function dayStats() {
       let r = null; try { r = JSON.parse(localStorage.getItem(k)); } catch {}
       if (!r || typeof r !== 'object') continue;
       days.add(m[2]);
-      if (m[1] === 'par' && Array.isArray(r.cards)) scores.push(r.cards.reduce((a, c) => a + c.strokes - c.par, 0));
+      if (m[1] === 'par' && Array.isArray(r.cards) && !r.trick) scores.push(r.cards.reduce((a, c) => a + c.strokes - c.par, 0));
     }
   } catch {}
   let streak = 0; const d = new Date();

@@ -39,6 +39,7 @@ function onEvent(type, e) {
     // it drops into the pipe: shrinks and swirls into the mouth, and a rumble travels underneath to the far end
     const m = tunMouths(hole).find(q => Math.hypot(q.x - e.x, q.y - e.y) < 1), b = e.ball;
     if (m) m.flash = 1;
+    tshot?.tun.add(b);   // trick scoring: this ball (or the cue ball) went through, so a pot can be a Tunnel
     ensureSpin(b);
     fx.sinks.push({ x: e.fromX, y: e.fromY, tx: e.x, ty: e.y, b: { n: b.n, spot: b.spot, pole: b.pole }, t: 0 });
     atX(e.x, () => sfx.tunnel(e.speed)); sfx.tunnelRoll(e.x, e.toX, e.dur / Math.max(0.3, timeScale)); buzz(12);
@@ -70,23 +71,59 @@ function onEvent(type, e) {
     const left = table.balls.filter(o => !o.potted && o !== b).length;
     atX(tx, () => sfx.potNote(k, k >= 1)); buzz([18, 40, 12]);
     if (k >= 2) sfx.boom(k);
-    if (shotLog.length >= 2) { sfx.multi(shotLog.length); float(W / 2, H * 0.22, shotLog.length === 2 ? 'Double!' : shotLog.length === 3 ? 'Triple!' : `${shotLog.length} in one!`, '#c4472f', 26, 1.4); }
+    const burst = tshot ? trickDrop(b, e.pocket, tx, ty) : 0;
+    if (!tshot && shotLog.length >= 2) { sfx.multi(shotLog.length); float(W / 2, H * 0.22, shotLog.length === 2 ? 'Double!' : shotLog.length === 3 ? 'Triple!' : `${shotLog.length} in one!`, '#c4472f', 26, 1.4); }
     fx.glow = Math.min(1, 0.35 + k * 0.15);
     const fy = clamp(ty, 60, H - 60) + (ty < H / 2 ? 40 : -40), fxp = clamp(tx, 60, W - 60);
     const tags = [bank && 'Bank', combo && 'Combo'].filter(Boolean).join(' · ');
     ring(tx, ty, '201,154,58', 90, 1, 20); sparkle(tx, ty, '#e2b13c', 18 + k * 6, 160 + k * 20);
-    float(fxp, fy, tags ? tags + '!' : left ? `${left} to go` : 'Level clear!', left ? '#b88a2e' : '#2f6b4f', 18 + Math.min(6, k * 1.5));
+    if (tshot ? !burst : true) float(fxp, fy, tshot ? (left ? `${left} to go` : 'Table cleared!') : tags ? tags + '!' : left ? `${left} to go` : 'Level clear!', left ? '#b88a2e' : '#2f6b4f', 18 + Math.min(6, k * 1.5));
     if (k >= 2) fx.shake = Math.min(9, 2 + k * 1.5);
     if (cine && b.n === cine.n) { cine.hold = 0.9; ring(tx, ty, '226,177,60', 160, 1.3, 24); sparkle(tx, ty, '#e2b13c', 50, 260); }
   }
 }
 
+// Trick scoring: the moment a ball drops, work out which trick elements it adds and burst them out of the pocket,
+// so a bank feels like a bank while the balls are still rolling. Every element shown here is what the shot scores
+// (scoreTrick), unless the shot turns out to be a foul. Returns how many bursts it showed.
+const TRICK_LOOK = { Extra: '#c4472f', Bank: '#3b5ea6', Kick: '#6a4b8c', Combo: '#dc7a30', Tunnel: '#2f6b4f' };
+function trickDrop(b, pocket, tx, ty) {
+  const s = table.shot, t = tshot, got = [];
+  t.balls++;
+  if (t.balls >= 2) got.push(['Extra', t.balls === 2 ? 'Double' : t.balls === 3 ? 'Triple' : `${t.balls} in one`]);
+  if ((b.cush || 0) > 0) got.push(['Bank', 'Bank']);
+  if (s.kick && !t.has.Kick) got.push(['Kick', 'Kick']);
+  if (s.firstHit && s.firstHit !== b && !t.has.Combo) got.push(['Combo', 'Combo']);
+  if (!t.has.Tunnel && (t.tun.has(b) || t.tun.has(table.cue))) got.push(['Tunnel', 'Tunnel']);
+  for (const [kind] of got) { t.parts.push(kind); t.has[kind] = true; }
+  const gold = pocket === hole.gold && !goldUsed && !t.gold;
+  if (gold) t.gold = true;
+  // the bursts stack up from the pocket towards the middle of the table, one after another
+  const dir = ty < H / 2 ? 1 : -1, x = clamp(tx, 90, W - 90);
+  let y = clamp(ty, 60, H - 60) + dir * 56;
+  got.forEach(([kind, label], i) => {
+    setTimeout(() => {
+      float(x, y + dir * i * 44, `${label}! +${TRICK_PTS.part}`, TRICK_LOOK[kind], 30, 1.8);
+      sfx.trick(kind, t.balls);
+      fx.shake = Math.max(fx.shake, 5 + i * 1.5); buzz([20, 30, 20]);
+      sparkle(tx, ty, '#ffd76a', 26, 220); ring(tx, ty, '255,215,106', 120, 0.8, 22);
+    }, i * 140);
+  });
+  if (gold) setTimeout(() => {
+    float(x, y + dir * got.length * 44, 'Golden pocket! ×2', '#b88a2e', 28, 2);
+    sfx.chime(); fx.glow = 1; sparkle(tx, ty, '#e2b13c', 30, 170);
+  }, got.length * 140);
+  return got.length + (gold ? 1 : 0);
+}
+
 /* ----- round / hole flow ----- */
 
 function newRound(seed, ranked) {
-  round = { seed, ranked, level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
+  if (trickFlag) ranked = false;   // the ?trick trial never counts as anyone's daily round
+  round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
+  tshot = null; thole = { pts: 0, tricks: [] };
   const saved = ranked ? ls(parKey(seed)) : null;
   if (!saved && resumeRun()) return;
   startHole(0);
@@ -94,7 +131,7 @@ function newRound(seed, ranked) {
   // today's round is already in: show its card (a record that won't parse just leaves a fresh round on screen)
   let rec = null;
   try { rec = JSON.parse(saved); } catch (e) { console.error('saved round', e); }
-  if (!rec || !Array.isArray(rec.cards)) return;
+  if (!rec || !Array.isArray(rec.cards) || !!rec.trick !== round.trick) return;
   Object.assign(round, rec, { done: true }); hs.points = round.points; renderCard9(); updateUI(); showFinal(true);
 }
 
@@ -105,7 +142,7 @@ function startHole(i) {
   hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
   trayFly = []; trayDone = [];
-  strokes = 0; holeBonus = 0; goldUsed = false;
+  strokes = 0; holeBonus = 0; goldUsed = false; tshot = null; thole = { pts: 0, tricks: [] };
   // a cat hole: the cat hops up from its cushion onto the felt as the hole starts
   catAnim = table.cat ? { from: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, to: { x: table.cat.x, y: table.cat.y, rot: table.cat.rot, sc: CAT_SC }, t: -0.9 } : null;
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
@@ -113,7 +150,7 @@ function startHole(i) {
   lineUp();
   setTimeout(() => makeHole(round.seed, i + 1), 1500);   // build the next hole while this one plays
   const n = hole.balls.length, life = featureName(hole) ? 2.3 : hole.shape ? 1.9 : 1.5;
-  banner = { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${hole.gold != null ? 'golden pocket · ' : ''}${n} ball${n === 1 ? '' : 's'} · par ${parOf(i)}`, life, max: life };
+  banner = { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${hole.gold != null ? 'golden pocket · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${round.trick ? `${capOf(i)} shots` : `par ${parOf(i)}`}`, life, max: life };
   // a tunnel hole: point out the two openings, once the hole has had a moment on screen
   if (hole.tunnel) { const h = hole, { a, b } = h.tunnel; setTimeout(() => { if (hole !== h || phase !== 'aim') return; for (const m of [a, b]) { const e = tunExit(m); float(clamp(e.x + m.nx * 50, 70, W - 70), clamp(e.y + m.ny * 50, 30, H - 30), 'Tunnel', '#2f6b4f', 17, 2.6); } }, 1900); }
   saveRun();
@@ -156,6 +193,7 @@ function startOffTarget() {
 // Gimmes: a ball within two ball widths of an open pocket, with a clear, nearly straight line from the cue ball.
 function findGimmes() {
   const out = [];
+  if (round.trick) return out;   // trick scoring: every ball has to be shot
   table.balls.forEach((b, bi) => {
     if (b.potted) return;
     for (let i = 0; i < 6; i++) {
@@ -452,6 +490,7 @@ function release() {
     $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand">👆</div>');
   }
   shotLog = [];
+  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), gold: false } : null;
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
@@ -513,16 +552,17 @@ function resolveShot() {
     strokes++;   // the penalty stroke
     if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
     say(`${foul} · +1 stroke`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
-    hs.streak = 0;
-  } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); hs.streak = 0; }
-  if (!foul && shotLog.length) scorePots();
-  if (!foul && s.pots.length && hole.gold != null && !goldUsed && s.pots.some(p => p.pocket === hole.gold)) {
+    if (tshot && (tshot.parts.length || tshot.gold)) say("Tricks don't count on a foul", table.cue.y + 84, '#7a6a3a', 16);
+    breakStreak();
+  } else if (!shotLog.length) { say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); breakStreak(); }
+  if (!foul && shotLog.length) round.trick ? scoreTrick() : scorePots();
+  if (!round.trick && !foul && s.pots.length && hole.gold != null && !goldUsed && s.pots.some(p => p.pocket === hole.gold)) {
     goldUsed = true; holeBonus++;
     const p = table.pk[hole.gold], px = clamp(p.x, 90, W - 90), py = clamp(p.y + (p.y < H / 2 ? 70 : -70), 50, H - 50);
     float(px, py, 'Golden pocket! −1 stroke', '#b88a2e', 22, 2.2); sparkle(p.x, p.y, '#e2b13c', 30, 170); ring(p.x, p.y, '226,177,60', 70, 0.9, p.cap);
     sfx.chime(); buzz([15, 40, 15]); fx.glow = 1;
   }
-  table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false;
+  table.shot = null; curTrail = null; cine = null; shotLog = []; ffwd = false; tshot = null;
   if (!table.remaining()) finishHole(false);
   else if (strokes >= capOf(round.level)) finishHole(true);
   else { lineUp(); saveRun(); }
@@ -538,6 +578,32 @@ function scorePots() {
   hs.points += gain;
   float(W / 2, H * 0.3, `+${gain}${mult > 1 ? `  ×${mult}` : ''}`, '#b88a2e', 24 + Math.min(14, hs.streak * 3), 1.6);
   if (hs.streak >= 2) float(W / 2, H * 0.3 + 46, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.6);
+}
+// a miss or a foul ends the streak; under trick scoring the edge glow fizzles out with it
+function breakStreak() {
+  if (round.trick && hs.streak >= 2) sfx.fizzle();
+  hs.streak = 0;
+}
+// Trick scoring: a shot that potted something, with no foul. 100 a pot, 200 for each trick element seen as the balls
+// dropped (trickDrop), doubled by the golden pocket, times the streak. The breakdown floats up once the replay is done.
+function scoreTrick() {
+  const t = tshot || { parts: [], gold: false };
+  hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
+  const pots = shotLog.length, mult = streakMult(hs.streak), gold = t.gold ? 2 : 1;
+  const gain = Math.round((TRICK_PTS.pot * pots + TRICK_PTS.part * t.parts.length) * gold * mult);
+  hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
+  if (t.gold) goldUsed = true;
+  setTimeout(() => { const el = $('ptsVal'); if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } }, 0);
+  const n = k => t.parts.filter(p => p === k).length, bits = [pots === 1 ? `Pot ${TRICK_PTS.pot}` : `${pots} pots ${TRICK_PTS.pot * pots}`];
+  const ex = n('Extra');
+  if (ex) bits.push(`${ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`} +${TRICK_PTS.part * ex}`);
+  for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel']) if (n(k)) bits.push(`${k}${n(k) > 1 ? ` ×${n(k)}` : ''} +${TRICK_PTS.part * n(k)}`);
+  if (t.gold) bits.push('Golden ×2');
+  if (mult > 1) bits.push(`Streak ×${mult}`);
+  const big = t.parts.length > 0;
+  float(W / 2, H * 0.3, `+${fmtPts(gain)}`, '#b88a2e', big ? 34 : 26, 2.2);
+  float(W / 2, H * 0.3 + 44, bits.join(' · '), '#5a6556', 15, 2.6);
+  if (hs.streak >= 2) { float(W / 2, H * 0.3 + 82, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.8); sfx.streakUp(hs.streak); }
 }
 // Trick shots: a pot on a shot without a foul that's a double or triple (two or three balls), a kick (the cue ball
 // hit a cushion before its first ball), a bank (the potted ball hit a cushion first), a combination (a single pot
@@ -555,15 +621,24 @@ function trickKinds(s) {
 function finishHole(picked) {
   if (round.level === 0) track('clear1');
   const forLevel = round.level, par = parOf(forLevel), n = picked ? capOf(forLevel) : Math.max(1, strokes - holeBonus), d = n - par;
-  round.cards.push({ strokes: n, par, picked, gold: goldUsed });
-  hs.points += picked ? 0 : PTS.level * hole.balls.length;
+  const tr = round.trick, clear = tr && !picked ? TRICK_PTS.clear * hole.balls.length : 0, th = thole;
+  if (tr) {
+    th.pts += clear;
+    round.cards.push({ strokes: Math.min(strokes, capOf(forLevel)), par, picked, gold: goldUsed, pts: th.pts, tricks: th.tricks });
+    hs.points += clear;
+  } else {
+    round.cards.push({ strokes: n, par, picked, gold: goldUsed });
+    hs.points += picked ? 0 : PTS.level * hole.balls.length;
+  }
   phase = 'holed'; gimmes = [];
   if (forLevel + 1 < HOLES) saveRun(forLevel + 1);
   setTimeout(() => {
     if (round.level !== forLevel || phase !== 'holed') return;
-    stamp = { text: picked ? 'Picked up' : holeWord(d), sub: `Hole ${forLevel + 1} · ${n} stroke${n === 1 ? '' : 's'} · par ${par}`, color: holeColor(d), t: 0 };
-    sfx.stamp(); fx.shake = 6; buzz(25); sfx.holed(d <= 0);
-    if (d < 0) confettiBurst(Math.min(140, 60 + forLevel * 15));
+    const good = tr ? !picked : d <= 0, party = tr ? !picked && th.tricks.length > 0 : d < 0;
+    stamp = tr ? { text: picked ? 'Picked up' : th.tricks.length ? 'Trick clear!' : 'Cleared', sub: `Hole ${forLevel + 1} · ${fmtPts(th.pts)} pts${clear ? ` · clear +${fmtPts(clear)}` : ''}`, color: picked ? '#b8553f' : th.tricks.length ? '#3b5ea6' : '#2f6b4f', t: 0 }
+      : { text: picked ? 'Picked up' : holeWord(d), sub: `Hole ${forLevel + 1} · ${n} stroke${n === 1 ? '' : 's'} · par ${par}`, color: holeColor(d), t: 0 };
+    sfx.stamp(); fx.shake = 6; buzz(25); sfx.holed(good);
+    if (party) confettiBurst(Math.min(140, 60 + forLevel * 15));
     renderCard9(); updateUI();
   }, 450);
   setTimeout(() => {
@@ -575,17 +650,59 @@ function endRound() {
   track('finish');
   try { localStorage.removeItem(runKey()); } catch {}
   round.done = true; round.points = hs.points; phase = 'over';
-  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak })); sendResult(); }
+  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak, ...(round.trick ? { trick: true } : {}) })); sendResult(); }
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
-  stamp = { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
+  stamp = round.trick ? { text: 'Round over', sub: `${fmtPts(round.points)} pts · best streak ×${streakMult(round.bestStreak)}`, color: '#b88a2e', t: 0 }
+    : { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
   sfx.stamp(); fx.shake = 6;
   setTimeout(() => { if (phase === 'over') showFinal(false); }, 2300);
 }
+// Trick scoring's share card: the points and best streak, then one line per hole with an emoji per trick element
+// (🎱 an extra ball, ↩️ bank, 🦵 kick, 🔗 combination, 🚇 tunnel; – none, ✖️ picked up).
+function trickShareText(r) {
+  const holes = r.cards.map((c, k) => `${k + 1} ${(c.tricks || []).map(x => TRICK_EMOJI[x] || '').join('') || '–'}${c.picked ? ' ✖️' : ''}`);
+  return `Daily Break ${isDailySeed(r.seed) && r.ranked !== false ? dayLabel(r.seed) : 'practice'} 🎱 ${fmtPts(r.points || 0)}${r.bestStreak > 1 ? ` · ×${streakMult(r.bestStreak)} streak` : ''}\n${holes.join('\n')}\n${gameUrl()}`;
+}
 function shareText(r = round) {
+  if (r.trick) return trickShareText(r);
   const tot = r.cards.reduce((a, c) => a + c.strokes - c.par, 0);
   return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⛳ ${toPar(tot)}\n${r.cards.map(c => cardEmoji(c.strokes - c.par)).join('')}\n${gameUrl()}`;
 }
+// 950, 1.5k, 12k: hole points fit six columns on a phone
+const shortPts = n => n < 1000 ? String(Math.round(n)) : `${(n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '')}k`;
+// Trick scoring's result card: points, best streak, and per hole its points and trick emoji.
+function trickFinalHtml(already) {
+  const strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0), nTricks = round.cards.reduce((a, c) => a + (c.tricks || []).length, 0);
+  return `
+    <div class="k mono">${round.ranked ? courseName(round.seed) : trickFlag ? 'Trick scoring trial · not ranked' : 'Practice · not ranked'}</div>
+    <h2>${already ? "Today's round is in" : 'Round over'}</h2>
+    <div class="k mono">points</div>
+    <div class="big">${fmtPts(round.points || 0)}</div>
+    <div class="k mono">${nTricks} trick${nTricks === 1 ? '' : 's'} · ${strokesAll} shots${round.bestStreak > 1 ? ` · best streak ×${streakMult(round.bestStreak)}` : ''}</div>
+    <table class="card-par card-trick mono"><tr><th>Hole</th>${round.cards.map((c, k) => `<th>${k + 1}</th>`).join('')}</tr>
+      <tr><th>Pts</th>${round.cards.map(c => `<td style="font-weight:700;color:${c.picked ? '#b8553f' : 'inherit'}">${shortPts(c.pts || 0)}${c.picked ? '*' : ''}</td>`).join('')}</tr>
+      <tr><th>Tricks</th>${round.cards.map(c => `<td class="em">${(c.tricks || []).map(x => TRICK_EMOJI[x]).join('') || '–'}</td>`).join('')}</tr></table>
+    <div class="k mono">🎱 extra ball · ↩️ bank · 🦵 kick · 🔗 combo · 🚇 tunnel${round.cards.some(c => c.picked) ? ' · * picked up' : ''}</div>`;
+}
 function showFinal(already) {
+  if (round.trick) {
+    $('card').innerHTML = `${trickFinalHtml(already)}
+    <div id="rank" hidden></div>
+    <div id="share">${shareText()}</div>
+    <div class="row">
+      <button class="btn primary" data-copy>${canNativeShare() ? 'Share' : 'Copy'} result</button>
+      ${practiceLeft() > 0 ? '<button class="btn" data-random>Practice course</button>' : ''}
+      ${!round.ranked && !trickFlag ? `<button class="btn" data-daily>Today's round</button>` : ''}
+    </div>
+    ${statsHtml()}
+    <div class="k mono" id="nextIn" style="margin-top:10px"></div>
+    ${feedbackLink()}`;
+    tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
+    if (round.ranked) loadRank();
+    $('overlay').classList.add('show');
+    phase = 'over'; updateUI();
+    return;
+  }
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0), parAll = round.cards.reduce((a, c) => a + c.par, 0);
   const cell = c => `<td style="color:${holeColor(c.strokes - c.par)};font-weight:700">${c.strokes}${c.picked ? '*' : ''}</td>`;
   $('card').innerHTML = `
@@ -623,7 +740,7 @@ function saveRun(nextLevel) {
   if (!round.ranked || !isDailySeed(round.seed) || round.done || ls(parKey(round.seed))) return;
   const fresh = nextLevel != null;
   ls(runKey(), JSON.stringify({
-    par: true, level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
+    par: true, trick: round.trick, hole: fresh ? { pts: 0, tricks: [] } : thole, level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
     points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes, bonus: fresh ? 0 : holeBonus, gold: !fresh && goldUsed,
     cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
   }));
@@ -632,6 +749,7 @@ function resumeRun() {
   if (!round.ranked || !isDailySeed(round.seed)) return false;
   let r; try { r = JSON.parse(ls(runKey())); } catch {}
   if (!r || !Number.isInteger(r.level) || !r.par) return false;   // (a lives-ladder run from before 12 Nov has no par flag)
+  if (!!r.trick !== round.trick) return false;   // scored the other way (the switch came mid-round): start afresh
   Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0 });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
   startHole(r.level);
@@ -639,10 +757,12 @@ function resumeRun() {
     r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));
     if (r.cue) { table.cue.x = r.cue[0]; table.cue.y = r.cue[1]; }
     strokes = r.strokes || 0; holeBonus = r.bonus || 0; goldUsed = !!r.gold;
+    if (round.trick && r.hole) thole = { pts: r.hole.pts || 0, tricks: r.hole.tricks || [] };
     lineUp();
     saveRun();   // startHole saved a fresh layout; put the real one back so a second reload can't reset the balls
   }
   banner = { title: `Hole ${r.level + 1}`, sub: `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${toPar(parTotal())}`, life: 1.8, max: 1.8 };
+  if (round.trick) banner.sub = `Carrying on · ${table.remaining()} ball${table.remaining() === 1 ? '' : 's'} left · ${fmtPts(hs.points)} pts`;
   renderCard9(); updateUI();
   return true;
 }
@@ -668,19 +788,21 @@ function track(step, extra) {
 function sendResult() {
   if (location.hostname !== 'dailybreak.app' || !isDailySeed(round.seed)) return;
   if (isMe()) { loadRank(); return; }
-  const body = JSON.stringify({ day: round.seed, mode: 'par', score: parTotal(), strokes: round.cards.reduce((a, c) => a + c.strokes, 0), points: Math.round(round.points || 0) });
+  const body = round.trick ? JSON.stringify({ day: round.seed, mode: 'trick', points: Math.round(round.points || 0), strokes: round.cards.reduce((a, c) => a + c.strokes, 0) })
+    : JSON.stringify({ day: round.seed, mode: 'par', score: parTotal(), strokes: round.cards.reduce((a, c) => a + c.strokes, 0), points: Math.round(round.points || 0) });
   const r = round;
   fetch('/api/result', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true })
     .then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
 }
 // "Better than X% of today's players", from the server's count of players at each score today.
+const TRICK_BUCKET = 50;   // keep in step with src/worker.js
 const tallyOn = () => location.hostname === 'dailybreak.app' && round.ranked && isDailySeed(round.seed);
 function fillRank() {
   const el = $('rank'), t = round.tally;
   if (!el || !t || !t.players || !t.scores) return;
-  // lower is better: count the players who scored worse
-  const me = parTotal(), others = t.players - 1;
-  const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc > me ? n : 0), 0), same = (t.scores[me] || 0) - 1;
+  // par: lower is better. Trick scoring: higher is better, counted in buckets of TRICK_BUCKET points (the worker's).
+  const others = t.players - 1, me = round.trick ? Math.floor((round.points || 0) / TRICK_BUCKET) * TRICK_BUCKET : parTotal();
+  const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + ((round.trick ? +sc < me : +sc > me) ? n : 0), 0), same = (t.scores[me] || 0) - 1;
   const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best round today so far 🏆') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
   el.innerHTML = `<b>${line}</b>`; el.hidden = false;   // no player count shown (Tim, 11 Nov)
 }
@@ -688,7 +810,7 @@ function loadRank() {
   if (!tallyOn()) return;
   if (round.tally) return fillRank();
   const r = round;
-  fetch('/api/day?day=' + r.seed + '&mode=par').then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
+  fetch('/api/day?day=' + r.seed + '&mode=' + (r.trick ? 'trick' : 'par')).then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
 }
 function confettiBurst(n) {
   const cols = ['#c4472f', '#e2b13c', '#3d8758', '#3b5ea6', '#f4efe2', '#dc7a30'];

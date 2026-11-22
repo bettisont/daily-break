@@ -155,6 +155,17 @@ const sfx = {
   stamp() { noise(0.12, 0.5, 300); tone(80, 0.18, 0.3, 'sine', 0.6, 0, 0.1); },
   penalty() { tone(330, 0.2, 0.08, 'triangle', 0.7, 0, 0.3); tone(262, 0.3, 0.08, 'triangle', 0.7, 0.15, 0.3); },
   click() { tone(660, 0.05, 0.05, 'sine', 1, 0, 0.2); },
+  // trick scoring: a sound for each trick element as its ball drops, a lift as the streak climbs, and a fizzle when it ends
+  trick(kind, n = 1) {
+    if (kind === 'Extra') return this.multi(n);
+    if (kind === 'Bank') { tone(660, 0.16, 0.08, 'triangle', 1, 0, 0.4); tone(990, 0.22, 0.08, 'triangle', 1, 0.09, 0.5); tone(1320, 0.3, 0.05, 'sine', 1, 0.18, 0.6); }
+    else if (kind === 'Kick') { tone(90, 0.25, 0.3, 'sine', 0.6, 0, 0.1); tone(440, 0.3, 0.07, 'sawtooth', 2.2, 0.03, 0.4); }
+    else if (kind === 'Combo') [587.33, 739.99, 880, 1174.66].forEach((f, k) => tone(f, 0.18, 0.06, 'triangle', 1, k * 0.055, 0.5));
+    else if (kind === 'Tunnel') { tone(160, 0.5, 0.18, 'sine', 3, 0, 0.5); noise(0.4, 0.15, 900, 'bandpass', 0, 2); tone(1046.5, 0.3, 0.05, 'sine', 1, 0.3, 0.6); }
+    noise(0.05, 0.18, 4000, 'highpass', 0, 0.7);
+  },
+  streakUp(n) { const f = 523.25 * Math.pow(2, Math.min(4, n - 1) / 6); tone(f, 0.25, 0.04, 'sine', 1.5, 0, 0.5); },
+  fizzle() { noise(0.45, 0.16, 2500, 'highpass', 0, 0.5); tone(700, 0.4, 0.05, 'triangle', 0.4, 0, 0.3); },
   chime() { tone(1318.5, 0.25, 0.07, 'sine', 1, 0, 0.5); tone(1975.5, 0.35, 0.05, 'sine', 1, 0.06, 0.5); },
 };
 

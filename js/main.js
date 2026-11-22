@@ -16,7 +16,7 @@ function busy(now) {
   return phase !== 'aim' && phase !== 'over' || hold || drag || demo || spinDemo || cine || lip || zoom
     || now - lastInput < 1500 || fx.shake > 0.05 || fx.glow > 0 || banner || (stamp && stamp.t < 0.5) || trayFly.length
     || fx.particles.length || fx.rings.length || fx.floats.length || fx.sinks.length || fx.confetti.length || fx.flashes.length
-    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
+    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || streakGlowBusy() || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
 }
 function frame(now) {
   requestAnimationFrame(frame);
@@ -151,7 +151,9 @@ resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
 const firstVisit = !ls('dailybreak:seenHelp');
-if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
+// ?trick: try trick scoring on today's course (or ?seed=) as an unranked round that uses no practice and saves nothing
+if (trickFlag) newRound(seedParam || todayKey(), false);
+else if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
 // the first time the page is hidden before today's first shot: how long they'd been here and on which screen
 // (some come back and play later; this is one event per device per day)
 document.addEventListener('visibilitychange', () => {

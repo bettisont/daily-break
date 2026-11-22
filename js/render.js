@@ -1246,6 +1246,7 @@ function draw(t, dt) {
     gg.addColorStop(0, 'rgba(255,200,90,0)'); gg.addColorStop(1, `rgba(255,190,80,${0.35 * fx.glow})`);
     ctx.fillStyle = gg; ctx.fillRect(0, 0, cw, ch);
   }
+  drawStreakGlow(t, dt, cw, ch);
   // the vignette: a full-screen radial gradient was being rasterised every frame, so it's painted once per size at a
   // quarter of the resolution (it's only a soft shade) and stretched over; its strength is the copy's alpha
   const vb = VIGNETTE_BUF;
@@ -1263,3 +1264,44 @@ function draw(t, dt) {
   ctx.save(); ctx.translate(gx, gy); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
 }
 
+
+// Trick scoring: the screen's edges glow with the streak (22 Nov). Nothing at x1; from x1.5 a warm glow that gets
+// brighter and hotter at each step (amber, orange, deep orange, hot gold) and breathes at x3; a miss or foul fades it
+// out fast. Each step's glow is painted once per screen size at a quarter of the resolution (like the vignette) and
+// cross-faded, so it costs one stretched image a frame, never a gradient.
+const STREAK_COLS = ['250,180,50', '250,135,35', '240,90,30', '255,205,40'];
+const streakBufs = STREAK_COLS.map(() => Object.assign(document.createElement('canvas'), { cw: 0, ch: 0 }));
+let streakLvl = 0;
+const streakTarget = () => round?.trick && hs ? (streakMult(hs.streak) - 1) * 2 : 0;   // 0 at x1 ... 4 at x3
+const streakGlowBusy = () => Math.abs(streakLvl - streakTarget()) > 0.01 || streakLvl > 3.5;
+function streakBuf(i, cw, ch) {
+  const b = streakBufs[i];
+  if (b.cw === cw && b.ch === ch) return b;
+  b.cw = cw; b.ch = ch; b.width = Math.ceil(cw / 4); b.height = Math.ceil(ch / 4);
+  const c = b.getContext('2d'), w = b.width, h = b.height;
+  // an inset glow: strongest right at the edges, gone by a fifth of the way in
+  c.clearRect(0, 0, w, h);
+  const edge = Math.min(w, h) * 0.16;
+  for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, 0, edge, 0, 0, w, edge], [0, h, 0, h - edge, 0, h - edge, w, edge], [0, 0, edge, 0, 0, 0, edge, h], [w, 0, w - edge, 0, w - edge, 0, edge, h]]) {
+    const g = c.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, `rgba(${STREAK_COLS[i]},1)`); g.addColorStop(0.18, `rgba(${STREAK_COLS[i]},.7)`); g.addColorStop(0.5, `rgba(${STREAK_COLS[i]},.22)`); g.addColorStop(1, `rgba(${STREAK_COLS[i]},0)`);
+    c.fillStyle = g; c.fillRect(rx, ry, rw, rh);
+  }
+  return b;
+}
+function drawStreakGlow(t, dt, cw, ch) {
+  const want = streakTarget();
+  // up eases in over about half a second; a reset drops away in about a quarter
+  streakLvl = want > streakLvl ? Math.min(want, streakLvl + dt * 4) : Math.max(want, streakLvl - dt * 12);
+  if (streakLvl < 0.01) return;
+  const strength = 0.4 + 0.45 * Math.min(streakLvl, 4) / 4;   // brighter as it climbs
+  const pulse = streakLvl > 3.5 ? 0.8 + 0.2 * Math.sin(t * 5) : 1;   // breathing at x3
+  // cross-fade from the step below to the step it's on (the first step fades in out of nothing)
+  const i0 = clamp(Math.ceil(streakLvl) - 1, 0, 3), frac = clamp(streakLvl - i0, 0, 1);
+  // saturated and painted on (the room's edges are already light and warm: added light barely showed there)
+  ctx.save();
+  if (i0 > 0 && frac < 1) { ctx.globalAlpha = strength * pulse * (1 - frac); ctx.drawImage(streakBuf(i0 - 1, cw, ch), 0, 0, cw, ch); }
+  ctx.globalAlpha = strength * pulse * (i0 > 0 ? frac : Math.min(1, frac));
+  ctx.drawImage(streakBuf(i0, cw, ch), 0, 0, cw, ch);
+  ctx.restore();
+}

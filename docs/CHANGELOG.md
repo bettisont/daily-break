@@ -4,6 +4,33 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 22 Nov 2026: trick scoring, on trial behind ?trick
+
+Nothing changes for players yet: `RULES.TRICK_SCORE_FROM` is `null`, so every daily round is still par. `?trick`
+plays today's course (or `?seed=`) as an unranked round with the new scoring. It uses no practice round and saves,
+sends and tracks nothing. Decided in a grilling session (ADR 0001). Why: flair went unrewarded, too many players tied
+on par, and the trick replays are the best moment of a round.
+- **Points replace par** (`scoreTrick`, `trickDrop`, `TRICK_PTS` in `js/state.js`). A pot is 100. Each trick element
+  adds 200, and they stack: an extra ball in one shot, a bank (per banked ball), a kick, a combination (a potted ball
+  the cue ball didn't hit first, once a shot) and a tunnel. The first pot into the golden pocket doubles the shot. The
+  whole shot is then multiplied by the streak: x1, x1.5, x2, x2.5, x3 for potting shots in a row, carried across holes.
+  A miss or a foul resets it. Clearing a hole adds 300 per ball; picking up adds nothing.
+- **Strokes are only a budget.** You pick up at par + 3, as before. A foul still costs a stroke, and the balls it pots
+  stay down but score 0. There's no stroke back from the golden pocket (it doubles instead) and no tap-ins.
+- **Instant feedback**: as each ball drops, its trick elements burst from the pocket ("Bank! +200"), each with its own
+  sound and a shake, stacking on multi-ball shots. After the replay, a breakdown floats up
+  ("Pot 100 · Bank +200 · Streak x2"). The header shows points (counting up) and the info bar shows shots left and the
+  streak.
+- **Streak glow** (`drawStreakGlow` in `js/render.js`): the screen edges glow amber to hot gold from x1.5 and breathe
+  at x3. A reset fades the glow out with a fizzle. Each step is painted once per screen size and cross-faded, like the
+  vignette, so a frame costs one stretched image.
+- **Result and share**: the points, best streak, and per hole its points and a trick emoji per element
+  (🎱 ↩️ 🦵 🔗 🚇).
+- **Worker**: `mode: 'trick'` results (`points` 0-100,000, `strokes` 0-200) are written as blob2 `'trick'` and
+  counted in 50-point buckets under `t:<day>`; `/api/day?mode=trick` returns them. `tools/results.py` reports them and
+  keeps them out of the old lives table.
+- No change to physics, generation or RNG: all course snapshots are unchanged.
+
 ## 16 Nov 2026 (late): battery and heat
 
 - **Frame pacing** (`busy` in `js/main.js`). Phones got hot and drained: the loop repainted the whole screen

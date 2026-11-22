@@ -31,6 +31,29 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
 - **Gimmes / tap-ins** (`findGimmes`, `tapIn`): a ball within two ball widths of an open pocket's mouth, with a clear,
   nearly straight line from the cue ball (`potLine` cos > 0.9), glows green with "Tap in ⛳". Tapping it pots it for
   one stroke and the cue ball doesn't move. Never into an unused golden pocket.
+- **Trick scoring** (on trial, 22 Nov; ADR `docs/adr/0001-trick-points-replace-par.md`). It's on for a round when
+  `trickOn(seed)` holds: `?trick` is in the URL, or `RULES.TRICK_SCORE_FROM` (now `null`) is set and the day has
+  reached it. `?trick` opens today's course (or `?seed=`) unranked: it uses no practice, and saves, sends and tracks
+  nothing. `round.trick` picks the branch everywhere:
+  - Points replace par (`TRICK_PTS`). A pot is 100, plus 200 per trick element, doubled by the first pot into the
+    golden pocket, times `streakMult(streak)`. The streak counts potting shots in a row, carries across holes, and a
+    miss or foul resets it (`breakStreak`, with a fizzle). Clearing a hole adds 300 per ball. Strokes are only the
+    budget (`capOf`, par + 3). A foul's pots score 0. There are no tap-ins (`findGimmes` returns none) and no
+    stroke back.
+  - Trick elements are counted as each ball drops (`trickDrop`, into `tshot`), and that same list is what gets
+    scored (`scoreTrick`). An extra ball in the shot (the 2nd and 3rd drop), a bank (each ball that came off a
+    cushion), a kick (once), a combination (once: a potted ball that isn't the one the cue ball hit first) and a
+    tunnel (once: the potted ball or the cue ball went through; `tshot.tun` is filled from the `tunnelIn` event).
+    Each one bursts from the pocket with `sfx.trick(kind)`. After the replay, `scoreTrick` floats the total and the
+    breakdown.
+  - The header shows Hole and Points (`#ptsVal`, counting up). The info bar shows shots left, the streak (×1.5 in red
+    once it's hot) and the tilt. The screen edges glow with the streak (`drawStreakGlow`: four colour steps, painted
+    once per size, cross-faded, breathing at ×3).
+  - Cards carry `pts` and `tricks`. The result card (`trickFinalHtml`) and share text (`trickShareText`) show points,
+    best streak, and per hole its points and an emoji per trick element (`TRICK_EMOJI`). A saved run or result
+    scored the other way isn't resumed or shown (`r.trick` must match).
+  - Rank: `mode: 'trick'`, higher is better, in `TRICK_BUCKET` 50-point buckets (the worker's `t:<day>`).
+  - The help screen and intro still describe par (decided: no onboarding change). Revisit before the switch date.
 - **Date switches** (`RULES` in `js/core.js`, checked with `ruleOn(seed, from)`; a practice seed, anything that isn't
   a `YYYY-MM-DD`, always gets the newest rules):
   - `FORGIVE_FROM` 2026-11-16: a ball rattles out of a pocket only above `POT_MAX_FORGIVING` 1700 (was
@@ -211,7 +234,7 @@ replay shots to validate a score.
   `?seed=`, so friends land in today's game). Uses the phone's share sheet (`navigator.share`, coarse pointers only)
   or copies. Days are named by date (`dayLabel`, en-GB), never numbered. Players never see the word "ladder" (it
   reads as a ranking table in the UK).
-- **Rank** (`loadRank`, `fillRank`): "Better than X% of today's players" (X = players with a worse score / everyone
+- **Rank** (`loadRank`, `fillRank`; trick scoring: higher is better, by bucket): "Better than X% of today's players" (X = players with a worse score / everyone
   else; no player count on purpose), "Best round today so far 🏆", "Joint best…" or "You're the first to finish…".
   Only on dailybreak.app, ranked daily rounds.
 - **Practice** (`startPractice`): 3 a day per device (`PRACTICE_PER_DAY`), each on a random seed (the "Practice course" button),
@@ -331,11 +354,13 @@ Cloudflare Registrar.
 - `POST /api/result`: `{day, mode: 'par', score, strokes, points}` (score -30..60, strokes 0..200) -> Analytics Engine
   `daily_break_results` (blob1 day, blob2 'par', double1 score, double2 strokes, double3 points) and counted in
   `DayCounts` under `p:<day>`; replies `{players, scores}`. The old lives format `{day, level, potted, points}` is still
-  accepted (key `d:<day>`, blob2 empty). The day must be within the window a local calendar can be on
+  accepted (key `d:<day>`, blob2 empty). Trick scoring sends `{day, mode: 'trick', points, strokes}` (points
+  0..100000) -> blob2 'trick', double1 points, double2 strokes, counted under `t:<day>` in 50-point buckets. The day must be within the window a local calendar can be on
   (`dayIsCurrent`: noon UTC of that day within -2.5 / +1.5 days of now).
 - `POST /api/event`: `{day, step}` -> `daily_break_events` (blob1 day, blob2 step); `left` adds `{secs, where}` as
   blob3 and double2.
-- `GET /api/day?day=&mode=par`: `{players, scores}` (without `mode`, the old level tally).
+- `GET /api/day?day=&mode=par` (or `mode=trick`, scores keyed by bucket): `{players, scores}` (without `mode`, the old
+  level tally).
 - **Rate limits** (Workers Rate Limiting, keyed on `cf-connecting-ip`, never stored): `RESULT_LIMIT` 5/min (429
   `{error: 'slow down'}`), `EVENT_LIMIT` 30/min (429, no body). A real player sends one result and ~10 events a day. A
   missing or failing limiter allows the request.

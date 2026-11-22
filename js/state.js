@@ -39,12 +39,28 @@ const holeColor = d => d < 0 ? '#3b5ea6' : d === 0 ? '#2f6b4f' : d === 1 ? '#9a7
 const parTotal = () => (round.cards || []).reduce((a, c) => a + c.strokes - c.par, 0);
 let gimmes = [];
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
+// ---- trick scoring (being tried, 22 Nov 2026) ----
+// Points replace par: a pot is 100, each trick element on the shot adds 200 (an extra ball in one shot, a bank, a kick,
+// a combination, a tunnel), the first pot into the golden pocket doubles the shot, and the whole shot is multiplied
+// by the streak (potting shots in a row, carried across holes, x1 up to x3). Clearing a hole adds 300 per ball.
+// Strokes are only the hole's budget (par + 3, as before). Tap-ins are off. Why: flair went unrewarded, too many
+// players tied on par, and the trick replays are the best part. It's tried behind ?trick first (an unranked round
+// that sends and saves nothing); RULES.TRICK_SCORE_FROM switches the daily round over once that date is set.
+const TRICK_PTS = { pot: 100, part: 200, clear: 300 };
+const trickFlag = new URLSearchParams(location.search).has('trick');
+// a daily seed from the switch date on, a practice course once today is past it, or anything under ?trick
+const trickOn = seed => trickFlag || (!!RULES.TRICK_SCORE_FROM && (isDailySeed(seed) ? seed : todayKey()) >= RULES.TRICK_SCORE_FROM);
+// the share card's emoji for each trick element
+const TRICK_EMOJI = { Extra: '🎱', Bank: '↩️', Kick: '🦵', Combo: '🔗', Tunnel: '🚇' };
+const fmtPts = n => Math.round(n).toLocaleString('en-US');
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0, spotX: 0, side: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [];
 // this hole's golden pocket takes a stroke off the hole, once (holeBonus)
 let holeBonus = 0, goldUsed = false;
+// trick scoring: this shot's trick elements as they drop (tshot), this hole's points and tricks (thole)
+let tshot = null, thole = { pts: 0, tricks: [] };
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 // Animation: a ball on the lip gets slow motion and a heartbeat (lip),
