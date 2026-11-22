@@ -43,3 +43,7 @@ already played would have had a different course). `tests/layouts.json` snapshot
 - Comments explain why, in plain words, with the date when a rule changed. Players never see the word "ladder".
 - Stats: run the Results workflow (Actions › Results) or `/api/day?day=YYYY-MM-DD&mode=par` for the live tally.
 - Don't put player data or IPs anywhere; results and events are anonymous.
+
+## Skills
+- `.claude/skills/` holds Matt Pocock's design skills (`/grill-me`, `/grill-with-docs`, `/improve-codebase-architecture`,
+  and more; see its README). Domain terms go in `GLOSSARY.md`, decisions in `docs/adr/`, both made only when needed.
