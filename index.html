@@ -97,8 +97,13 @@
   #tally .tb span{animation:tallyIn .2s ease-out} #tally .tb b{color:#d8552a}
   #tally .ti{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);white-space:nowrap;font:800 26px 'DM Sans',sans-serif;color:#2f6b4f;text-shadow:0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0;animation:tallyIn .18s cubic-bezier(.2,1.6,.4,1)}
   #tally .ti small{font:600 13px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase}
+  #tally .ti em{display:block;font:500 12px 'DM Sans',sans-serif;font-style:normal;color:#4c574a;text-shadow:none;background:rgba(251,248,240,.9);border-radius:8px;padding:1px 8px;margin-top:2px}
+  #tally .tw{font:700 13px 'DM Sans',sans-serif;color:#4c574a;background:rgba(251,248,240,.92);padding:3px 10px;border-radius:10px;white-space:nowrap;opacity:0;transition:opacity .2s}
+  #tally .tw.show{opacity:1;animation:tallyIn .25s ease-out}
+  #tally .tb .eq{font-size:12.5px;color:#2d3a30} #tally .tb .eq b{font-size:14px}
   #tally .ti.in{transition:transform .18s cubic-bezier(.6,0,.9,.4),opacity .18s;transform:translateX(-50%) translateY(-120px) scale(.5);opacity:0}
-  .tchip{position:fixed;z-index:6;transform:translate(-50%,-50%);pointer-events:none;font:800 30px 'DM Sans',sans-serif;color:#fbf8f0;padding:4px 14px;border-radius:14px;box-shadow:0 6px 16px rgba(60,45,25,.35)}
+  .tchip small{display:block;font:600 10.5px 'DM Mono',monospace;letter-spacing:.04em;text-transform:uppercase;opacity:.92;white-space:nowrap;margin-top:1px}
+  .tchip{position:fixed;z-index:6;transform:translate(-50%,-50%);pointer-events:none;text-align:center;font:800 30px/1.05 'DM Sans',sans-serif;color:#fbf8f0;padding:4px 14px;border-radius:14px;box-shadow:0 6px 16px rgba(60,45,25,.35)}
   .tchip.streak{background:#d8552a} .tchip.gold{background:#c99a3a}
   .tchip.drop{transition:transform .43s cubic-bezier(.65,0,.95,.45)}
   .tchip.smash{animation:chipSmash .26s forwards}

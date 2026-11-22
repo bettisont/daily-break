@@ -64,8 +64,9 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     (`updateStreakMeter`; `crackStreakMeter` on a reset) and the tilt. The lamp warms with the streak
     (`drawLampWarmth`, flickering at ×3). The Quick bar (`#quickBar`, `tickQuick`) drains across the top of the pull
     cue.
-  - Cards carry `pts` and `tricks`. The result card (`trickFinalHtml`) and share text (`trickShareText`) show points,
-    best streak, and per hole its points and an emoji per trick element (`TRICK_EMOJI`). A saved run or result
+  - Cards carry `pts` and `tricks`. The result card (`trickFinalHtml`) shows points, tricks, shots, best streak and
+    each hole's points. The share text (`trickShareText`) is the points plus `trickRankLine` ("Beat 73% of 412
+    players today", from the tally, with the player count on purpose for trick scoring). A saved run or result
     scored the other way isn't resumed or shown (`r.trick` must match).
   - Rank: `mode: 'trick'`, higher is better, in `TRICK_BUCKET` 50-point buckets (the worker's `t:<day>`).
   - The help screen and intro still describe par (decided: no onboarding change). Revisit before the switch date.

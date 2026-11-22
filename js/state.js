@@ -50,8 +50,6 @@ const TRICK_PTS = { pot: 100, part: 200, clear: 300 };
 const trickFlag = new URLSearchParams(location.search).has('trick');
 // a daily seed from the switch date on, a practice course once today is past it, or anything under ?trick
 const trickOn = seed => trickFlag || (!!RULES.TRICK_SCORE_FROM && (isDailySeed(seed) ? seed : todayKey()) >= RULES.TRICK_SCORE_FROM);
-// the share card's emoji for each trick element
-const TRICK_EMOJI = { Extra: '🎱', Bank: '↩️', Kick: '🦵', Combo: '🔗', Tunnel: '🚇', Cannon: '💥', Target: '🎯', Quick: '⚡' };
 // what each element adds: 200, except Quick (a shot taken within QUICK_S seconds of the aim starting), 100
 const partPts = k => k === 'Quick' ? 100 : TRICK_PTS.part;
 const QUICK_S = 5;

@@ -26,7 +26,9 @@ on par, and the trick replays are the best moment of a round.
   underneath of what was added. Each multiplier then drops onto the number and smashes into it: the golden pocket's
   x2, then the streak, which pulls down out of the streak meter. Finally the shot's score flies into the header's
   Points, which only then counts up (`ptsHold`). Asked for in the playtests: the multiplier was already working on
-  each shot, but you couldn't see it.
+  each shot, but you couldn't see it. Then slowed down so each step can be read (about 1 s a trick, 1.5 s a
+  multiplier). Every step says what it's for (`TRICK_WHY`: "Bank: the ball came off a cushion", "Streak x2.5: 4
+  potting shots in a row"), and the whole sum ("(100 + 200 + 200) x 2 x 2.5 = 2,500") holds before it flies.
 - **The streak shows** as a meter under the multiplier in the info bar (`updateStreakMeter`). It fills and heats up,
   shows a flame from x2, pulses at x3, and shakes red as it drains on a reset. The lamp over the table also warms
   (`drawLampWarmth`: one extra light sprite) and flickers at x3. An edge glow round the screen was tried first and
@@ -40,8 +42,9 @@ on par, and the trick replays are the best moment of a round.
   - **Quick** (+100): the shot is released within 5 s of the aim starting (`aimClock`, `QUICK_S`) and pots. A gold
     bar drains across the top of the pull cue. It's off while a lesson shows. Players asked for a timed element; a
     shot clock with a penalty was turned down.
-- **Result and share**: the points, best streak, and per hole its points and a trick emoji per element
-  (🎱 ↩️ 🦵 🔗 🚇 💥 🎯 ⚡).
+- **Result and share**: the result card shows the points, the number of tricks, shots and best streak, each hole's
+  points, and the rank line. The share text is just the points and "Beat 73% of 412 players today" (`trickRankLine`;
+  the share box fills it in when the tally comes back). A trick-emoji line per hole was tried and dropped as too busy.
 - **Worker**: `mode: 'trick'` results (`points` 0-100,000, `strokes` 0-200) are written as blob2 `'trick'` and
   counted in 50-point buckets under `t:<day>`; `/api/day?mode=trick` returns them. `tools/results.py` reports them and
   keeps them out of the old lives table.

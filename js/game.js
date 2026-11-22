@@ -650,11 +650,13 @@ function scoreTrick() {
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   if (t.gold) goldUsed = true;
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
-  if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex]);
-  for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target', 'Quick']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k)]);
-  const muls = [...(t.gold ? [['Golden', 2]] : []), ...(mult > 1 ? [['Streak', mult]] : [])];
-  showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots], items, muls, gain);
+  if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
+  for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target', 'Quick']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
+  const muls = [...(t.gold ? [['Golden', 2, 'into the golden pocket']] : []), ...(mult > 1 ? [['Streak', mult, `${hs.streak} potting shots in a row`]] : [])];
+  showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots, pots === 1 ? '1 ball potted' : `${pots} balls potted`], items, muls, gain);
 }
+// what each element is for, said under its points in the tally
+const TRICK_WHY = { Bank: 'the ball came off a cushion', Kick: 'the cue ball hit a cushion first', Combo: 'potted by another ball', Tunnel: 'through the tunnel', Cannon: 'the cue ball hit two balls', Target: 'through a moving target', Quick: `shot in under ${QUICK_S} seconds` };
 // The shot's tally (22 Nov, from the first playtests: show the multiplier working on the shot). After the replay the
 // base (100 a pot) comes up mid-table; each trick element's flat points then come in one at a time, labelled, and fly
 // into it as the number rolls up, leaving a line underneath of what was added; then each multiplier (the golden
@@ -674,77 +676,90 @@ function endTally() {
   const el = $('ptsVal');
   if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 }
-function showTally([baseLabel, base], items, muls, gain) {
+// Paced so each step can be read (22 Nov playtest: too fast to see why a shot scored what it did): every step says
+// what it's for, and the whole sum is held on screen before it flies into the total.
+function showTally([baseLabel, base, baseWhy], items, muls, gain) {
   endTally();
   const st = $('stage').getBoundingClientRect(), cx = st.left + st.width / 2, cy = st.top + st.height * 0.3;
   const el = document.createElement('div');
   el.id = 'tally'; el.style.left = cx + 'px'; el.style.top = cy + 'px';
-  el.innerHTML = `<div class="tn">${fmtPts(base)}</div><div class="tb"><span>${baseLabel} ${fmtPts(base)}</span></div>`;
+  el.innerHTML = `<div class="tw">${baseWhy}</div><div class="tn">${fmtPts(base)}</div><div class="tb"><span>${baseLabel} ${fmtPts(base)}</span></div>`;
   document.body.appendChild(el);
   ptsHold = true;
-  const n = el.querySelector('.tn'), tb = el.querySelector('.tb'), timers = [];
+  const n = el.querySelector('.tn'), tb = el.querySelector('.tb'), tw = el.querySelector('.tw'), timers = [];
   tally = { el, timers };
   const at = (ms, f) => timers.push(setTimeout(f, ms));
   const pop = cls => { n.classList.remove('pop', 'smash'); void n.offsetWidth; n.classList.add(cls); };
   const add = html => tb.insertAdjacentHTML('beforeend', `<span>${html}</span>`);
+  const why = text => { tw.textContent = text; tw.classList.remove('show'); void tw.offsetWidth; tw.classList.add('show'); };
+  why(baseWhy);
   tone(660, 0.1, 0.05, 'triangle', 1.5, 0, 0.3);
-  let t = 450, now = base;
-  const gap = items.length > 3 ? 300 : 400;
-  // each trick element: "+200 BANK" appears under the number, then flies up into it
-  items.forEach(([label, pts], i) => {
+  let t = 900, now = base;
+  const gap = items.length > 4 ? 850 : 1050;
+  // each trick element: "+200 BANK" and what it's for appear under the number, hold, then fly up into it
+  items.forEach(([label, pts, reason], i) => {
     const it = document.createElement('div');
     at(t, () => {
-      it.className = 'ti'; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small>`;
+      it.className = 'ti'; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small><em>${reason}</em>`;
       el.appendChild(it);
       tone(784 * Math.pow(2, i / 7), 0.08, 0.04, 'triangle', 1, 0, 0.3);
     });
-    at(t + 200, () => it.classList.add('in'));
-    at(t + 380, () => {
-      it.remove(); rollNum(n, now, now + pts, 180); now += pts; pop('pop'); add(`${label} +${fmtPts(pts)}`);
+    at(t + gap - 330, () => it.classList.add('in'));
+    at(t + gap - 150, () => {
+      it.remove(); rollNum(n, now, now + pts, 220); now += pts; pop('pop'); add(`${label} +${fmtPts(pts)}`); why(`${label}: ${reason}`);
       tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8);
     });
     t += gap;
   });
-  // each multiplier pulls down onto the number and smashes into it
-  muls.forEach(([label, m], i) => {
+  // each multiplier, labelled with where it comes from, pulls down onto the number and smashes into it
+  muls.forEach(([label, m, reason], i) => {
     const chip = document.createElement('div');
-    t += 220;
+    t += 250;
     at(t, () => {
       const src = label === 'Streak' && $('iLie') ? $('iLie').getBoundingClientRect() : { left: cx - 40, top: st.top - 40, width: 80, height: 30 };
-      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.textContent = `×${m}`;
+      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}: ${reason}</small>`;
       chip.style.left = src.left + src.width / 2 + 'px'; chip.style.top = src.top + src.height / 2 + 'px';
       document.body.appendChild(chip);
-      const nr = n.getBoundingClientRect();
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        chip.classList.add('drop');
-        chip.style.transform = `translate(-50%,-50%) translate(${nr.left + nr.width / 2 - (src.left + src.width / 2)}px, ${nr.top + nr.height / 2 - (src.top + src.height / 2)}px)`;
-      }));
-      tone(300, 0.4, 0.04, 'sine', 3, 0, 0.3);   // a rising whoosh as it pulls down
+      why(`${label} ×${m}: ${reason}`);
     });
-    at(t + 430, () => {
+    // it hangs at the top for a moment so it can be read, then pulls down
+    at(t + 650, () => {
+      const nr = n.getBoundingClientRect(), r0 = chip.getBoundingClientRect();
+      chip.classList.add('drop');
+      chip.style.transform = `translate(-50%,-50%) translate(${nr.left + nr.width / 2 - (r0.left + r0.width / 2)}px, ${nr.top + nr.height / 2 - (r0.top + r0.height / 2)}px)`;
+      tone(300, 0.45, 0.04, 'sine', 3, 0, 0.3);   // a rising whoosh as it pulls down
+    });
+    at(t + 1100, () => {
       chip.classList.add('smash');
       setTimeout(() => chip.remove(), 260);
       const to = i === muls.length - 1 ? gain : now * m;
-      rollNum(n, now, to, 280); now = to; pop('smash');
+      rollNum(n, now, to, 380); now = to; pop('smash');
       if (label === 'Streak') n.classList.add('hot');
-      add(`<b>${label} ×${m}</b>`);
+      add(`<b>× ${m} ${label.toLowerCase()}</b>`);
       sfx.boom(Math.round(m * 2)); sfx.bang(Math.min(6, 2 + Math.round(m * 1.2)));
       fx.shake = Math.max(fx.shake, 5 + m * 2); hitStop = Math.max(hitStop, 0.06);
       sparkle(W / 2, H * 0.3, '#ffe08a', 40, 320); sparkle(W / 2, H * 0.3, '#ff9a3c', 20, 240); ring(W / 2, H * 0.3, '255,214,110', 200, 0.7, 30);
       buzz([25, 30, 40]);
     });
-    t += 700;
+    t += 1500;
   });
+  // the whole sum, held so it can be read: (100 + 200 + 200) × 2 × 2.5 = 2,500
+  const sum = [base, ...items.map(x => x[1])].map(fmtPts).join(' + ');
+  at(t + 200, () => {
+    tw.classList.remove('show');
+    tb.innerHTML = `<span class="eq">${muls.length && items.length ? `(${sum})` : sum}${muls.map(([, m]) => ` × ${m}`).join('')} = <b>${fmtPts(gain)}</b></span>`;
+  });
+  t += 200 + (items.length || muls.length ? 1600 : 700);
   // then the shot's score flies into the header's Points
-  at(t + 250, () => {
+  at(t, () => {
     const dst = $('ptsVal'), a = n.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
     n.textContent = `+${fmtPts(gain)}`;
     tb.style.opacity = 0;
-    n.style.transition = 'transform .5s cubic-bezier(.5,0,.8,.4), opacity .5s';
+    n.style.transition = 'transform .6s cubic-bezier(.5,0,.8,.4), opacity .6s';
     n.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
     n.style.opacity = 0.7;
   });
-  at(t + 750, () => { endTally(); sfx.chime(); buzz(10); });
+  at(t + 600, () => { endTally(); sfx.chime(); buzz(10); });
 }
 // Trick shots: a pot on a shot without a foul that's a double or triple (two or three balls), a kick (the cue ball
 // hit a cushion before its first ball), a bank (the potted ball hit a cushion first), a combination (a single pot
@@ -800,9 +815,20 @@ function endRound() {
 }
 // Trick scoring's share card: the points and best streak, then one line per hole with an emoji per trick element
 // (🎱 an extra ball, ↩️ bank, 🦵 kick, 🔗 combination, 🚇 tunnel, 💥 cannon, 🎯 target, ⚡ quick; – none, ✖️ picked up).
+// (22 Nov playtest: a line of emoji per hole was too much; now just the points and how you did against everyone)
 function trickShareText(r) {
-  const holes = r.cards.map((c, k) => `${k + 1} ${(c.tricks || []).map(x => TRICK_EMOJI[x] || '').join('') || '–'}${c.picked ? ' ✖️' : ''}`);
-  return `Daily Break ${isDailySeed(r.seed) && r.ranked !== false ? dayLabel(r.seed) : 'practice'} 🎱 ${fmtPts(r.points || 0)}${r.bestStreak > 1 ? ` · ×${streakMult(r.bestStreak)} streak` : ''}\n${holes.join('\n')}\n${gameUrl()}`;
+  const rank = trickRankLine(r);
+  return `Daily Break ${isDailySeed(r.seed) && r.ranked !== false ? dayLabel(r.seed) : 'practice'} 🎱 ${fmtPts(r.points || 0)} points${rank ? `\n${rank}` : ''}\n${gameUrl()}`;
+}
+// how you did against today's players, from the server's tally (null until it has come back)
+function trickRankLine(r) {
+  const t = r.tally;
+  if (!t || !t.players || !t.scores) return null;
+  const me = Math.floor((r.points || 0) / TRICK_BUCKET) * TRICK_BUCKET, others = t.players - 1;
+  const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc < me ? n : 0), 0), same = (t.scores[me] || 0) - 1;
+  if (others <= 0) return 'First to finish today';
+  if (worse === others) return `${same > 0 ? 'Joint best' : 'Best'} of ${t.players.toLocaleString('en-US')} players today 🏆`;
+  return `Beat ${Math.round(100 * worse / others)}% of ${t.players.toLocaleString('en-US')} players today`;
 }
 function shareText(r = round) {
   if (r.trick) return trickShareText(r);
@@ -821,9 +847,8 @@ function trickFinalHtml(already) {
     <div class="big">${fmtPts(round.points || 0)}</div>
     <div class="k mono">${nTricks} trick${nTricks === 1 ? '' : 's'} · ${strokesAll} shots${round.bestStreak > 1 ? ` · best streak ×${streakMult(round.bestStreak)}` : ''}</div>
     <table class="card-par card-trick mono"><tr><th>Hole</th>${round.cards.map((c, k) => `<th>${k + 1}</th>`).join('')}</tr>
-      <tr><th>Pts</th>${round.cards.map(c => `<td style="font-weight:700;color:${c.picked ? '#b8553f' : 'inherit'}">${shortPts(c.pts || 0)}${c.picked ? '*' : ''}</td>`).join('')}</tr>
-      <tr><th>Tricks</th>${round.cards.map(c => `<td class="em">${(c.tricks || []).map(x => TRICK_EMOJI[x]).join('') || '–'}</td>`).join('')}</tr></table>
-    <div class="k mono">🎱 extra ball · ↩️ bank · 🦵 kick · 🔗 combo · 🚇 tunnel · 💥 cannon · 🎯 target · ⚡ quick${round.cards.some(c => c.picked) ? ' · * picked up' : ''}</div>`;
+      <tr><th>Pts</th>${round.cards.map(c => `<td style="font-weight:700;color:${c.picked ? '#b8553f' : 'inherit'}">${shortPts(c.pts || 0)}${c.picked ? '*' : ''}</td>`).join('')}</tr></table>
+    ${round.cards.some(c => c.picked) ? '<div class="k mono">* picked up</div>' : ''}`;
 }
 function showFinal(already) {
   if (round.trick) {
@@ -945,6 +970,11 @@ function fillRank() {
   // par: lower is better. Trick scoring: higher is better, counted in buckets of TRICK_BUCKET points (the worker's).
   const others = t.players - 1, me = round.trick ? Math.floor((round.points || 0) / TRICK_BUCKET) * TRICK_BUCKET : parTotal();
   const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + ((round.trick ? +sc < me : +sc > me) ? n : 0), 0), same = (t.scores[me] || 0) - 1;
+  if (round.trick) {   // the rank line, with the player count, and the share text picks it up too
+    el.innerHTML = `<b>${trickRankLine(round)}</b>`; el.hidden = false;
+    if ($('share')) $('share').textContent = shareText();
+    return;
+  }
   const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best round today so far 🏆') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
   el.innerHTML = `<b>${line}</b>`; el.hidden = false;   // no player count shown (Tim, 11 Nov)
 }
