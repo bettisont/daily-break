@@ -1277,9 +1277,10 @@ function drawLampWarmth(t, dt) {
   const want = streakTarget();
   streakLvl = want > streakLvl ? Math.min(want, streakLvl + dt * 3) : Math.max(want, streakLvl - dt * 8);
   if (streakLvl < 0.01) return;
-  const flicker = streakLvl > 3.5 ? 0.85 + 0.1 * Math.sin(t * 11) + 0.05 * Math.sin(t * 23 + 1) : 1;
-  ctx.globalAlpha = Math.min(1, streakLvl / 4) * flicker;
-  const r = H * (0.7 + 0.08 * streakLvl / 4);
+  // kept to the table and gentle at its strongest (22 Nov: the first version lit the whole room and was too much at x3)
+  const flicker = streakLvl > 3.5 ? 0.92 + 0.05 * Math.sin(t * 11) + 0.03 * Math.sin(t * 23 + 1) : 1;
+  ctx.globalAlpha = 0.45 * Math.min(1, streakLvl / 4) * flicker;
+  const r = H * 0.5;
   ctx.drawImage(WARM_LAMP, W / 2 - r, H / 2 - r, r * 2, r * 2);
   ctx.globalAlpha = 1;
 }
