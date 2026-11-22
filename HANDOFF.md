@@ -44,7 +44,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     scored (`scoreTrick`). An extra ball in the shot (the 2nd and 3rd drop), a bank (each ball that came off a
     cushion), a kick (once), a combination (once: a potted ball that isn't the one the cue ball hit first) and a
     tunnel (once: the potted ball or the cue ball went through; `tshot.tun` is filled from the `tunnelIn` event), a
-    cannon (once: the cue ball touched 2+ object balls, `tshot.cueHits` from the `hit` event's `a`/`b`), Quick (+100,
+    cannon (once: the cue ball touched 2+ object balls before anything dropped, `tshot.cueHits` from the `hit` event's
+    `a`/`b`), Quick (+100,
     once: released with `aimClock` <= `QUICK_S` 5 s, off during lessons) and each target crossed.
   - Targets (`makeTargets`, `tgtPos`, `tgtStep`, `drawTargets`): one from hole 2 and two from hole 4, each a gold
     ring (`TGT_R` 2 R) sliding along a straight seeded track (`rngFor('<seed>:targets:<i>')`, never the hole's RNG).

@@ -17,7 +17,7 @@ function ring(x, y, color, grow = 50, life = 0.6, r = R) { fx.rings.push({ x, y,
 
 function onEvent(type, e) {
   if (type === 'hit') {
-    if (tshot && (e.a === table.cue || e.b === table.cue)) trickCueHit(e.a === table.cue ? e.b : e.a, e.x, e.y);
+    if (tshot && (e.a === table.cue || e.b === table.cue)) trickCueHit(e.a === table.cue ? e.b : e.a);
     if (audio && audio.currentTime - lastHit > 0.015) { lastHit = audio.currentTime; atX(e.x, () => sfx.clack(e.speed)); }
     if (e.speed > 500) ring(e.x, e.y, '255,250,235', 18, 0.35, 4);
     if (e.speed > 250) fx.flashes.push({ x: e.x, y: e.y, r: 10 + Math.min(40, e.speed / 45), life: 0.2 });
@@ -71,7 +71,7 @@ function onEvent(type, e) {
     shotLog.push({ n: b.n, bank, combo });
     const left = table.balls.filter(o => !o.potted && o !== b).length;
     atX(tx, () => sfx.potNote(k, k >= 1)); buzz([18, 40, 12]);
-    if (k >= 2) sfx.boom(k);
+    if (k >= 2 && !tshot) sfx.boom(k);   // (trick scoring: trickBang is the one big sound)
     if (tshot) trickDrop(b, e.pocket, tx, ty);
     if (!tshot && shotLog.length >= 2) { sfx.multi(shotLog.length); float(W / 2, H * 0.22, shotLog.length === 2 ? 'Double!' : shotLog.length === 3 ? 'Triple!' : `${shotLog.length} in one!`, '#c4472f', 26, 1.4); }
     fx.glow = Math.min(1, 0.35 + k * 0.15);
@@ -104,7 +104,7 @@ function trickBang(x, y, q, kind) {
   sparkle(x, y, '#ffe08a', 20 + k * 22, 200 + k * 70);
   sparkle(x, y, '#ff9a3c', 8 + k * 10, 140 + k * 60);
   fx.glow = Math.max(fx.glow, Math.min(1, 0.25 + 0.15 * k));
-  sfx.bang(k); if (kind) sfx.trick(kind, tshot?.balls || 1);
+  sfx.bang(k);   // one sound for the moment (22 Nov playtest: a sound per trick kind as well was too much)
   buzz(k >= 3 ? [30, 30, 40, 30, 50] : [20, 30, 25]);
 }
 function trickDrop(b, pocket, tx, ty) {
@@ -121,16 +121,14 @@ function trickDrop(b, pocket, tx, ty) {
   for (const o of t.tgt) if (!o.hit) { o.hit = true; o.hitClock = o.pendClock; got.push('Target'); }
   got.forEach(trickPart);
   const gold = pocket === hole.gold && !goldUsed && !t.gold;
-  if (gold) { t.gold = true; sfx.chime(); }
+  if (gold) t.gold = true;   // (its +2 makes the bang bigger; no chime of its own)
   trickBang(tx, ty, shotQ(t), got.find(k => k !== 'Quick'));
   return got.length + (gold ? 1 : 0);
 }
-// Cannon: the cue ball touches a second object ball. Once something has dropped it bangs right there; before that,
-// trickDrop picks it up at the first pot.
-function trickCueHit(o, x, y) {
-  const t = tshot;
-  t.cueHits.add(o);
-  if (t.cueHits.size >= 2 && t.balls > 0 && !t.has.Cannon) { trickPart('Cannon'); trickBang(x, y, shotQ(t), 'Cannon'); }
+// Cannon: the cue ball touches two object balls before anything drops (trickDrop checks at each pot). Contacts after
+// a pot don't count (22 Nov playtest: the white wandering into a ball after the pot was scored as a cannon).
+function trickCueHit(o) {
+  if (tshot.balls === 0) tshot.cueHits.add(o);
 }
 
 // Targets (trick scoring, 22 Nov): touch-free gold rings, one from hole 2 and two from hole 4, each sliding to and
@@ -681,17 +679,17 @@ function spinTo(n, chip, from, to, ms) {
     n.appendChild(sp);
   }
   if (chip) n.appendChild(chip);
-  const t0 = performance.now(), stopAt = reels.map((_, k) => ms * 0.45 + ms * 0.55 * (k + 1) / reels.length);
+  const t0 = performance.now(), stopAt = reels.map((_, k) => ms * 0.35 + ms * 0.65 * (k + 1) / reels.length);
   let lastTick = 0;
   const step = now => {
     const e = now - t0;
     let spinning = false;
     reels.forEach((r, k) => {
       if (r.done) return;
-      if (e >= stopAt[k]) { r.done = true; r.sp.textContent = r.ch; r.sp.classList.add('land'); tone(520 + k * 60, 0.05, 0.05, 'square', 0.6, 0, 0.1); return; }
+      if (e >= stopAt[k]) { r.done = true; r.sp.textContent = r.ch; r.sp.classList.add('land'); return; }
       spinning = true; r.sp.textContent = String(Math.floor(Math.random() * 10));
     });
-    if (spinning && e - lastTick > 45) { lastTick = e; tone(1800 + Math.random() * 400, 0.012, 0.015, 'triangle', 1, 0, 0); }
+    if (spinning && e - lastTick > 70) { lastTick = e; tone(1800 + Math.random() * 300, 0.01, 0.008, 'triangle', 1, 0, 0); }
     if (spinning && n.isConnected) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -723,7 +721,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
   // 22 Nov playtest, the numbers alone didn't say why; full sentences were too much)
   const addIn = (pts, label, cls, i, after) => {
     const it = document.createElement('div');
-    at(t, () => { tl.classList.add('gone'); it.className = `ti ${cls}`; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small>`; el.appendChild(it); tone(784 * Math.pow(2, i / 7), 0.08, 0.04, 'triangle', 1, 0, 0.3); });
+    at(t, () => { tl.classList.add('gone'); it.className = `ti ${cls}`; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small>`; el.appendChild(it); });
     at(t + gap - 300, () => it.classList.add('in'));
     at(t + gap - 120, () => { it.remove(); after(); pop('pop'); tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8); });
     t += gap;
@@ -740,19 +738,19 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
       chip.className = `tx ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
       n.appendChild(chip);
       if (label === 'Streak') { const sm = $('iLie'); sm.classList.remove('flash'); void sm.offsetWidth; sm.classList.add('flash'); }
-      sfx.boom(2); buzz(12);
+      buzz(12);
     });
-    at(t + 650, () => spinTo(n, chip, from, to, 1000));
-    at(t + 1750, () => {
+    at(t + 300, () => spinTo(n, chip, from, to, 550));
+    at(t + 880, () => {
       chip.classList.add('melt'); setTimeout(() => chip.remove(), 300);
       pop('smash'); if (label === 'Streak') n.classList.add('hot');
-      sfx.clunk(); sfx.bang(Math.min(6, 2 + Math.round(m * 1.2)));
+      sfx.clunk();
       fx.shake = Math.max(fx.shake, 5 + m * 2); hitStop = Math.max(hitStop, 0.06);
       sparkle(W / 2, H * 0.3, '#ffe08a', 40, 320); sparkle(W / 2, H * 0.3, '#ff9a3c', 20, 240);
       buzz([25, 30, 40]);
     });
     now = to;
-    t += 2250;
+    t += 1150;
   });
   const total = gain;
   // then the shot's score flies into the header's Points
@@ -764,7 +762,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
     n.style.opacity = 0.7;
   });
   at(t + 1000, () => {
-    endTally(); sfx.chime(); buzz(10);
+    endTally(); buzz(10);
     // once per device: say where the explanation is
     if (!ls('dailybreak:shotLogTip')) { ls('dailybreak:shotLogTip', '1'); $('ptsChip')?.classList.add('tip'); float(W / 2, H * 0.2, 'Tap Points to see how it added up', '#2f6b4f', 18, 3); }
   });
@@ -821,7 +819,6 @@ function finishHole(picked) {
     // the stamp got in its way. Out of shots just says so. The next hole waits for the tally.
     if (picked) float(W / 2, H * 0.45, 'Out of shots', '#7a6a3a', 22, 1.8);
     sfx.holed(!picked);
-    if (!picked && th.tricks.length) confettiBurst(Math.min(140, 60 + forLevel * 15));
     const go = () => {
       if (round.level !== forLevel || phase !== 'holed') return;
       if (tally) return setTimeout(go, 200);

@@ -97,7 +97,7 @@ function frame(now) {
       const done = b.potted || (!b.vx && !b.vy) || lip.t > 5;
       if (done) {
         const fy = clamp(p.y + (p.y < H / 2 ? 80 : -80), 60, H - 60), fxp = clamp(p.x, 100, W - 100);
-        if (b.potted) { float(fxp, fy, 'It dropped!', '#2f6b4f', 28, 2); confettiBurst(60); fx.glow = 1; buzz([20, 30, 40]); }
+        if (b.potted) { float(fxp, fy, 'It dropped!', '#2f6b4f', 28, 2); if (!round.trick) confettiBurst(60); fx.glow = 1; buzz([20, 30, 40]); }
         else { float(fxp, fy, 'So close!', '#b8553f', 26, 2); tone(330, 0.5, 0.06, 'triangle', 0.6, 0, 0.3); p.wobble = 1; fx.shake = 3; catStartle = 1; }
         lip = null;
       } else { slow = true; tk = 1.5; tx = (b.x + clamp(p.x, 0, W)) / 2; ty = (b.y + clamp(p.y, 0, H)) / 2; }

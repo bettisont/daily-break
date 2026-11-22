@@ -35,6 +35,11 @@ on par, and the trick replays are the best moment of a round.
   flashes, to show where it comes from), the digits spin like reels and stop left to right on the new total with a
   clunk, and the chip melts in. Golden x2 first, then the streak, always after the tricks. It replaced a chip that
   pulled down out of the streak meter and smashed into the number, which wasn't liked.
+- **Tidied after a playtest**: the slot machine takes ~1.1 s a multiplier (was ~2.2 s). Cannon only counts contacts
+  before anything drops (the white wandering into a ball after the pot had counted). One sound per moment: at a pot,
+  the drop and its note, plus `sfx.bang` on a trick shot (no per-kind sound, boom or golden chime); in the tally, a tick
+  as each trick lands, quiet reel ticks and a clunk per multiplier, no chime at the end. No confetti under trick
+  scoring.
 - **No replays** under trick scoring: they held up the tally, which already shows what the shot did (playtest: "annoying").
   The live slow-motion push-in on a trick or the last ball stays. Par days keep their replays.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the
