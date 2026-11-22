@@ -2,7 +2,8 @@
 // www.dailybreak.app) gets a permanent redirect to the same path on dailybreak.app.
 //
 // POST /api/result  one anonymous ranked result: {day, level, potted, points} for a lives day, or
-//                   {day, mode: 'par', score, strokes, points} for a par (golf) day. It goes to Workers
+//                   {day, mode: 'par', score, strokes, points} for a par (golf) day, or
+//                   {day, mode: 'pts', score, strokes, tricks} for a points day (from 24 Nov 2026). It goes to Workers
 //                   Analytics Engine (dataset daily_break_results, read by .github/workflows/results.yml)
 //                   and is counted in the DayCounts Durable Object. Replies with that day's tally.
 // POST /api/event   one anonymous funnel step {day, step} (open, opennew/openback, intro, pull, shot, clear1, level3,
@@ -10,7 +11,7 @@
 //                   'left' (page hidden before the first shot) adds {secs, where: intro|table|pulled}.
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
 //                   so the result card can say "better than X% of today's players". With &mode=par:
-//                   { players, scores: { "<score to par>": count } }.
+//                   { players, scores: { "<score to par>": count } }. With &mode=pts: { players, scores: { "<points>": count } }.
 // Rate limits (Workers Rate Limiting, keyed on the client IP, which is never logged or stored here):
 //                   /api/result 5 per minute (else 429 {error: 'slow down'}), /api/event 30 per minute (else
 //                   429, no body). A real player sends one result and ~10 events a day. If the binding is
@@ -47,6 +48,17 @@ export class DayCounts extends DurableObject {
     await this.ctx.storage.put(key, scores);
     return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
   }
+  // points days (from 24 Nov 2026): a count of players per points total
+  async tallyPts(day) {
+    const scores = (await this.ctx.storage.get('q:' + day)) || {};
+    return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
+  }
+  async addPts(day, score) {
+    const key = 'q:' + day, scores = (await this.ctx.storage.get(key)) || {};
+    scores[score] = (scores[score] || 0) + 1;
+    await this.ctx.storage.put(key, scores);
+    return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
+  }
 }
 const STEPS = new Set(['open', 'opennew', 'openback', 'intro', 'pull', 'shot', 'clear1', 'level3', 'finish', 'left']);
 const WHERE = new Set(['intro', 'table', 'pulled']);
@@ -73,6 +85,12 @@ const counter = env => env.DAYS.get(env.DAYS.idFromName('all'));
 async function recordResult(request, env) {
   let r;
   try { r = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+  if (r && r.mode === 'pts') {
+    if (!DAY.test(r.day) || !int(r.score, 0, 1_000_000) || !int(r.strokes, 0, 200) || !int(r.tricks, 0, 200)) return json({ error: 'bad result' }, 400);
+    if (!dayIsCurrent(r.day)) return json({ error: 'wrong day' }, 400);
+    env.RESULTS?.writeDataPoint({ indexes: [r.day], blobs: [r.day, 'pts'], doubles: [r.score, r.strokes, r.tricks] });
+    return json(await counter(env).addPts(r.day, r.score));
+  }
   if (r && r.mode === 'par') {
     if (!DAY.test(r.day) || !int(r.score, -30, 60) || !int(r.strokes, 0, 200) || !int(r.points, 0, 10_000_000)) return json({ error: 'bad result' }, 400);
     if (!dayIsCurrent(r.day)) return json({ error: 'wrong day' }, 400);
@@ -105,7 +123,8 @@ export default {
     if (url.pathname === '/api/day') {
       const day = url.searchParams.get('day') || '';
       if (!DAY.test(day) || !dayIsCurrent(day)) return json({ error: 'bad day' }, 400);
-      return json(url.searchParams.get('mode') === 'par' ? await counter(env).tallyPar(day) : await counter(env).tally(day));
+      const mode = url.searchParams.get('mode');
+      return json(mode === 'pts' ? await counter(env).tallyPts(day) : mode === 'par' ? await counter(env).tallyPar(day) : await counter(env).tally(day));
     }
     return env.ASSETS.fetch(request);
   },

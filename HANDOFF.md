@@ -25,9 +25,17 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
 - **Hole 1-2** are on the classic table with no feature. **From hole 3**: a table shape for the day, one feature
   (sand, the cat, a tunnel; see Holes), and hazards (tilt, bumpers, a closed pocket) can appear. **From hole 2** one
   pocket is golden.
-- **Points** are only a tiebreak, sent with the result (`PTS`, `scorePots`): a pot 100, bank +50, combo +50, each
-  extra ball in one shot +50; consecutive potting shots multiply by `streakMult` (x1, x1.5, x2, x2.5, x3); finishing
-  a hole (not picking up) adds 100 per ball in it. A miss or foul resets the streak.
+- **Points are the score from 24 Nov** (`RULES.POINTS_FROM`, `ptsMode`; practice always). Highest wins. A clean
+  potting shot scores `POT_PTS` 100 a ball x (1 + its tricks, `shotTricks`): +1 per cushion the potted ball banked
+  off and per cushion the cue ball kicked off before its first ball (up to 3 each), +1 combination (a potted ball
+  first hit by another object ball: `b.by`) or cannon (cue ball glancing off one ball into another), +1 tunnel, +1 per
+  extra ball, +1 golden pocket (no stroke back on points days). Fouls score nothing. Pots build `holeRaw`; clearing
+  adds `CLEAR_PTS` 100 a ball, then the hole x `holeMult(strokes - par)`: x1 at par, +0.5 per stroke under, -0.25 per
+  stroke over, at least x0.25 (a pick-up). Cards carry `pts`, `raw`, `mult`, `tricks`; `round.tricks` lists each trick
+  shot. The hint reads "clear now x1.5" (`clearMult`). The emoji row is still strokes against par.
+- **Before 24 Nov** the score was strokes to par and points only a tiebreak (`PTS`, `scorePots`): a pot 100, bank
+  +50, combo +50, each extra ball in one shot +50; consecutive potting shots multiply by `streakMult` (x1 .. x3);
+  finishing a hole adds 100 per ball in it.
 - **Gimmes / tap-ins** (`findGimmes`, `tapIn`): a ball within two ball widths of an open pocket's mouth, with a clear,
   nearly straight line from the cue ball (`potLine` cos > 0.9), glows green with "Tap in ⛳". Tapping it pots it for
   one stroke and the cue ball doesn't move. Never into an unused golden pocket.
@@ -138,7 +146,11 @@ cue down the right.
    Bank (potted ball off a cushion; jaw touches don't count), a Combo, or through a Tunnel gets an instant replay
    before it's scored (`shotRec`, `startReplay`, `drawReplay`: recorded physics time, one steady pace of at least
    45%, kept under ~5.5 s, up to 0.7 s after the last pot; tap to skip). No stars or strokes back: a stroke back made
-   scores too low (a playtest went -9).
+   scores too low (a playtest went -9). On points days the replay shows the `shotTricks` names, and each part gets a
+   label where it happened and its own sound as the replay reaches it (`moments` noted live by `noteMoment`,
+   `trickMoments`, `sfx.trick`). After scoring, the trick-shot callout (`startTrickShow`, `tickTrickShow`,
+   `drawTrickShow`): a title by the multiplier, chips landing with rising notes (`sfx.trickChip`), then the points
+   slam in (`sfx.trickSlam`, confetti from x4). The hole's stamp waits for it.
 
 ## Holes and generation (`js/core.js`)
 
@@ -328,6 +340,8 @@ Cloudflare Worker `daily-break`, static assets from `dist/`, worker first. Custo
 changes, change `HOST`, `SITE_URL` (`js/ui.js`) and the meta tags together. Domain bought 10 Nov 2026 through
 Cloudflare Registrar.
 
+- `POST /api/result` on a points day: `{day, mode: 'pts', score, strokes, tricks}` (score 0..1,000,000) -> Analytics
+  Engine (blob2 'pts', doubles score, strokes, tricks) and `DayCounts` under `q:<day>`; `GET /api/day?mode=pts` reads it.
 - `POST /api/result`: `{day, mode: 'par', score, strokes, points}` (score -30..60, strokes 0..200) -> Analytics Engine
   `daily_break_results` (blob1 day, blob2 'par', double1 score, double2 strokes, double3 points) and counted in
   `DayCounts` under `p:<day>`; replies `{players, scores}`. The old lives format `{day, level, potted, points}` is still

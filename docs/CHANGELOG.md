@@ -4,6 +4,28 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 22 Nov 2026: points and trick shots (live from the 24 Nov game)
+
+- **Scored in points, not strokes to par** (`RULES.POINTS_FROM` 2026-11-24, `ptsMode`; practice rounds have it now).
+  Asked for: make trick shots the main source of score and make them feel great, with fewer strokes as a multiplier.
+  A clean shot scores 100 a ball x (1 + tricks): +1 per cushion banked (potted ball) or kicked (cue ball before its
+  first ball), up to 3 each; +1 combination (`b.by`, the ball that first hit it, isn't the cue ball) or cannon (cue
+  ball off one ball into another); +1 tunnel (`b.tunShot`, `s.cueTunnel`); +1 per extra ball; +1 golden pocket
+  (which no longer takes a stroke off on points days). Clearing adds 100 a ball, and the hole is multiplied by
+  `holeMult`: x1 at par, +0.5 a stroke under, -0.25 a stroke over (min x0.25, so a pick-up keeps a quarter). Unlike
+  the 14 Nov stroke back for tricks, this can't run a round away: a missed trick costs a stroke, which costs
+  multiplier. An automated round with perfect aim scored 11,350.
+- **Feel**: the replay names each part as it happens, where it happens, with its own sound (`trickMoments`,
+  `sfx.trick`: kick snap, bank ping, combo double click, tunnel whoosh); then a callout near the top
+  (`startTrickShow`, `drawTrickShow`): title by size ("Trick shot!" .. "Unreal!"), each trick lands as a chip with a
+  rising note, the multiplier climbs, the points slam in (confetti from x4). The hint shows what clearing on the
+  next shot would multiply by; the info bar shows this hole's points so far.
+- **Results**: card shows points, each hole's x and points, the best shot; share text adds the trick-shot count. The
+  worker takes `{mode: 'pts', score, strokes, tricks}` (counted under `q:<day>`, `/api/day?mode=pts`; higher ranks
+  better). `tools/results.py` has a points table and no longer counts these rows as lives runs.
+- Physics only gained bookkeeping (`by`, `tunShot`, `cueTunnel`, ball refs on `hit`/`cushion` events): all course
+  snapshots unchanged.
+
 ## 16 Nov 2026 (late): battery and heat
 
 - **Frame pacing** (`busy` in `js/main.js`). Phones got hot and drained: the loop repainted the whole screen

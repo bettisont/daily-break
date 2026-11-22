@@ -154,6 +154,24 @@ const sfx = {
   holed(good) { const n = good ? [523.25, 659.25, 783.99, 1046.5, 1318.5] : [523.25, 659.25, 783.99]; n.forEach((f, k) => { tone(f, 0.7, 0.08, 'triangle', 1, k * 0.09, 0.6); tone(f * 2, 0.4, 0.025, 'sine', 1, k * 0.09 + 0.02, 0.6); }); },
   stamp() { noise(0.12, 0.5, 300); tone(80, 0.18, 0.3, 'sine', 0.6, 0, 0.1); },
   penalty() { tone(330, 0.2, 0.08, 'triangle', 0.7, 0, 0.3); tone(262, 0.3, 0.08, 'triangle', 0.7, 0.15, 0.3); },
+  // Trick shots (24 Nov): a sound for each part of a trick as the replay reaches it, climbing a little with each
+  // one (i), then the callout: a lift as it opens, a plucked note per trick that lands, and a slam sized by the
+  // multiplier (m).
+  trick(kind, i) {
+    const up = 1 + Math.min(5, i) * 0.12;
+    if (kind === 'kick') { noise(0.06, 0.18, 2600, 'highpass', 0, 0.8); tone(320 * up, 0.14, 0.07, 'triangle', 2.6, 0, 0.3); }
+    else if (kind === 'bank') { tone(1760 * up, 0.35, 0.05, 'sine', 1, 0, 0.6); tone(2637 * up, 0.25, 0.025, 'sine', 1, 0.01, 0.6); tone(220, 0.1, 0.12, 'sine', 0.7, 0, 0); }
+    else if (kind === 'combo' || kind === 'cannon') { const f = kind === 'combo' ? 1568 : 1319; [0, 0.07].forEach(d => tone(2300, 0.03, 0.08, 'triangle', 1, d, 0.1)); tone(f * up, 0.4, 0.05, 'sine', 1, 0.12, 0.6); tone(f * 1.5 * up, 0.3, 0.025, 'sine', 1, 0.14, 0.6); }
+    else if (kind === 'tunnel') { noise(0.35, 0.12, 700, 'bandpass', 0, 2); noise(0.3, 0.1, 1400, 'bandpass', 0.1, 2); tone(180, 0.4, 0.1, 'sine', 2.2, 0, 0.4); }
+    else this.chime();
+  },
+  trickStart() { tone(523.25, 0.3, 0.05, 'sine', 2, 0, 0.5); noise(0.25, 0.08, 1800, 'bandpass', 0, 1.5); },
+  trickChip(i) { const f = [659.25, 783.99, 987.77, 1174.66, 1318.5, 1567.98, 1975.5][Math.min(6, i)]; tone(f, 0.3, 0.08, 'triangle', 1, 0, 0.4); tone(f * 2, 0.2, 0.03, 'sine', 1, 0.01, 0.5); tone(140, 0.08, 0.15, 'sine', 0.6, 0, 0); },
+  trickSlam(m) {
+    this.boom(m); noise(0.2, 0.4, 400);
+    const n = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98, 2093].slice(0, Math.min(7, 2 + m));
+    n.forEach((f, k) => { tone(f, 0.9, 0.06, 'triangle', 1, 0.04 + k * 0.05, 0.6); tone(f * 2, 0.6, 0.02, 'sine', 1, 0.06 + k * 0.05, 0.6); });
+  },
   click() { tone(660, 0.05, 0.05, 'sine', 1, 0, 0.2); },
   chime() { tone(1318.5, 0.25, 0.07, 'sine', 1, 0, 0.5); tone(1975.5, 0.35, 0.05, 'sine', 1, 0.06, 0.5); },
 };

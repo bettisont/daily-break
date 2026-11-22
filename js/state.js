@@ -40,6 +40,23 @@ const parTotal = () => (round.cards || []).reduce((a, c) => a + c.strokes - c.pa
 let gimmes = [];
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 
+// ---- points (from RULES.POINTS_FROM, 24 Nov 2026) ----
+// The score is points, highest wins. A clean shot scores 100 for each ball it pots, times its trick multiplier:
+// x1, plus 1 for each cushion the potted ball banked off and each cushion the cue ball kicked off (up to 3 each), a
+// combination (a ball knocked in by another object ball) or a cannon (the cue ball glancing off one ball into
+// another), a tunnel, each extra ball in the shot and the golden pocket. A kick off one cushion into a bank is x3.
+// Clearing a hole adds 100 per ball. The hole's total is then multiplied by how few strokes it took (holeMult):
+// x1 at par, +0.5 for each stroke under and -0.25 for each over (never below x0.25), so a trick that costs a stroke
+// has to earn it. Before 24 Nov a round is scored in strokes to par (points were only a tiebreak).
+const ptsMode = (seed = round?.seed) => ruleOn(seed, RULES.POINTS_FROM);
+const POT_PTS = 100, CLEAR_PTS = 100;
+const holeMult = d => d <= 0 ? 1 - 0.5 * d : Math.max(0.25, 1 - 0.25 * d);
+const fmtPts = n => Math.round(n).toLocaleString('en-GB');
+const multTxt = m => `×${+m.toFixed(2)}`;
+// this hole's points before its multiplier, and the trick shots so far (holeTricks); the trick-shot callout
+// (trickShow); moments: what happened when during the live shot, for the replay's labels
+let holeRaw = 0, holeTricks = 0, trickShow = null, moments = [];
+
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
 let aim = { bi: -1, angle: -Math.PI / 2, spotY: 0, spin: 0, spotX: 0, side: 0 }, power = 0.4, strike = null, strokeStart = null;
 let hs = null, shotLog = [];

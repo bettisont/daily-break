@@ -1011,6 +1011,67 @@ function drawStamp(dt) {
   ctx.restore();
 }
 
+// The trick-shot callout (startTrickShow, tickTrickShow in game.js): a title, each trick landing as a chip while the
+// multiplier climbs, then the shot's points slamming in. Near the top of the table, so the balls stay in view.
+function drawTrickShow() {
+  const ts = trickShow;
+  if (!ts) return;
+  const t = ts.t, cy = H * 0.2, pop = (age, d = 0.2, k = 0.9) => age < 0 ? 0 : age < d ? 1 + k * (1 - age / d) ** 2 : 1;
+  const a = Math.min(1, t * 6, (ts.dur - t) * 2.2);
+  ctx.save(); ctx.globalAlpha = Math.max(0, a); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // the chips, laid out in rows that fit the table
+  ctx.font = "800 15px 'DM Sans', sans-serif";
+  const rows = [[]], pad = 14, gap = 8, maxW = W * 0.8;
+  let rw = 0;
+  for (const c of ts.chips) {
+    const w = ctx.measureText(c.name.toUpperCase() + (c.add ? `  +${c.add}` : '')).width + pad * 2;
+    if (rw + w > maxW && rows[rows.length - 1].length) { rows.push([]); rw = 0; }
+    rows[rows.length - 1].push({ c, w }); rw += w + gap;
+  }
+  const ph = 160 + rows.length * 38, top = cy - 62;
+  ctx.fillStyle = 'rgba(251,248,240,.94)'; ctx.strokeStyle = '#e2b13c'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(W * 0.06, top, W * 0.88, ph, 18); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 1.2; ctx.beginPath(); ctx.roundRect(W * 0.06 + 6, top + 6, W * 0.88 - 12, ph - 12, 13); ctx.stroke();
+  // the title
+  const k0 = pop(t, 0.25, 1.2);
+  ctx.save(); ctx.translate(W / 2, cy - 30); ctx.rotate(-0.04); ctx.scale(k0, k0);
+  ctx.font = "800 32px 'DM Sans', sans-serif"; ctx.fillStyle = ts.m >= 4 ? '#c4472f' : '#b88a2e';
+  ctx.fillText(trickTitle(ts.m).toUpperCase(), 0, 0);
+  ctx.restore();
+  // the chips land one by one
+  ctx.font = "800 15px 'DM Sans', sans-serif";
+  rows.forEach((row, ri) => {
+    const tw = row.reduce((s, r) => s + r.w, 0) + gap * (row.length - 1);
+    let x = W / 2 - tw / 2;
+    const y = cy + 14 + ri * 38;
+    for (const { c, w } of row) {
+      if (c.at) {
+        const k = pop(t - c.at, 0.18, 0.7), col = TRICK_COLORS[c.kind] || '#b88a2e';
+        ctx.save(); ctx.translate(x + w / 2, y); ctx.scale(k, k);
+        ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(-w / 2, -15, w, 30, 15); ctx.fill();
+        ctx.fillStyle = '#fbf8f0'; ctx.fillText(c.name.toUpperCase() + (c.add ? `  +${c.add}` : ''), 0, 1);
+        ctx.restore();
+      }
+      x += w + gap;
+    }
+  });
+  // the multiplier climbs with each chip, then the points slam in under it
+  const y2 = cy + 14 + rows.length * 38 + 14;
+  const lastAt = ts.chips.reduce((m, c) => Math.max(m, c.at || 0), 0), km = pop(t - lastAt, 0.18, 0.5);
+  ctx.save(); ctx.translate(W / 2, y2); ctx.scale(km, km);
+  ctx.font = "700 15px 'DM Mono', monospace"; ctx.fillStyle = '#6d7568';
+  ctx.fillText(`${fmtPts(POT_PTS * ts.n)} × ${ts.shown}`, 0, 0);
+  ctx.restore();
+  if (ts.slammed) {
+    const ks = pop(t - ts.slamAt, 0.22, 1.4);
+    ctx.save(); ctx.translate(W / 2, y2 + 40); ctx.scale(ks, ks);
+    ctx.font = "800 46px 'DM Sans', sans-serif"; ctx.fillStyle = '#c4472f';
+    ctx.fillText(`+${fmtPts(ts.gain)}`, 0, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function drawBanner(dt) {
   if (!banner) return;
   banner.life -= dt;
@@ -1209,6 +1270,7 @@ function draw(t, dt) {
   fx.floats = fx.floats.filter(f => f.life > 0);
   ctx.globalAlpha = 1;
 
+  drawTrickShow();
   drawBanner(dt);
   drawStamp(dt);
 

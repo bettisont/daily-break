@@ -59,7 +59,7 @@ function frame(now) {
       const c = table.cue;
       for (let k = 0; k < 8; k++) fx.particles.push({ x: c.x - Math.cos(strike.angle) * R, y: c.y - Math.sin(strike.angle) * R, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, life: 0.5, color: '#7fa0d8', r: 1.5 });
       acc = 0; movingT = 0; phase = 'moving'; updateUI();
-      shotRec = []; shotSteps = 0; replayed = false; lip = null; lipTried = new Set();
+      shotRec = []; moments = []; shotSteps = 0; replayed = false; lip = null; lipTried = new Set();
       follow = { x: c.x, y: c.y, angle: strike.angle, power: strike.power, t: 0 };
       cam.k += 0.03 + 0.04 * strike.power;   // a small push in on the strike, which eases back
     }
@@ -142,6 +142,7 @@ function frame(now) {
     if (replay.T >= replay.endT) { replay = null; replayed = true; phase = 'moving'; resolveShot(); }
   }
   if (follow) follow.t += dt;
+  tickTrickShow(dt);
   tickDemo(dt); tickSpinDemo(dt);
   // a drawing error must never stop the game: log it and carry on with the next frame
   try { draw(t, dt); } catch (e) { console.error(e); }

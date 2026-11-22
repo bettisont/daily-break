@@ -24,12 +24,14 @@ function fakeLimiter(max) {
   };
 }
 function fakeEnv({ limiters = true } = {}) {
-  const levels = {}, scores = {};
+  const levels = {}, scores = {}, pts = {};
   const days = {
     async tally(d) { const l = levels[d] || {}; return { players: sum(l), levels: l }; },
     async add(d, lv) { const l = (levels[d] ||= {}); l[lv] = (l[lv] || 0) + 1; return { players: sum(l), levels: l }; },
     async tallyPar(d) { const s = scores[d] || {}; return { players: sum(s), scores: s }; },
     async addPar(d, sc) { const s = (scores[d] ||= {}); s[sc] = (s[sc] || 0) + 1; return { players: sum(s), scores: s }; },
+    async tallyPts(d) { const s = pts[d] || {}; return { players: sum(s), scores: s }; },
+    async addPts(d, sc) { const s = (pts[d] ||= {}); s[sc] = (s[sc] || 0) + 1; return { players: sum(s), scores: s }; },
   };
   const points = { RESULTS: [], EVENTS: [] };
   const env = {
@@ -63,6 +65,19 @@ await check('valid par result -> 200 with tally', async () => {
   eq(r.status, 200, 'status');
   eq(await r.json(), { players: 1, scores: { '-2': 1 } }, 'body');
   eq(env.points.RESULTS.length, 1, 'data points');
+});
+await check('valid points result -> 200 with tally, then the day tally', async () => {
+  const env = fakeEnv();
+  const r = await worker.fetch(post('/api/result', { day: today, mode: 'pts', score: 4250, strokes: 18, tricks: 5 }), env);
+  eq(r.status, 200, 'status');
+  eq(await r.json(), { players: 1, scores: { 4250: 1 } }, 'body');
+  eq(env.points.RESULTS[0], { indexes: [today], blobs: [today, 'pts'], doubles: [4250, 18, 5] }, 'data point');
+  const d = await worker.fetch(new Request(`https://dailybreak.app/api/day?day=${today}&mode=pts`), env);
+  eq(await d.json(), { players: 1, scores: { 4250: 1 } }, 'tally');
+  for (const bad of [{ score: -1 }, { score: 1.5 }, { tricks: undefined }, { strokes: 500 }]) {
+    const b = await worker.fetch(post('/api/result', { day: today, mode: 'pts', score: 100, strokes: 10, tricks: 0, ...bad }, '198.51.100.' + Math.floor(Math.random() * 200)), env);
+    eq(b.status, 400, 'bad ' + JSON.stringify(bad));
+  }
 });
 await check('valid lives result -> 200 with tally', async () => {
   const r = await worker.fetch(post('/api/result', { day: today, level: 3, potted: 12, points: 900 }), fakeEnv());

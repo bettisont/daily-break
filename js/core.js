@@ -19,6 +19,7 @@ const RULES = {
   NO_GATE_FROM: '2026-11-16',   // the one-way gate leaves the feature deck: holes 3-6 get sand and the cat
   TUNNELS_FROM: '2026-11-17',   // tunnels join the deck: sand, the cat and a tunnel
   SHOT_READ_FROM: '2026-11-17', // the strike's difficulty reads the whole shot: cut, banks, kicks, combinations
+  POINTS_FROM: '2026-11-24',    // scored in points, not strokes to par: trick shots multiply a pot, fewer strokes multiply a hole
 };
 const isDailySeed = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 // is the rule that starts on day `from` on for this seed?

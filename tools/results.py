@@ -112,7 +112,7 @@ def visits_report(v):
 def fetch(days, acc=None):
     acc = acc or account()
     sql = (f"SELECT blob1 AS day, double1 AS level, SUM(_sample_interval) AS n FROM daily_break_results "
-           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 != 'par' GROUP BY day, level FORMAT JSON")
+           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 != 'par' AND blob2 != 'pts' GROUP BY day, level FORMAT JSON")
     return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
 
 
@@ -145,6 +145,27 @@ def par_report(rows, days=14):
     return '\n'.join(out + [''])
 
 
+def fetch_pts(days, acc):
+    sql = (f"SELECT blob1 AS day, double1 AS score, double3 AS tricks, SUM(_sample_interval) AS n FROM daily_break_results "
+           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 = 'pts' GROUP BY day, score, tricks FORMAT JSON")
+    return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+def pts_report(rows, days=14):
+    by_day = defaultdict(list)
+    for r in rows:
+        by_day[r['day']] += [(int(float(r['score'])), int(float(r['tricks'])))] * int(float(r['n']))
+    out = ['## Points rounds (from 24 Nov 2026; higher is better)', '']
+    if not by_day:
+        return '\n'.join(out + ['No points rounds recorded yet.', ''])
+    out += ['| Day | Players | Average | Median | Best | Trick shots a round |', '|---|---|---|---|---|---|']
+    for day in sorted(by_day, reverse=True)[:days]:
+        rs = by_day[day]; n = len(rs); sc = sorted(x for x, _ in rs)
+        label = dt.date.fromisoformat(day).strftime('%a %-d %b')
+        out.append(f'| {label} | {n} | {round(sum(sc) / n):,} | {sc[(n - 1) // 2]:,} | {sc[-1]:,} | {sum(t for _, t in rs) / n:.1f} |')
+    return '\n'.join(out + [''])
+
+
 def report(rows, days=14):
     by_day = defaultdict(Counter)
     for r in rows:
@@ -172,6 +193,10 @@ if __name__ == '__main__':
         print(par_report(fetch_par(days, acc), days))
     except Exception as e:   # never fail the results report over the par table
         print(f'## Par rounds\n\nCould not read them: {e}\n')
+    try:
+        print(pts_report(fetch_pts(days, acc), days))
+    except Exception as e:   # never fail the results report over the points table
+        print(f'## Points rounds\n\nCould not read them: {e}\n')
     try:
         print(funnel_report(fetch_funnel(acc, days), days))
     except Exception as e:   # the events dataset only exists once the first event arrives

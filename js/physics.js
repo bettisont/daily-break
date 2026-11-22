@@ -22,8 +22,9 @@ class Table {
   shoot(angle, power, spin = 0, side = 0) {
     const sp = MAX_SPEED * power;
     this.cue.vx = Math.cos(angle) * sp; this.cue.vy = Math.sin(angle) * sp;
-    for (const b of this.balls) { b.cush = 0; b.wallPts = []; }
-    this.cue.cush = 0; this.cue.wallPts = [];
+    // (by: what first hit each ball; tunShot: it went through a tunnel. Both are only read to name trick shots.)
+    for (const b of this.balls) { b.cush = 0; b.wallPts = []; b.by = null; b.tunShot = false; }
+    this.cue.cush = 0; this.cue.wallPts = []; this.cue.tunShot = false;
     this.shot = { pots: [], scratch: false, rattles: 0, cushions: 0, firstHit: null, spin, spinUsed: false, tunnels: 0, side };
   }
 
@@ -67,6 +68,7 @@ class Table {
           const cueVn = cueA ? a.vx * nx + a.vy * ny : cueB ? -(b.vx * nx + b.vy * ny) : 0;
           const jmp = -(1 + BALL_E) * vn / inv;
           a.vx -= jmp * nx / a.m; a.vy -= jmp * ny / a.m; b.vx += jmp * nx / b.m; b.vy += jmp * ny / b.m;
+          if (s) { a.by ||= b; b.by ||= a; }
           if (s && (cueA || cueB)) {
             if (!s.firstHit) { s.firstHit = cueA ? b : a; s.kick = (this.cue.cush || 0) > 0; s.kickCush = this.cue.cush || 0; s.kickWalls = (this.cue.wallPts || []).length; }
             // spin takes hold on the first contact: follow carries on through, draw comes back
@@ -75,7 +77,7 @@ class Table {
               if (s.spin) { const k = s.spin * 0.7 * Math.max(0, cueVn), sx = cueA ? nx : -nx, sy = cueA ? ny : -ny; this.cue.vx += sx * k; this.cue.vy += sy * k; if (Math.abs(s.spin) > 0.15 && cueVn > 150) this.ev('spin', { spin: s.spin, x: this.cue.x, y: this.cue.y, speed: cueVn }); }
             }
           }
-          this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+          this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, a, b });
         }
         a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
       }
@@ -106,7 +108,7 @@ class Table {
         b.uVx = b.vx * TUN_KEEP; b.uVy = b.vy * TUN_KEEP; b.uTo = 1 - k;
         b.uN = b.uN0 = Math.round(TUN_T / DT);
         b.x = m.x; b.y = m.y; b.vx = b.vy = 0; b.tunN = (b.tunN || 0) + 1;
-        if (s) s.tunnels++;
+        if (s) { s.tunnels++; b.tunShot = true; if (b === this.cue && !s.firstHit) s.cueTunnel = true; }
         this.ev('tunnelIn', { x: m.x, y: m.y, fromX: fx0, fromY: fy0, toX: o.x, toY: o.y, ball: b, speed: sp, dur: b.uN0 * DT });
         under = true;
       }
@@ -152,7 +154,7 @@ class Table {
       // (a touch in a pocket's jaws doesn't count, so a pot that brushes the jaw isn't a 'bank')
       if (hitWall && this.pk.every(p => Math.hypot(b.x - p.x, b.y - p.y) > p.cap + 2 * R)) b.cush = (b.cush || 0) + 1;
       if (hitWall) b.wallPts = [...(b.wallPts || []), [b.x, b.y]];   // every cushion contact and where (for the guide)
-      if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
+      if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y, ball: b }); }
     }
   }
 
