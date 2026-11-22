@@ -37,7 +37,7 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
   nothing. `round.trick` picks the branch everywhere:
   - Points replace par (`TRICK_PTS`). A pot is 100, plus 200 per trick element, doubled by the first pot into the
     golden pocket, times `streakMult(streak)`. The streak counts potting shots in a row, carries across holes, and a
-    miss or foul resets it (`breakStreak`, with a fizzle). Clearing a hole adds 300 per ball. Strokes are only the
+    miss or foul resets it (`breakStreak`, with a fizzle). Clearing a hole scores nothing extra. Strokes are only the
     budget (`capOf`, par + 3). A foul's pots score 0. There are no tap-ins (`findGimmes` returns none) and no
     stroke back.
   - Trick elements are counted as each ball drops (`trickDrop`, into `tshot`), and that same list is what gets
@@ -60,14 +60,13 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     streak from the streak meter) drops onto the number and smashes. Last, the shot's score flies into `#ptsVal`.
     `logShot` keeps the breakdown, with what each line was for (`TRICK_WHY`) and the sum, in `round.shotLog`
     (newest first, at most 30). Tapping the Points chip (`#ptsChip`) shows it (`showShotLog`), and the
-    `dailybreak:shotLogTip` flag shows a one-off tip. A shot that clears the table adds the clear bonus as the last step (`scoreTrick(clear)`;
-    a table cleared on a foul gets a tally of its own). There are no hole or round stamps under trick scoring:
+    `dailybreak:shotLogTip` flag shows a one-off tip. There are no hole or round stamps under trick scoring:
     `finishHole` waits for `tally` to finish before the next hole or the card. `ptsHold` holds the header's count-up until it lands, and `endTally` cuts it short (a new
     shot, a new round).
   - The header shows Hole and Points (`#ptsVal`, counting up). The info bar shows shots left, the streak meter
     (`updateStreakMeter`; `crackStreakMeter` on a reset) and the tilt. The lamp warms with the streak
-    (`drawLampWarmth`, flickering at ×3). The Quick bar (`#quickBar`, `tickQuick`) drains across the top of the pull
-    cue.
+    (`drawLampWarmth`, flickering at ×3). While you aim, a gold ring round the cue ball drains over `QUICK_S`
+    (`drawQuickRing`), flashing for the last 1.5 s.
   - Cards carry `pts` and `tricks`. The result card (`trickFinalHtml`) shows points, tricks, shots, best streak and
     each hole's points. The share text (`trickShareText`) is the points plus `trickRankLine` ("Beat 73% of 412
     players today", from the tally, with the player count on purpose for trick scoring). A saved run or result

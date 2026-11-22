@@ -43,14 +43,6 @@ function crackStreakMeter() {
   el.classList.remove('crack'); void el.offsetWidth; el.classList.add('crack');
   setTimeout(() => el.classList.remove('crack'), 700);
 }
-// Quick: a bar across the top of the pull cue that drains over QUICK_S seconds while you aim
-function tickQuick() {
-  const el = $('quickBar');
-  if (!el) return;
-  const on = round?.trick && phase === 'aim' && aimClock <= QUICK_S;
-  el.classList.toggle('on', !!on);
-  if (on) el.style.width = `${(1 - aimClock / QUICK_S) * 100}%`;
-}
 const SPIN_SPOTS = [[0, 'Stun', 'stops dead'], [-0.5, 'Follow', 'rolls on'], [0.5, 'Draw', 'comes back']];
 function updateSpinBall() {
   const a = Math.abs(aim.spotY), name = strikeName(aim.spin), sd = sideName(aim.side);

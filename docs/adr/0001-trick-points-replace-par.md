@@ -17,7 +17,7 @@ The ranked score becomes points, and strokes are only the hole's budget (par + 3
 - The streak multiplier (x1 to x3, +0.5 for each potting shot in a row, carried across holes) multiplies every shot.
   A shot that pots nothing, or a foul, resets it. This is what stops farming: a set-up shot throws the streak away.
 - The first pot into the golden pocket doubles that shot.
-- Clearing a hole adds 300 per ball; picking up adds nothing.
+- Clearing a hole scores nothing extra (a 300-a-ball bonus was tried and dropped): multipliers always come last.
 - A foul costs a stroke and resets the streak; balls it pots stay down but score 0.
 - Tap-ins are removed.
 - Rank: a separate `trick` mode on the server, in buckets of 50 points, higher is better.

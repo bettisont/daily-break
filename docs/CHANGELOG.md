@@ -14,7 +14,7 @@ on par, and the trick replays are the best moment of a round.
   adds 200, and they stack: an extra ball in one shot, a bank (per banked ball), a kick, a combination (a potted ball
   the cue ball didn't hit first, once a shot) and a tunnel. The first pot into the golden pocket doubles the shot. The
   whole shot is then multiplied by the streak: x1, x1.5, x2, x2.5, x3 for potting shots in a row, carried across holes.
-  A miss or a foul resets it. Clearing a hole adds 300 per ball; picking up adds nothing.
+  A miss or a foul resets it. (Clearing a hole first added 300 per ball; dropped the same day, see below.)
 - **Strokes are only a budget.** You pick up at par + 3, as before. A foul still costs a stroke, and the balls it pots
   stay down but score 0. There's no stroke back from the golden pocket (it doubles instead) and no tap-ins.
 - **At the pot, a bang, not words** (`trickBang`). The pocket (or the contact, for a cannon or a target) gets a
@@ -32,8 +32,9 @@ on par, and the trick replays are the best moment of a round.
   `showShotLog`): each line with what it was for (`TRICK_WHY`) and the sum. After the first tally, a one-off tip
   points to it.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the
-  tally. The clear bonus is now the tally's last step ("+900 Table cleared: 3 balls x 300", after the multipliers,
-  since it isn't multiplied). A picked-up hole just says "Out of shots". The next hole waits for the tally to land.
+  tally. A picked-up hole just says "Out of shots". The next hole waits for the tally to land.
+- **No points for clearing the table** (it was 300 a ball, shown as a flat step after the multipliers). Playtest: a
+  clear isn't a trick, and a multiplier should always come last. Now it does: base, then tricks, then multipliers.
 - **The streak shows** as a meter under the multiplier in the info bar (`updateStreakMeter`). It fills and heats up,
   shows a flame from x2, pulses at x3, and shakes red as it drains on a reset. The lamp over the table also warms
   (`drawLampWarmth`: one extra light sprite) and flickers at x3. An edge glow round the screen was tried first and
@@ -45,7 +46,8 @@ on par, and the trick replays are the best moment of a round.
     and it vanishes. They're placed from their own seeded numbers (`<seed>:targets:<i>`), so courses don't change,
     and move on physics time while the balls roll. A crossing on a foul doesn't count, and the target comes back.
   - **Quick** (+100): the shot is released within 5 s of the aim starting (`aimClock`, `QUICK_S`) and pots. A gold
-    bar drains across the top of the pull cue. It's off while a lesson shows. Players asked for a timed element; a
+    ring round the cue ball drains as the time runs out and flashes for the last 1.5 s (`drawQuickRing`; a bar across
+    the top of the pull cue went unnoticed). It's off while a lesson shows. Players asked for a timed element; a
     shot clock with a penalty was turned down.
 - **Result and share**: the result card shows the points, the number of tricks, shots and best streak, each hole's
   points, and the rank line. The share text is just the points and "Beat 73% of 412 players today" (`trickRankLine`;

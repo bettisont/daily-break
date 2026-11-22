@@ -42,11 +42,11 @@ const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 // ---- trick scoring (being tried, 22 Nov 2026) ----
 // Points replace par: a pot is 100, each trick element on the shot adds 200 (an extra ball in one shot, a bank, a kick,
 // a combination, a tunnel), the first pot into the golden pocket doubles the shot, and the whole shot is multiplied
-// by the streak (potting shots in a row, carried across holes, x1 up to x3). Clearing a hole adds 300 per ball.
+// by the streak (potting shots in a row, carried across holes, x1 up to x3). Clearing a hole scores nothing extra.
 // Strokes are only the hole's budget (par + 3, as before). Tap-ins are off. Why: flair went unrewarded, too many
 // players tied on par, and the trick replays are the best part. It's tried behind ?trick first (an unranked round
 // that sends and saves nothing); RULES.TRICK_SCORE_FROM switches the daily round over once that date is set.
-const TRICK_PTS = { pot: 100, part: 200, clear: 300 };
+const TRICK_PTS = { pot: 100, part: 200 };
 const trickFlag = new URLSearchParams(location.search).has('trick');
 // a daily seed from the switch date on, a practice course once today is past it, or anything under ?trick
 const trickOn = seed => trickFlag || (!!RULES.TRICK_SCORE_FROM && (isDailySeed(seed) ? seed : todayKey()) >= RULES.TRICK_SCORE_FROM);

@@ -146,7 +146,6 @@ function frame(now) {
   if (phase !== 'moving' && phase !== 'replay') tgtClock += dt * PLAY;
   if (phase === 'aim' && !banner && !$('overlay').classList.contains('show')) aimClock += dt;
   if (demo || spinDemo) aimClock = QUICK_S + 1;   // no Quick while a lesson is showing
-  tickQuick();
   if (follow) follow.t += dt;
   tickDemo(dt); tickSpinDemo(dt);
   // a drawing error must never stop the game: log it and carry on with the next frame
