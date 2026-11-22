@@ -669,10 +669,36 @@ function rollNum(el, from, to, ms, pre = '') {
   const step = now => { const k = Math.min(1, (now - t0) / ms), e = 1 - (1 - k) ** 3; el.textContent = pre + fmtPts(from + (to - from) * e); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
+// the number as a row of reels: each digit spins, then they stop left to right on `to`, a tick each (the chip, if any,
+// stays put beside it)
+function spinTo(n, chip, from, to, ms) {
+  const target = fmtPts(to), reels = [];
+  n.textContent = '';
+  for (const ch of target) {
+    const sp = document.createElement('span');
+    sp.textContent = ch;
+    if (/\d/.test(ch)) { sp.className = 'reel'; reels.push({ sp, ch }); }
+    n.appendChild(sp);
+  }
+  if (chip) n.appendChild(chip);
+  const t0 = performance.now(), stopAt = reels.map((_, k) => ms * 0.45 + ms * 0.55 * (k + 1) / reels.length);
+  let lastTick = 0;
+  const step = now => {
+    const e = now - t0;
+    let spinning = false;
+    reels.forEach((r, k) => {
+      if (r.done) return;
+      if (e >= stopAt[k]) { r.done = true; r.sp.textContent = r.ch; r.sp.classList.add('land'); tone(520 + k * 60, 0.05, 0.05, 'square', 0.6, 0, 0.1); return; }
+      spinning = true; r.sp.textContent = String(Math.floor(Math.random() * 10));
+    });
+    if (spinning && e - lastTick > 45) { lastTick = e; tone(1800 + Math.random() * 400, 0.012, 0.015, 'triangle', 1, 0, 0); }
+    if (spinning && n.isConnected) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 function endTally() {
   if (!tally) return;
   tally.timers.forEach(clearTimeout); tally.el.remove(); tally = null;
-  document.querySelectorAll('.tchip').forEach(c => c.remove());
   ptsHold = false;
   const el = $('ptsVal');
   if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
@@ -702,35 +728,31 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
     at(t + gap - 120, () => { it.remove(); after(); pop('pop'); tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8); });
     t += gap;
   };
-  items.forEach(([label, pts], i) => addIn(pts, label, '', i, () => { rollNum(n, now, now + pts, 200); now += pts; }));
-  // each multiplier pulls down onto the number and smashes into it
+  // (every step's from and to are worked out now, not when its timer fires)
+  items.forEach(([label, pts], i) => { const from = now, to = now + pts; addIn(pts, label, '', i, () => rollNum(n, from, to, 200)); now = to; });
+  // each multiplier, slot-machine style (22 Nov playtest: the chip dropping out of the streak meter wasn't liked):
+  // "x2.5 STREAK" slams in beside the number (the streak meter flashes: that's where it comes from), the digits spin
+  // like reels and stop one by one, left to right, on the new total with a clunk, and the chip melts into the number
   muls.forEach(([label, m], i) => {
-    const chip = document.createElement('div');
-    t += 200;
+    const chip = document.createElement('div'), to = i === muls.length - 1 ? gain : now * m, from = now;
+    t += 250;
     at(t, () => {
-      const src = label === 'Streak' && $('iLie') ? $('iLie').getBoundingClientRect() : { left: cx - 40, top: st.top - 40, width: 80, height: 30 };
-      chip.className = `tchip ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
-      chip.style.left = src.left + src.width / 2 + 'px'; chip.style.top = src.top + src.height / 2 + 'px';
-      document.body.appendChild(chip);
+      chip.className = `tx ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
+      n.appendChild(chip);
+      if (label === 'Streak') { const sm = $('iLie'); sm.classList.remove('flash'); void sm.offsetWidth; sm.classList.add('flash'); }
+      sfx.boom(2); buzz(12);
     });
-    at(t + 380, () => {
-      const nr = n.getBoundingClientRect(), r0 = chip.getBoundingClientRect();
-      chip.classList.add('drop');
-      chip.style.transform = `translate(-50%,-50%) translate(${nr.left + nr.width / 2 - (r0.left + r0.width / 2)}px, ${nr.top + nr.height / 2 - (r0.top + r0.height / 2)}px)`;
-      tone(300, 0.45, 0.04, 'sine', 3, 0, 0.3);   // a rising whoosh as it pulls down
-    });
-    at(t + 830, () => {
-      chip.classList.add('smash');
-      setTimeout(() => chip.remove(), 260);
-      const to = i === muls.length - 1 ? gain : now * m;
-      rollNum(n, now, to, 340); now = to; pop('smash');
-      if (label === 'Streak') n.classList.add('hot');
-      sfx.boom(Math.round(m * 2)); sfx.bang(Math.min(6, 2 + Math.round(m * 1.2)));
+    at(t + 650, () => spinTo(n, chip, from, to, 1000));
+    at(t + 1750, () => {
+      chip.classList.add('melt'); setTimeout(() => chip.remove(), 300);
+      pop('smash'); if (label === 'Streak') n.classList.add('hot');
+      sfx.clunk(); sfx.bang(Math.min(6, 2 + Math.round(m * 1.2)));
       fx.shake = Math.max(fx.shake, 5 + m * 2); hitStop = Math.max(hitStop, 0.06);
-      sparkle(W / 2, H * 0.3, '#ffe08a', 40, 320); sparkle(W / 2, H * 0.3, '#ff9a3c', 20, 240); ring(W / 2, H * 0.3, '255,214,110', 200, 0.7, 30);
+      sparkle(W / 2, H * 0.3, '#ffe08a', 40, 320); sparkle(W / 2, H * 0.3, '#ff9a3c', 20, 240);
       buzz([25, 30, 40]);
     });
-    t += 1200;
+    now = to;
+    t += 2250;
   });
   const total = gain;
   // then the shot's score flies into the header's Points

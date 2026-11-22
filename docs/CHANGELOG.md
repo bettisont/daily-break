@@ -31,6 +31,10 @@ on par, and the trick replays are the best moment of a round.
   number on the table gets one word ("100 POT", "+200 BANK", "x2.5 STREAK", "+900 CLEARED"), and tapping the Points chip (ⓘ) opens the breakdown of the round's shots, newest first (`logShot`,
   `showShotLog`): each line with what it was for (`TRICK_WHY`) and the sum. After the first tally, a one-off tip
   points to it.
+- **Multipliers land slot-machine style** (`spinTo`): "x2.5 STREAK" slams in beside the number (the streak meter
+  flashes, to show where it comes from), the digits spin like reels and stop left to right on the new total with a
+  clunk, and the chip melts in. Golden x2 first, then the streak, always after the tricks. It replaced a chip that
+  pulled down out of the streak meter and smashed into the number, which wasn't liked.
 - **No replays** under trick scoring: they held up the tally, which already shows what the shot did (playtest: "annoying").
   The live slow-motion push-in on a trick or the last ball stays. Par days keep their replays.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the

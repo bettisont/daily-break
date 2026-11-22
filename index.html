@@ -93,11 +93,22 @@
   @keyframes tallySmash{0%{scale:.7;filter:brightness(2)}35%{scale:1.45;filter:brightness(1.5)}100%{scale:1;filter:none}}
   #tally .ti{position:absolute;top:calc(100% + 14px);left:50%;transform:translateX(-50%);white-space:nowrap;font:800 30px 'DM Sans',sans-serif;color:#3b5ea6;text-shadow:0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0;animation:tallyIn .18s cubic-bezier(.2,1.6,.4,1)}
   #tally .ti.clear{color:#2f6b4f}
-  #tally .ti small,#tally .tl,.tchip small{font:700 12px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase}
+  #tally .ti small,#tally .tl{font:700 12px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase}
   #tally .ti small{vertical-align:middle;margin-left:2px;font-size:13.5px}
   #tally .tl{color:#4c574a;background:rgba(251,248,240,.9);padding:2px 8px;border-radius:8px;margin-top:6px;transition:opacity .2s}
   #tally .tl.gone{opacity:0}
-  .tchip small{display:block;font-size:10.5px;opacity:.95;margin-top:1px}
+  /* a multiplier beside the number, and the number's digits as slot-machine reels */
+  #tally .tn{position:relative}
+  #tally .tx{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);font:800 28px/1 'DM Sans',sans-serif;color:#fbf8f0;padding:5px 11px;border-radius:12px;text-shadow:none;letter-spacing:0;box-shadow:0 4px 12px rgba(60,45,25,.3);animation:slam .32s cubic-bezier(.2,1.6,.4,1);text-align:center;white-space:nowrap}
+  #tally .tx small{display:block;font:700 10px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+  #tally .tx.streak{background:#d8552a} #tally .tx.gold{background:#c99a3a}
+  #tally .tx.melt{transition:transform .28s ease-in,opacity .28s;transform:translate(-90px,-50%) scale(.3);opacity:0}
+  @keyframes slam{from{scale:2.4;rotate:-8deg;opacity:0}}
+  #tally .reel{display:inline-block;min-width:.58em;text-align:center}
+  #tally .reel.land{animation:land .22s cubic-bezier(.2,1.8,.4,1)}
+  @keyframes land{from{translate:0 -10px}}
+  #iLie.flash{animation:meterFlash .8s ease-out}
+  @keyframes meterFlash{0%,30%{background:#f6c27a}100%{background:transparent}}
   #tally .ti.in{transition:transform .18s cubic-bezier(.6,0,.9,.4),opacity .18s;transform:translateX(-50%) translateY(-70px) scale(.5);opacity:0}
   /* the Points chip opens the breakdown */
   #card9 button.c{cursor:pointer;font:500 11px 'DM Mono',monospace}
@@ -109,11 +120,6 @@
   .slh{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:4px} .slh b{color:var(--ink);font:800 15px 'DM Sans',sans-serif;letter-spacing:0}
   .sll{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:2px 0} .sll small{display:block;font-size:11.5px;color:var(--muted)} .sll b{white-space:nowrap}
   .sle{font-size:10.5px;color:#4c574a;border-top:1px dashed var(--line);margin-top:4px;padding-top:4px;letter-spacing:.04em}
-  .tchip{position:fixed;z-index:6;transform:translate(-50%,-50%);pointer-events:none;text-align:center;font:800 30px/1.05 'DM Sans',sans-serif;color:#fbf8f0;padding:4px 14px;border-radius:14px;box-shadow:0 6px 16px rgba(60,45,25,.35)}
-  .tchip.streak{background:#d8552a} .tchip.gold{background:#c99a3a}
-  .tchip.drop{transition:transform .43s cubic-bezier(.65,0,.95,.45)}
-  .tchip.smash{animation:chipSmash .26s forwards}
-  @keyframes chipSmash{to{scale:1.8 .3;opacity:0}}
   #card9 .c b.bump{display:inline-block;animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #info b small{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5a6556;font-weight:400;margin-left:4px}
   .round{width:30px;height:30px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}

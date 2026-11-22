@@ -56,8 +56,10 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     There are no replays under trick scoring (`resolveShot` skips `startReplay`). No text is shown as they happen: `trickBang` gives the pocket or contact a flash, rings, sparks, shake, hit-stop
     and `sfx.bang`, all scaled by `shotQ` (elements so far, +2 for the golden pocket). After the replay, `scoreTrick`
     runs the tally (`showTally`, a fixed overlay over the stage: numbers, each with a one-word label). The base comes
-    first ("100 POT"), then each element's "+200 BANK" flies into the number one by one. Then each multiplier chip (`.tchip`: golden from the top, the
-    streak from the streak meter) drops onto the number and smashes. Last, the shot's score flies into `#ptsVal`.
+    first ("100 POT"), then each element's "+200 BANK" flies into the number one by one. Then each multiplier
+    ("x2 GOLDEN", then "x2.5 STREAK", with `#iLie` flashing) slams in beside the number, and `spinTo` spins its digits
+    like reels to the new value (a `sfx.clunk` as it lands). Last, the shot's score flies into `#ptsVal`. Every
+    step's from/to is worked out when the tally starts, never inside its timer.
     `logShot` keeps the breakdown, with what each line was for (`TRICK_WHY`) and the sum, in `round.shotLog`
     (newest first, at most 30). Tapping the Points chip (`#ptsChip`) shows it (`showShotLog`), and the
     `dailybreak:shotLogTip` flag shows a one-off tip. There are no hole or round stamps under trick scoring:
