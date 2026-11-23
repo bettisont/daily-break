@@ -804,10 +804,29 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
     if (label === 'Mult') causes();   // the multiplier goes up first, then the new value is applied
     const chip = document.createElement('span'), to = i === muls.length - 1 ? gain : now * m, from = now;
     t += 150;
+    // the multiplier drops out of the meter and into the score (23 Nov playtest: the reverse of its causes flying up
+    // into the meter), then sits beside the number while it spins
+    if (label === 'Mult') {
+      const drop = document.createElement('div');
+      at(t, () => {
+        const sm = $('iLie'), r = ($('smX') || sm).getBoundingClientRect();
+        sm.classList.remove('flash'); void sm.offsetWidth; sm.classList.add('flash');
+        drop.className = 'mchip mdrop'; drop.textContent = `×${m}`;
+        drop.style.left = `${r.left + r.width / 2}px`; drop.style.top = `${r.top + r.height / 2}px`;
+        document.body.appendChild(drop);
+        tone(note(4) * 2, 0.08, 0.03, 'triangle', 1, 0, 0.2);
+      });
+      at(t + 280, () => {
+        const a = drop.getBoundingClientRect(), b = n.getBoundingClientRect();
+        drop.classList.add('fly');
+        drop.style.transform = `translate(-50%,-50%) translate(${b.right + 30 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(1.1)`;
+      });
+      at(t + 600, () => { drop.remove(); tone(220, 0.12, 0.08, 'sine', 0.6, 0, 0.1); buzz(10); });
+      t += 600;   // (the chip below lands in its place)
+    }
     at(t, () => {
       chip.className = `tx ${label === 'Mult' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
       box.appendChild(chip);
-      if (label === 'Mult') { const sm = $('iLie'); sm.classList.remove('flash'); void sm.offsetWidth; sm.classList.add('flash'); }
       buzz(12);
     });
     at(t + 250, () => spinTo(n, from, to, 480));

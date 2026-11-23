@@ -68,15 +68,17 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     chip or pressing P (`showShotLog`; a one-off tip, `dailybreak:shotLogTip`). Text on the table only for something
     going wrong (scratch, miscue, pushed off line, rattled out); a foul says "multiplier lost".
   - **Soundtrack** (`arcadeTick` every 30 ms schedules `arcadeStep` 16ths 0.15 s ahead on the audio clock): a dark
-    synthwave groove in A minor at a steady 120 bpm (`ARC_BPM`). `ARC_SONG`: eight 4-bar sections (64 s) over three
-    progressions (`ARC_PROG`: Am7-Fmaj7-Dm7-Em7, Fmaj7-G-Em7-Am7, Dm7-Am7-Bbmaj7-E), with an arpeggio shape per
-    section (`ARC_ARPS`) and a sparse lead (`ARC_LEAD`). Drums go to `arcadeBus`; synths through `arcPump` (ducked under
-    each kick) and `arcSynth`, a low-pass that opens with the multiplier (`arcCut`: about 700 Hz at x1, wide open from x4
-    and in the last 10 s); the arp and lead feed a dotted-8th echo (`arcDelay`). Layers by multiplier: kick, rolling
-    bass, pad and off-beat hats always; arp from x1.5; clap and 16th hats from x2; lead from x3; an open hat under 30 s;
-    16th hats, arp, lead and a swell every bar in the last 10 s. Multiplier up: the filter jumps open and settles back.
-    Down: the drums drop out until the next bar but one (`ARC.dropTo`) and the filter dips. Each run starts from the
-    top. Only under the trial with the music on; `playChord` (the piano) skips it.
+    synthwave groove in A minor that follows only the multiplier, never the clock. `ARC_SONG`: eight 4-bar sections
+    over three progressions (`ARC_PROG`: Am7-Fmaj7-Dm7-Em7, Fmaj7-G-Em7-Am7, Dm7-Am7-Bbmaj7-E), with an arpeggio
+    shape per section (`ARC_ARPS`) and a sparse lead (`ARC_LEAD`). Tempo `arcBpm`: 112 at x1, +6 per step, 136 from x5.
+    Drums go to `arcadeBus`; synths through `arcPump` (ducked under each kick) and `arcSynth`, a low-pass that opens
+    with the multiplier (`arcCut`: about 700 Hz at x1, wide open by x4); the arp and lead feed a dotted-8th echo
+    (`arcEcho`, kept in time as the tempo moves). Layers: kick, rolling bass, pad and off-beat hats always; arp from
+    x1.5; clap and 16th hats from x2; lead from x3; open hat from x4; a swell into every fourth bar. Multiplier up: the
+    filter jumps open and settles back. Down: the drums drop out until the next bar but one (`ARC.dropTo`) and the
+    filter dips. Each run starts from the top. Only under the trial with the music on; `playChord` skips it.
+  - **Time call-outs** (`timeCall`, `TIME_CALLS`): "90 seconds", "1 minute left", "30 seconds", "10 seconds!" (red)
+    and "Last shot!" drop in under the info bar with `sfx.timeCall`, hold and fade (`#timeCall`, 2 s, no taps).
   - **Performance** (phones got hot, 23 Nov): `trialFps` paces the trial (60 for motion, 40 while aiming, 30 idle,
     15 behind a card); `draw` skips the cloud shadows and the film grain under the trial; `resize` caps the trial's
     canvas at 1.5x. Par keeps its pacing, layers and 2x.

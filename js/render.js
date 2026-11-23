@@ -1381,7 +1381,6 @@ function draw(t, dt) {
   }
   ctx.globalAlpha = 1;
   ctx.drawImage(LAMP, W / 2 - H * 0.75, H / 2 - H * 0.75, H * 1.5, H * 1.5);
-  drawLampWarmth(t, dt);
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1413,25 +1412,6 @@ function draw(t, dt) {
 }
 
 
-// Trick scoring: the streak warms the lamp over the table (22 Nov; it replaced a glow round the screen's edges, which
-// looked ugly). Nothing at x1; each step after that adds a warmer, brighter pool of light, and at x3 it flickers like
-// a flame. A miss or foul drops it back quickly. One extra sprite drawn as light: no new gradients per frame.
-const WARM_LAMP = glowSprite(256, [[0, 'rgba(255,170,70,.34)'], [0.5, 'rgba(255,150,60,.14)'], [1, 'rgba(255,140,50,0)']]);
-let streakLvl = 0;
-const streakTarget = () => round?.trick && hs ? (Math.min(hs.mult, 3) - 1) * 2 : 0;   // 0 at x1 ... 4 at x3 and over
-// (only while it's changing: the x3 flicker and the targets no longer hold the frame rate at 60, 23 Nov sweep)
-const streakGlowBusy = () => Math.abs(streakLvl - streakTarget()) > 0.01;
-function drawLampWarmth(t, dt) {
-  const want = streakTarget();
-  streakLvl = want > streakLvl ? Math.min(want, streakLvl + dt * 3) : Math.max(want, streakLvl - dt * 8);
-  if (streakLvl < 0.01) return;
-  // kept to the table and gentle at its strongest (22 Nov: the first version lit the whole room and was too much at x3)
-  const flicker = streakLvl > 3.5 ? 0.92 + 0.05 * Math.sin(t * 11) + 0.03 * Math.sin(t * 23 + 1) : 1;
-  ctx.globalAlpha = 0.45 * Math.min(1, streakLvl / 4) * flicker;
-  const r = H * 0.5;
-  ctx.drawImage(WARM_LAMP, W / 2 - r, H / 2 - r, r * 2, r * 2);
-  ctx.globalAlpha = 1;
-}
 // Trick scoring's moving targets: a track, and a sky-blue ring sliding along it.
 function drawTargets(t) {
   if (!targets.length) return;

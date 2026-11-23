@@ -77,8 +77,6 @@
   #iLie{position:relative}
   #iLie .smbar{position:absolute;left:12px;right:12px;bottom:3px;height:4px;border-radius:3px;background:#e0d6bf;overflow:hidden}
   #iLie .smbar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#f0b43c,#e8742a 60%,#d8452a);transition:width .45s cubic-bezier(.2,1.4,.4,1)}
-  #iLie.max .smbar i{filter:brightness(1.2);box-shadow:0 0 6px rgba(232,116,42,.8)}   /* a still glow: a looping one repainted forever */
-  @keyframes hot{from{filter:brightness(1);box-shadow:0 0 0 rgba(232,116,42,0)}to{filter:brightness(1.25);box-shadow:0 0 8px rgba(232,116,42,.9)}}
   #iLie.crack{animation:crack .6s}
   #iLie.crack .smbar{background:#e8a99a}
   @keyframes crack{0%,100%{transform:none}15%{transform:translateX(-4px)}30%{transform:translateX(4px)}45%{transform:translateX(-3px)}60%{transform:translateX(2px)}}
@@ -115,6 +113,7 @@
   .mchip{position:fixed;z-index:6;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap;font:800 22px 'DM Sans',sans-serif;color:#fbf8f0;background:#d8552a;padding:4px 12px;border-radius:14px;box-shadow:0 5px 14px rgba(60,45,25,.3);animation:slam .28s cubic-bezier(.2,1.6,.4,1)}
   .mchip small{font:700 11px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-left:3px}
   .mchip.trick{background:#3b5ea6} .mchip.gold{background:#c99a3a}
+  .mchip.mdrop{font-size:28px;padding:5px 13px}
   .mchip.fly{transition:transform .3s cubic-bezier(.55,0,.9,.45),opacity .3s;opacity:.8}
   #iLie.gain #smX{display:inline-block;animation:meterGain .45s cubic-bezier(.2,1.8,.4,1)}
   #iLie.gain{animation:meterFlash .6s ease-out}
@@ -139,6 +138,10 @@
   #card9 .clock.urgent{background:#f6d3c8;border-color:#d8552a;animation:urgent 1s ease-in-out infinite}
   #card9 .clock.urgent b{color:#b8352a}
   @keyframes urgent{50%{background:#fbe6df}}
+  /* time call-outs: a label that drops out of the clock, holds and fades (timeCall) */
+  #timeCall{position:fixed;left:50%;z-index:6;pointer-events:none;white-space:nowrap;font:800 26px 'DM Sans',sans-serif;color:#fbf8f0;background:#2f6b4f;padding:6px 18px;border-radius:16px;box-shadow:0 6px 16px rgba(60,45,25,.3);transform:translateX(-50%);animation:timeCall 2s cubic-bezier(.2,1.4,.4,1) forwards}
+  #timeCall.urgent{background:#d8452a}
+  @keyframes timeCall{0%{opacity:0;transform:translate(-50%,-30px) scale(.6)}12%{opacity:1;transform:translate(-50%,0) scale(1)}80%{opacity:1;transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-8px) scale(.96)}}
   #ptsVal{display:inline-block;min-width:5.2ch;text-align:right;font-variant-numeric:tabular-nums}
   @media (max-width:370px){ #card9 .c .lab{display:none} h1{font-size:13.5px} #ptsVal{min-width:4.6ch} }
   #card9 .c i{font-style:normal;font-size:11px;color:var(--muted)}

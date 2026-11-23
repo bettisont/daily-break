@@ -35,6 +35,11 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **Playtest follow-ups**: no warm lamp over the table or glow on the meter as the multiplier builds (the 🔥 stays);
+  the soundtrack follows only the multiplier, not the clock, and speeds up with it again (112 bpm at x1, +6 a step,
+  136 from x5; the open hat moved from the last 30 s to x4, and the last 10 s no longer open everything up); time
+  call-outs at 90, 60, 30 and 10 s and on the last shot; and in the tally the multiplier drops out of the meter into
+  the score before it's applied, the reverse of its causes flying up into the meter.
 - **The soundtrack reworked** (playtest: the chiptune was "a bit cringey"): a dark synthwave groove in A minor, after
   the vertical layering in Tetris Effect, Lumines and Rez. A steady 120 bpm (no more tempo rises, key changes, swing
   or square-wave hook); a rolling 16th bass and a wide pad that pump under the kick; a low-pass over the synths that

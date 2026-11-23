@@ -50,6 +50,19 @@ function updateClock() {
   const k = Math.round(clamp(trialLeft / TRIAL_S, 0, 1) * 400) / 400;
   if (bar.k !== k) { bar.k = k; bar.firstChild.style.transform = `scaleX(${k})`; }
 }
+// Time call-outs (23 Nov playtest: say how long is left through the run, not only at the end): a big label drops
+// in at 90, 60, 30 and 10 seconds and on the last shot, holds a moment and fades. Near the top of the
+// table, just under the info bar, and never in the way of a tap (pointer-events: none).
+const TIME_CALLS = { 90: '90 seconds', 60: '1 minute left', 30: '30 seconds', 10: '10 seconds!', 0: 'Last shot!' };
+function timeCall(s) {
+  document.getElementById('timeCall')?.remove();
+  const el = document.createElement('div'), info = $('info'), r = info ? info.getBoundingClientRect() : null;
+  el.id = 'timeCall'; el.className = s <= 10 ? 'urgent' : ''; el.textContent = TIME_CALLS[s];
+  el.style.top = `${(r ? r.bottom : 90) + 22}px`;
+  document.body.appendChild(el);
+  sfx.timeCall(s); buzz(s <= 10 ? [20, 40, 20] : 15);
+  setTimeout(() => el.remove(), 2000);
+}
 // Trick scoring's streak meter (22 Nov): the multiplier, and a bar under it that fills and heats up from x1 to x3,
 // with a flame from x2, pulsing at x3. Built once and updated, so its animations aren't restarted every update.
 function updateStreakMeter(m) {
