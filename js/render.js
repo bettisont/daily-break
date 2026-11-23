@@ -1216,7 +1216,10 @@ function draw(t, dt) {
   // cloud shadows: three huge, very soft sprites, each stretched over most of the screen, which cost more than the
   // rest of the room put together. They're drawn into a canvas at a quarter of the resolution and that is stretched
   // over the screen once: the same soft shapes for a third of the work.
+  // (not under the timed trial: two full-screen layers a frame cost a phone too much for what fast play notices;
+  // the film grain goes too, below. 23 Nov)
   const cb = CLOUD_BUF, cq = 4;
+  if (!round?.trick) {
   if (cb.width !== Math.ceil(canvas.width / cq) || cb.height !== Math.ceil(canvas.height / cq)) { cb.width = Math.ceil(canvas.width / cq); cb.height = Math.ceil(canvas.height / cq); }
   const cg = cb.getContext('2d');
   cg.setTransform(1, 0, 0, 1, 0, 0); cg.clearRect(0, 0, cb.width, cb.height);
@@ -1226,6 +1229,7 @@ function draw(t, dt) {
     cg.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
   }
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(cb, 0, 0, cb.width * cq, cb.height * cq); ctx.restore();
+  }
   ctx.globalCompositeOperation = 'lighter';
   for (const m of motes) {
     const mx = m.x + Math.sin(t * 0.13 * m.s + m.p) * 40, my = m.y + Math.cos(t * 0.1 * m.s + m.p) * 30 - (t * 4 * m.s) % 60;
@@ -1262,7 +1266,7 @@ function draw(t, dt) {
   // film grain: hop the noise tile to a new random offset ~12 times a second, so it shimmers in place
   // (sliding it steadily made it read as diagonal rain)
   const gf = Math.floor(t * 12), gx = hash01(gf) * 160, gy = hash01(gf + 0.5) * 160;
-  ctx.save(); ctx.translate(gx, gy); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
+  if (!round?.trick) { ctx.save(); ctx.translate(gx, gy); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore(); }
 }
 
 

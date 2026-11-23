@@ -208,7 +208,9 @@ $('help').onclick = () => { ensureAudio(); showHelp(); };
 setSoundBtns();
 
 function resize() {
-  const r = stage.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  // (the timed trial draws at up to 1.5x: 44% fewer pixels a frame than 2x, still sharp on a phone; 23 Nov, phones
+  // got hot. Par keeps 2x.)
+  const r = stage.getBoundingClientRect(), dpr = Math.min(trickOn(todayKey()) ? 1.5 : 2, window.devicePixelRatio || 1);
   canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
   const s = Math.min(r.width / (W + 2 * RAIL + 16), r.height / (H + 2 * RAIL + 12));
   view = { s, dpr, cw: r.width, ch: r.height, ox: r.width / 2 - W / 2 * s, oy: r.height / 2 - H / 2 * s };

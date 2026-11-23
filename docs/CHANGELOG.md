@@ -26,6 +26,13 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   an upbeat chiptune loop in A minor whose tempo rises with the multiplier (112 bpm at x1 to 132 at x5) and again in
   the last 30 and 10 s, with layers coming in as the multiplier builds (hats, then 16ths, an arpeggio from x2, a snare
   from x3). It replaces the electric-piano chords under the trial only, and stops when the run ends.
+- **Cooler phones** (playtest: the phone got hot). Measured on a fixed benchmark (5 s aiming with a finger moving, then
+  a 5 s tally, 390x844 at 2x): the page was over 100% busy (about 22 ms of work a frame at 44-50 fps), now about 40%
+  aiming and 45% in a tally. Under the trial only: 60 fps only for real motion (rolling, the strike, pulling the cue,
+  bursts), 40 while you aim, and the tally no longer holds the frame rate up (`trialFps`); no film grain or drifting
+  cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
+  sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
+  transform about 10 times a second instead of being restyled every frame.
 - **The soundtrack got a tune** (playtest: "slightly boring"): an eight-bar song with a chiptune hook (A over
   Am-F-C-G, an answering B over F-G-Em-Am; `ARC_HOOK`), a syncopated bass (`ARC_BASS`), swing on the off-beat 16ths,
   off-beat chord stabs from x2, a drum fill into every fourth bar and a crash each phrase, the hook an octave up from x4

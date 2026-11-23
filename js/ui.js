@@ -44,7 +44,9 @@ function updateClock() {
   // and a thin bar under the header that drains with it (23 Nov: the clock should be more obvious)
   const bar = $('clockBar');
   bar.hidden = false; bar.classList.toggle('urgent', lastShot || trialLeft <= 10);
-  bar.firstChild.style.width = `${clamp(trialLeft / TRIAL_S, 0, 1) * 100}%`;
+  // (a transform, set only when it has moved a visible amount: restyling its width every frame kept the page busy)
+  const k = Math.round(clamp(trialLeft / TRIAL_S, 0, 1) * 400) / 400;
+  if (bar.k !== k) { bar.k = k; bar.firstChild.style.transform = `scaleX(${k})`; }
 }
 // Trick scoring's streak meter (22 Nov): the multiplier, and a bar under it that fills and heats up from x1 to x3,
 // with a flame from x2, pulsing at x3. Built once and updated, so its animations aren't restarted every update.

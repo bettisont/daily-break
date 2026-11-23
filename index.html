@@ -77,7 +77,7 @@
   #iLie{position:relative}
   #iLie .smbar{position:absolute;left:12px;right:12px;bottom:3px;height:4px;border-radius:3px;background:#e0d6bf;overflow:hidden}
   #iLie .smbar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#f0b43c,#e8742a 60%,#d8452a);transition:width .45s cubic-bezier(.2,1.4,.4,1)}
-  #iLie.max .smbar i{animation:hot .7s ease-in-out infinite alternate}
+  #iLie.max .smbar i{filter:brightness(1.2);box-shadow:0 0 6px rgba(232,116,42,.8)}   /* a still glow: a looping one repainted forever */
   @keyframes hot{from{filter:brightness(1);box-shadow:0 0 0 rgba(232,116,42,0)}to{filter:brightness(1.25);box-shadow:0 0 8px rgba(232,116,42,.9)}}
   #iLie.crack{animation:crack .6s}
   #iLie.crack .smbar{background:#e8a99a}
@@ -125,7 +125,7 @@
   #card9 .clock{padding:3px 9px}
   #card9 .clock b{font:800 15px 'DM Sans',sans-serif;font-variant-numeric:tabular-nums;min-width:3.4ch;text-align:center;display:inline-block;letter-spacing:0}
   #clockBar{width:min(100%,640px);margin-inline:auto;height:4px;background:var(--line)}
-  #clockBar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2f6b4f,#3d8758);transition:width .25s linear}
+  #clockBar i{display:block;height:100%;width:100%;transform-origin:left;background:linear-gradient(90deg,#2f6b4f,#3d8758)}
   #clockBar.urgent i{background:linear-gradient(90deg,#d8452a,#e8742a);animation:urgentBar .5s ease-in-out infinite alternate}
   @keyframes urgentBar{to{opacity:.55}}
   #card9 .clock.urgent{background:#f6d3c8;border-color:#d8552a;animation:urgent 1s ease-in-out infinite}
