@@ -110,6 +110,19 @@ function drawBall(b, x, y, sc = 1, alpha = 1) {
 
 /* ----- the room ----- */
 
+// The timed trial plays at night (23 Nov playtest: the look should match its pace and its arcade lettering): the
+// same room after dark, the table under one spotlight, the furniture and plants as silhouettes, and the table trimmed
+// in flat neon (pink rail line, cyan cushion line and sights, blue felt). Flat colours, no glow: cheap on a phone.
+// The par game keeps the daytime room.
+const night = () => !!round?.trick;
+const TABLE_DAY = { shadow: 'rgba(50,30,12,.45)', rail: '#6e4a30', wood0: '#8e6141', wood1: '#6f4a31', edge: 'rgba(255,225,190,.22)', edgeW: 2,
+  sight: '#efe4ca', cushion: '#4f7f68', felt0: '#7aa98e', felt1: '#5f8f76', nose: 'rgba(30,50,35,.25)', noseW: 3, line: 'rgba(255,255,240,.18)',
+  pocketRim: '#3a2618', pocket0: '#0d0906', pocket1: '#2a1c12', ring: null, isl0: '#9a6b48', isl1: '#6a452d', islCush: '#2f5242', grain: true };
+const TABLE_NIGHT = { shadow: 'rgba(0,0,0,.65)', rail: '#16122b', wood0: '#251d42', wood1: '#161130', edge: '#ff3d8b', edgeW: 3,
+  sight: '#35e0e8', cushion: '#143a5c', felt0: '#2c6f9d', felt1: '#1d4c74', nose: '#35e0e8', noseW: 2.5, line: 'rgba(53,224,232,.28)',
+  pocketRim: '#0a0816', pocket0: '#020104', pocket1: '#0c0a18', ring: '#ff3d8b', isl0: '#2a2148', isl1: '#171230', islCush: '#122f4a', grain: false };
+const tpal = () => night() ? TABLE_NIGHT : TABLE_DAY;
+
 const PLANKS = ['#d8c29b', '#d2b98f', '#dcc8a4', '#cdb287', '#d5bd95'];
 const DECOR = {
   plants: [[-RAIL - 75, -RAIL - 45, 64, 1], [W + RAIL + 72, H * 0.36, 54, 2], [-RAIL - 62, H + RAIL + 34, 58, 3], [W + RAIL + 66, H + RAIL + 56, 68, 4], [-RAIL - 210, H * 0.18, 70, 5]],
@@ -164,21 +177,22 @@ function drawRug() {
   }
 }
 function drawPlant([x, y, r, seed], t) {
-  ctx.drawImage(SOFT_SHADOW, x - r * 1.1 + 10, y - r * 1.1 + 14, r * 2.3, r * 2.3);
-  ctx.fillStyle = '#b4623f'; ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#8c4a2f'; ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, TAU); ctx.fill();
-  const greens = ['#5f8a5a', '#4a7449', '#7aa36e', '#567f50'];
+  const dark = night();   // (at night: a silhouette, a shade lighter than the room so its shape still reads)
+  if (!dark) ctx.drawImage(SOFT_SHADOW, x - r * 1.1 + 10, y - r * 1.1 + 14, r * 2.3, r * 2.3);
+  ctx.fillStyle = dark ? '#100d22' : '#b4623f'; ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = dark ? '#0b0918' : '#8c4a2f'; ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, TAU); ctx.fill();
+  const greens = dark ? ['#15122c', '#110e25', '#1a1633', '#131029'] : ['#5f8a5a', '#4a7449', '#7aa36e', '#567f50'];
   const n = 12;
   for (let k = 0; k < n; k++) {
     const a = k / n * TAU + hash01(seed * 10 + k) * 0.5 + Math.sin(t * 0.7 + k + seed) * 0.05, len = r * (0.7 + 0.35 * hash01(seed * 20 + k));
     ctx.save(); ctx.translate(x, y); ctx.rotate(a);
     ctx.fillStyle = greens[(k + seed) % greens.length];
     ctx.beginPath(); ctx.ellipse(len * 0.55, 0, len * 0.55, r * 0.17, 0, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(230,240,200,.35)'; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = dark ? 'rgba(120,110,190,.18)' : 'rgba(230,240,200,.35)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(len * 0.95, 0); ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = '#3f6340'; ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, TAU); ctx.fill();
+  ctx.fillStyle = dark ? '#0b0918' : '#3f6340'; ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, TAU); ctx.fill();
 }
 function drawChair() {
   const { x, y } = DECOR.chair;
@@ -400,43 +414,44 @@ function feltPath(sh) { ctx.beginPath(); polyPath(sh.outer); for (const isl of s
 // edged with cushion.
 function drawShapedTable(sh) {
   ctx.save(); ctx.lineJoin = 'round';
-  ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
-  ctx.beginPath(); polyPath(sh.outer); ctx.fillStyle = '#6e4a30'; ctx.fill(); ctx.strokeStyle = '#6e4a30'; ctx.lineWidth = RAIL * 2; ctx.stroke();
+  const P = tpal();
+  ctx.shadowColor = P.shadow; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
+  ctx.beginPath(); polyPath(sh.outer); ctx.fillStyle = P.rail; ctx.fill(); ctx.strokeStyle = P.rail; ctx.lineWidth = RAIL * 2; ctx.stroke();
   ctx.restore();
   const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
-  wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
+  wood.addColorStop(0, P.wood0); wood.addColorStop(1, P.wood1);
   ctx.save(); ctx.lineJoin = 'round';
   ctx.beginPath(); polyPath(sh.outer);
-  ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = RAIL * 2 - 4; ctx.stroke();
-  ctx.strokeStyle = wood; ctx.lineWidth = RAIL * 2 - 9; ctx.stroke();
-  ctx.strokeStyle = '#4f7f68'; ctx.lineWidth = 24; ctx.stroke();   // the cushion
+  ctx.strokeStyle = P.edge; ctx.lineWidth = RAIL * 2 - 4; ctx.stroke();
+  ctx.strokeStyle = wood; ctx.lineWidth = RAIL * 2 - 4 - 2 * P.edgeW - 1; ctx.stroke();
+  ctx.strokeStyle = P.cushion; ctx.lineWidth = 24; ctx.stroke();   // the cushion
   feltPath(sh);
   const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
-  felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
+  felt.addColorStop(0, P.felt0); felt.addColorStop(1, P.felt1);
   ctx.fillStyle = felt; ctx.fill('evenodd');
   ctx.fillStyle = FELT_NOISE; ctx.fill('evenodd');
-  ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = P.nose; ctx.lineWidth = P.noseW; ctx.stroke();
   for (const isl of sh.islands) {
     // a raised walnut block, like a piece of the rail: it casts a shadow on the felt, has a dark cushion round it,
     // a bevelled top with grain, and cream sights like the outer rail, so it reads as a wall, not a mat
     ctx.save();
     ctx.shadowColor = 'rgba(25,15,6,.55)'; ctx.shadowBlur = 22 * view.s * view.dpr; ctx.shadowOffsetY = 12 * view.s * view.dpr;
-    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = '#2f5242'; ctx.lineWidth = 24; ctx.stroke();   // its cushion, on the felt side
+    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = P.islCush; ctx.lineWidth = 24; ctx.stroke();   // its cushion, on the felt side
     ctx.restore();
-    ctx.strokeStyle = 'rgba(200,230,210,.35)'; ctx.lineWidth = 2;   // the cushion's lit lip
+    ctx.strokeStyle = night() ? P.nose : 'rgba(200,230,210,.35)'; ctx.lineWidth = 2;   // the cushion's lit lip
     ctx.save(); ctx.beginPath(); polyPath(isl.map(([x, y]) => { const cx = isl.reduce((a, q) => a + q[0], 0) / isl.length, cy = isl.reduce((a, q) => a + q[1], 0) / isl.length, d = Math.hypot(x - cx, y - cy) || 1; return [x + (x - cx) / d * 11, y + (y - cy) / d * 11]; })); ctx.stroke(); ctx.restore();
     ctx.beginPath(); polyPath(isl);
     const top = ctx.createLinearGradient(0, 0, W * 0.3, H * 0.3);
-    top.addColorStop(0, '#9a6b48'); top.addColorStop(1, '#6a452d');
+    top.addColorStop(0, P.isl0); top.addColorStop(1, P.isl1);
     ctx.fillStyle = top; ctx.fill();
     ctx.save(); ctx.clip();
     ctx.strokeStyle = 'rgba(60,35,18,.28)'; ctx.lineWidth = 1.5;   // grain
-    for (let k = -40; k < 40; k++) { ctx.beginPath(); ctx.moveTo(-50, k * 9 + H / 2); ctx.bezierCurveTo(W * 0.3, k * 9 + H / 2 + 6, W * 0.6, k * 9 + H / 2 - 6, W + 50, k * 9 + H / 2 + 2); ctx.stroke(); }
+    if (P.grain) for (let k = -40; k < 40; k++) { ctx.beginPath(); ctx.moveTo(-50, k * 9 + H / 2); ctx.bezierCurveTo(W * 0.3, k * 9 + H / 2 + 6, W * 0.6, k * 9 + H / 2 - 6, W + 50, k * 9 + H / 2 + 2); ctx.stroke(); }
     ctx.beginPath(); polyPath(isl); ctx.strokeStyle = 'rgba(30,15,5,.45)'; ctx.lineWidth = 14; ctx.stroke();      // bevel: shade inside the edge
-    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = 'rgba(255,230,195,.35)'; ctx.lineWidth = 4; ctx.stroke();   // and a lit top edge
+    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = night() ? P.edge : 'rgba(255,230,195,.35)'; ctx.lineWidth = night() ? 5 : 4; ctx.stroke();   // and a lit top edge
     ctx.restore();
     // cream diamond sights at the middle of each side, like the outer rail's
-    ctx.fillStyle = '#f1e3c4';
+    ctx.fillStyle = night() ? P.sight : '#f1e3c4';
     isl.forEach(([ax, ay], k) => {
       const [bx, by] = isl[(k + 1) % isl.length], mx = (ax + bx) / 2, my = (ay + by) / 2, cx = isl.reduce((a, q) => a + q[0], 0) / isl.length, cy = isl.reduce((a, q) => a + q[1], 0) / isl.length;
       const d = Math.hypot(cx - mx, cy - my) || 1, x = mx + (cx - mx) / d * 9, y = my + (cy - my) / d * 9;
@@ -455,24 +470,25 @@ function drawTableBase() {
   const sh = hole.shape;
   if (sh) drawShapedTable(sh);
   else {
+    const P = tpal();
     ctx.save();
-    ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
-    ctx.fillStyle = '#6e4a30'; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+    ctx.shadowColor = P.shadow; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
+    ctx.fillStyle = P.rail; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
     ctx.restore();
     const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
-    wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
+    wood.addColorStop(0, P.wood0); wood.addColorStop(1, P.wood1);
     ctx.fillStyle = wood; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
-    ctx.fillStyle = '#efe4ca';
+    ctx.strokeStyle = P.edge; ctx.lineWidth = P.edgeW; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
+    ctx.fillStyle = P.sight;
     const dia = (x, y) => { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 3, y); ctx.fill(); };
     for (let i = 1; i < 8; i++) if (i !== 4) for (const x of [-RAIL / 2 - 2, W + RAIL / 2 + 2]) dia(x, H * i / 8);
     for (let i = 1; i < 4; i++) for (const y of [-RAIL / 2 - 2, H + RAIL / 2 + 2]) dia(W * i / 4, y);
-    ctx.fillStyle = '#4f7f68'; ctx.fillRect(-12, -12, W + 24, H + 24);
+    ctx.fillStyle = P.cushion; ctx.fillRect(-12, -12, W + 24, H + 24);
     const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
-    felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
+    felt.addColorStop(0, P.felt0); felt.addColorStop(1, P.felt1);
     ctx.fillStyle = felt; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+    ctx.strokeStyle = P.nose; ctx.lineWidth = P.noseW; ctx.strokeRect(P.noseW / 2, P.noseW / 2, W - P.noseW, H - P.noseW);
   }
   if (!feltMoves(hole)) drawFelt(0);
 }
@@ -509,18 +525,20 @@ function drawFelt(t) {
     }
     ctx.restore();
   }
-  if (!sh) { ctx.strokeStyle = 'rgba(255,255,240,.18)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke(); }
+  const P = tpal();
+  if (!sh) { ctx.strokeStyle = P.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke(); }
   ctx.restore();   // end of the felt clip
   table.pk.forEach((p, i) => {
     const pr = Math.min(p.cap, R * 1.75) * 0.95;
-    ctx.fillStyle = '#3a2618'; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.fill();
+    ctx.fillStyle = P.pocketRim; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.fill();
+    if (P.ring) { ctx.strokeStyle = P.ring; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.stroke(); }
     if (!table.openPocket(i)) {
       ctx.fillStyle = '#9a6c48'; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
       ctx.strokeStyle = '#5e3c26'; ctx.lineWidth = 3; const k = R * 0.6;
       ctx.beginPath(); ctx.moveTo(p.x - k, p.y - k); ctx.lineTo(p.x + k, p.y + k); ctx.moveTo(p.x + k, p.y - k); ctx.lineTo(p.x - k, p.y + k); ctx.stroke();
     } else {
       const g = ctx.createRadialGradient(p.x, p.y, pr * 0.15, p.x, p.y, pr);
-      g.addColorStop(0, '#0d0906'); g.addColorStop(1, '#2a1c12');
+      g.addColorStop(0, P.pocket0); g.addColorStop(1, P.pocket1);
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
     }
   });
@@ -1159,11 +1177,13 @@ function drawBanner(dt) {
   banner.life -= dt;
   const a = Math.min(1, banner.life * 2, (banner.max - banner.life) * 4);
   ctx.save(); ctx.globalAlpha = Math.max(0, a);
-  ctx.fillStyle = 'rgba(251,248,240,.93)'; ctx.strokeStyle = 'rgba(120,100,70,.35)'; ctx.lineWidth = 1.5;
+  const dark = night();   // (at night: an arcade panel, dark with a neon border and a hard shadow)
+  if (dark) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.roundRect(W * 0.08 + 6, H * 0.42 - 48, W * 0.84, 108, 16); ctx.fill(); }
+  ctx.fillStyle = dark ? '#16122b' : 'rgba(251,248,240,.93)'; ctx.strokeStyle = dark ? '#35e0e8' : 'rgba(120,100,70,.35)'; ctx.lineWidth = dark ? 3 : 1.5;
   ctx.beginPath(); ctx.roundRect(W * 0.08, H * 0.42 - 54, W * 0.84, 108, 16); ctx.fill(); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#2d3a30';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = dark ? '#f6f1ff' : '#2d3a30';
   ctx.font = round?.trick ? "400 36px Bungee, sans-serif" : "800 40px 'DM Sans', sans-serif"; ctx.fillText(banner.title, W / 2, H * 0.42 - 12);
-  ctx.font = round?.trick ? "700 15px 'Chakra Petch', monospace" : "500 14px 'DM Mono', monospace"; ctx.fillStyle = '#6d7568'; ctx.fillText(banner.sub.toUpperCase(), W / 2, H * 0.42 + 26);
+  ctx.font = round?.trick ? "700 15px 'Chakra Petch', monospace" : "500 14px 'DM Mono', monospace"; ctx.fillStyle = dark ? '#35e0e8' : '#6d7568'; ctx.fillText(banner.sub.toUpperCase(), W / 2, H * 0.42 + 26);
   ctx.restore();
   if (banner.life <= 0) banner = null;
 }
@@ -1187,16 +1207,33 @@ function paintLayer(c, paint) {
   ctx = c.getContext('2d');
   try { ctx.setTransform(s * dpr, 0, 0, s * dpr, ox * dpr + P, oy * dpr + P); paint(P); } finally { ctx = keep; }
 }
+// Night: the room is painted as by day, with a still sleeping cat and the turntable's top, then darkened, least
+// round the table (the spotlight's spill). All of it in the cache, so it costs nothing a frame.
+function drawNightRoom() {
+  const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.42, W / 2, H / 2, H * 1.05);
+  g.addColorStop(0, 'rgba(10,8,26,.86)'); g.addColorStop(1, 'rgba(8,6,20,.97)');
+  ctx.fillStyle = g; ctx.fillRect(-3000, -3000, W + 6000, H + 6000);
+}
+// at night the cat by the table is only a shape, but its eyes catch the light when it wakes
+function drawCatEyes() {
+  if (table?.cat || catAnim) return;
+  const busy = catStartle > 0.05 || !!table && table.live().some(b => Math.hypot(b.vx, b.vy) > 400);
+  if (!busy) return;
+  const { x, y } = DECOR.cat, a = -0.3, c = Math.cos(a), s = Math.sin(a);
+  ctx.fillStyle = '#c9ff5c';
+  for (const [ex, ey] of [[21, 9], [30, 9]]) { ctx.beginPath(); ctx.ellipse(x + ex * c - ey * s, y + ex * s + ey * c, 3, 2.4, a, 0, TAU); ctx.fill(); }
+}
 function sceneryReady() {
-  if (scenery.view !== view || scenery.w !== canvas.width || scenery.h !== canvas.height) {
+  if (scenery.view !== view || scenery.w !== canvas.width || scenery.h !== canvas.height || scenery.night !== night()) {
     const { s, dpr, cw, ch, ox, oy } = view;
     paintLayer(scenery.room, P => {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, scenery.room.width, scenery.room.height); ctx.restore();
       const m = P / dpr;
       drawFloor(-(ox + m) / s - 20, -(oy + m) / s - 20, (cw + m - ox) / s + 20, (ch + m - oy) / s + 20);
       drawRug(); drawChair(); drawRecordBase();
+      if (night()) { drawRecordTop(0); drawCatBody(DECOR.cat.x, DECOR.cat.y, -0.3, 1, 0, false); drawNightRoom(); }
     });
-    Object.assign(scenery, { view, w: canvas.width, h: canvas.height, hole: null });
+    Object.assign(scenery, { view, w: canvas.width, h: canvas.height, hole: null, night: night() });
   }
   if (scenery.hole !== hole) { paintLayer(scenery.table, drawTableBase); scenery.hole = hole; }
 }
@@ -1213,9 +1250,8 @@ function draw(t, dt) {
     const P = Math.ceil(SHAKE_PAD * dpr), bx = Math.round(sx * dpr) - P, by = Math.round(sy * dpr) - P, world = () => ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(scenery.room, bx, by);
     world();
-    drawWindowLight(t);
-    drawRecordTop(dt);
-    drawCat(t);
+    if (night()) drawCatEyes();
+    else { drawWindowLight(t); drawRecordTop(dt); drawCat(t); }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(scenery.table, bx, by);
     world();
     drawTableLive(t, dt);
@@ -1224,11 +1260,11 @@ function draw(t, dt) {
     ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
     drawFloor(x0, y0, x1, y1);
-    drawWindowLight(t);
+    if (!night()) drawWindowLight(t);
     drawRug();
     drawChair();
     drawRecord(dt);
-    drawCat(t);
+    if (night()) { drawCatBody(DECOR.cat.x, DECOR.cat.y, -0.3, 1, 0, false); drawNightRoom(); drawCatEyes(); } else drawCat(t);
     drawTable(t, dt);
   }
   drawTableCat(t, dt);
@@ -1347,8 +1383,9 @@ function draw(t, dt) {
     ctx.globalAlpha = Math.min(1, k * 2.5);
     ctx.font = `700 ${f.size * pop}px 'DM Sans', sans-serif`;
     const tw = ctx.measureText(f.text).width;
-    ctx.fillStyle = 'rgba(251,248,240,.92)'; ctx.beginPath(); ctx.roundRect(f.x - tw / 2 - 10, f.y - f.size * 0.7, tw + 20, f.size * 1.4, f.size * 0.7); ctx.fill();
-    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y + 1);
+    ctx.fillStyle = night() ? 'rgba(22,18,43,.94)' : 'rgba(251,248,240,.92)'; ctx.beginPath(); ctx.roundRect(f.x - tw / 2 - 10, f.y - f.size * 0.7, tw + 20, f.size * 1.4, f.size * 0.7); ctx.fill();
+    if (night()) { ctx.strokeStyle = f.color; ctx.lineWidth = 2; ctx.stroke(); }
+    ctx.fillStyle = night() ? '#f6f1ff' : f.color; ctx.fillText(f.text, f.x, f.y + 1);
   }
   fx.floats = fx.floats.filter(f => f.life > 0);
   ctx.globalAlpha = 1;
@@ -1379,8 +1416,9 @@ function draw(t, dt) {
     ctx.globalAlpha = 0.25 + 0.35 * Math.sin(t * m.s + m.p) ** 2;
     ctx.drawImage(MOTE, mx - 4, my - 4, 8, 8);
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = night() ? 0.45 : 1;   // (the warm lamp washed the night table's blue felt out)
   ctx.drawImage(LAMP, W / 2 - H * 0.75, H / 2 - H * 0.75, H * 1.5, H * 1.5);
+  ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1397,10 +1435,11 @@ function draw(t, dt) {
   // the vignette: a full-screen radial gradient was being rasterised every frame, so it's painted once per size at a
   // quarter of the resolution (it's only a soft shade) and stretched over; its strength is the copy's alpha
   const vb = VIGNETTE_BUF;
-  if (vb.cw !== cw || vb.ch !== ch) {
-    vb.cw = cw; vb.ch = ch; vb.width = Math.ceil(cw / 4); vb.height = Math.ceil(ch / 4);
+  if (vb.cw !== cw || vb.ch !== ch || vb.night !== night()) {
+    vb.cw = cw; vb.ch = ch; vb.night = night(); vb.width = Math.ceil(cw / 4); vb.height = Math.ceil(ch / 4);
     const vc = vb.getContext('2d'), vg = vc.createRadialGradient(vb.width / 2, vb.height / 2, Math.min(vb.width, vb.height) * 0.35, vb.width / 2, vb.height / 2, Math.max(vb.width, vb.height) * 0.75);
-    vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, 'rgba(40,25,10,1)');
+    if (vb.night) { vg.addColorStop(0, 'rgba(10,8,30,0)'); vg.addColorStop(1, 'rgba(6,4,18,1)'); }
+    else { vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, 'rgba(40,25,10,1)'); }
     vc.fillStyle = vg; vc.fillRect(0, 0, vb.width, vb.height);
   }
   ctx.globalAlpha = 0.28 + clamp((PLAY - timeScale) / PLAY, 0, 1) * 0.45;
@@ -1418,13 +1457,13 @@ function drawTargets(t) {
   ctx.save();
   for (const o of targets) {
     if (o.hit) continue;
-    ctx.strokeStyle = `rgba(${TGT_RGB},.38)`; ctx.lineWidth = 2; ctx.setLineDash([3, 9]); ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(${tgtRGB()},.38)`; ctx.lineWidth = 2; ctx.setLineDash([3, 9]); ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(o.ax, o.ay); ctx.lineTo(o.bx, o.by); ctx.stroke(); ctx.setLineDash([]);
     const p = tgtPos(o, tgtClock), k = 0.75 + 0.25 * Math.sin(t * 4);
-    ctx.fillStyle = `rgba(${TGT_RGB},${0.12 + 0.08 * k})`; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(${TGT_RGB},${0.8 + 0.2 * k})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.stroke();
+    ctx.fillStyle = `rgba(${tgtRGB()},${0.12 + 0.08 * k})`; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(${tgtRGB()},${0.8 + 0.2 * k})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.stroke();
     ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R * 0.45, 0, TAU); ctx.stroke();
-    ctx.fillStyle = `rgba(${TGT_RGB},.95)`; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(${tgtRGB()},.95)`; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, TAU); ctx.fill();
   }
   ctx.restore();
 }

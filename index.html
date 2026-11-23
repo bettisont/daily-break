@@ -252,6 +252,56 @@
   .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;font:700 14px 'DM Sans',sans-serif;cursor:pointer}
   .btn.primary{background:var(--green);border-color:var(--green);color:#f4f6ef}
   @media (max-width:420px){ h1{font-size:15px} header{padding:6px 8px 6px 12px} #card9 .c{padding:3px 5px;font-size:10px} #info b{font-size:16px} #info > div{padding:5px 9px 6px} }
+  /* ---- the timed trial at night (23 Nov playtest: an arcade look to match its pace and lettering) ----
+     The same layout, re-coloured: a dark room, arcade panels (a 2px border and a hard offset shadow, no blur or glow)
+     and three neon accents. The par game keeps the daytime colours. The table and room are in render.js (night()). */
+  body.trial{--paper:#120f24;--panel:#1b1734;--card:#1f1a3c;--ink:#f4efff;--muted:#9d94c2;--line:#3b3266;--green:#ff3d8b;--green-dark:#a8165a;--hi:#2a2350;--gold:#ffc94a;--red:#ff5d73;--cyan:#35e0e8;--pink:#ff3d8b;--amber:#ffc94a;--hard:3px 3px 0 #05040c}
+  body.trial header{border-bottom:2px solid var(--line)}
+  body.trial h1{font:400 17px var(--disp);color:var(--pink);letter-spacing:.02em}
+  body.trial #card9 .c{background:var(--panel);border:2px solid var(--line);color:var(--muted);box-shadow:2px 2px 0 #05040c}
+  body.trial #card9 .clock{border-color:var(--cyan)} body.trial #card9 .clock b{color:var(--cyan)}
+  body.trial #card9 .clock.urgent{background:#3a0f22;border-color:var(--pink);animation:none} body.trial #card9 .clock.urgent b{color:var(--pink)}
+  body.trial #ptsVal{color:var(--amber)} body.trial #card9 .c i{color:var(--muted)}
+  body.trial .round{background:var(--panel);border:2px solid var(--line);color:var(--ink);box-shadow:2px 2px 0 #05040c}
+  body.trial #clockBar{background:var(--line)} body.trial #clockBar i{background:var(--cyan)} body.trial #clockBar.urgent i{background:var(--pink)}
+  body.trial #info{border-bottom:2px solid var(--line)} body.trial #info > div{color:var(--muted)} body.trial #info > div + div{border-left:2px solid var(--line)}
+  body.trial #info b small{color:var(--muted)}
+  body.trial #iLie{background-color:color-mix(in srgb,#ff3d8b calc(var(--heat) * 32%),transparent)}
+  body.trial #info b.hot #smX{color:color-mix(in srgb,#ff4f8f calc(var(--heat) * 100%),#ffc94a)}
+  body.trial #iLie .smbar{background:var(--line)} body.trial #iLie .smbar i{background:linear-gradient(90deg,var(--amber),var(--pink))}
+  body.trial #iLie.crack .smbar{background:#6b1c3b}
+  body.trial #iLie .mwhy span{color:var(--cyan);background:var(--panel);border:2px solid var(--cyan)} body.trial #iLie .mwhy.down span{color:var(--pink);border-color:var(--pink)}
+  body.trial #strip{background:var(--panel);border:2px solid var(--line);box-shadow:var(--hard)}
+  body.trial #stripFace{background:repeating-linear-gradient(90deg,#4a3f80 0 2px,transparent 2px 12px)}
+  body.trial #stripVal{background:var(--card);border:2px solid var(--cyan);color:var(--ink)}
+  body.trial #spinFace{background:#241d45;box-shadow:var(--hard)}
+  body.trial #spinBall.drag #spinFace{box-shadow:var(--hard),0 0 0 4px var(--amber)}
+  @keyframes spinPulseN{0%{box-shadow:var(--hard),0 0 0 0 rgba(255,201,74,.8)}100%{box-shadow:var(--hard),0 0 0 16px rgba(255,201,74,0)}}
+  body.trial #spinFace.pulse{animation:spinPulseN 1.4s ease-out infinite}
+  body.trial #pull{background:var(--panel);border:2px solid var(--pink);box-shadow:var(--hard)}
+  body.trial #pullFill{background:linear-gradient(180deg,var(--cyan),#7b5cff 60%,var(--pink))}
+  @keyframes pulseN{0%{box-shadow:var(--hard),0 0 0 0 rgba(255,61,139,.7)}100%{box-shadow:var(--hard),0 0 0 14px rgba(255,61,139,0)}}
+  body.trial #pull.pulse{animation:pulseN 1.4s ease-out infinite}
+  body.trial #demoTip{background:var(--pink)} body.trial #demoTip::after{border-left-color:var(--pink)}
+  body.trial #overlay{background:rgba(8,6,20,.78)}
+  body.trial .card{background:var(--card);border:2px solid var(--cyan);box-shadow:6px 6px 0 #05040c}
+  body.trial .card h2{color:var(--ink)} body.trial #card .big{color:var(--amber)}
+  body.trial .howto{color:#cfc8ea} body.trial .howto .ic{color:var(--cyan)}
+  body.trial .btn{background:var(--panel);border:2px solid var(--line);color:var(--ink);box-shadow:var(--hard)}
+  body.trial .btn.primary{background:var(--pink);border-color:var(--pink);color:#fff}
+  body.trial .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #05040c}
+  body.trial #share,body.trial .stats{background:var(--panel);border:2px solid var(--line)}
+  body.trial .stats div + div{border-left:2px solid var(--line)}
+  /* the tally and its chips: dark outlines instead of cream, and the neon colours */
+  body.trial #tally .tn{color:var(--amber);text-shadow:0 2px 0 #120f24,0 -2px 0 #120f24,2px 0 0 #120f24,-2px 0 0 #120f24,3px 4px 0 #05040c}
+  body.trial #tally .tn.hot{color:#ff4f8f}
+  body.trial #tally .ti{color:var(--cyan);text-shadow:0 2px 0 #120f24,0 -2px 0 #120f24,2px 0 0 #120f24,-2px 0 0 #120f24}
+  body.trial #tally .tl{color:var(--ink);background:rgba(18,15,36,.9)}
+  body.trial #tally .tx,body.trial .mchip{box-shadow:var(--hard)}
+  body.trial #tally .tx.streak,body.trial .mchip{background:var(--pink)}
+  body.trial .mchip.trick{background:#7b5cff} body.trial #tally .tx.gold,body.trial .mchip.gold{background:var(--amber);color:#120f24}
+  body.trial #timeCall{background:var(--panel);color:var(--cyan);border:2px solid var(--cyan);box-shadow:4px 4px 0 #05040c}
+  body.trial #timeCall.urgent{background:#3a0f22;color:var(--pink);border-color:var(--pink)}
 </style>
 </head>
 <body>

@@ -137,6 +137,7 @@ function trickCueHit(o) {
 // fast-forward stay in step), the table's PLAY pace otherwise.
 // (their own sky blue since the 23 Nov sweep: in gold they read as the golden pocket)
 const TGT_R = 2 * R, TGT_RGB = '110,190,230';
+const tgtRGB = () => night() ? '170,255,100' : TGT_RGB;   // (lime on the night table's blue felt)
 function makeTargets(seed, i, h, pk, cat) {
   const n = i >= 3 ? 2 : i >= 1 ? 1 : 0, rnd = rngFor(`${seed}:targets:${i}`), out = [], m = TGT_R + 10;
   // on open felt: away from the pockets, sand and rough, bumpers and the cat (only the targets' own numbers are used)
@@ -164,7 +165,7 @@ function tgtStep() {
     const b = [table.cue, ...table.balls].find(b => !b.potted && !b.uN && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < TGT_R);
     if (!b) continue;
     tshot.tgt.push(o); o.pendClock = tgtClock;
-    tone(1568, 0.06, 0.025, 'sine', 1, 0, 0.3); ring(p.x, p.y, TGT_RGB, 40, 0.5, TGT_R);   // a quiet tick: the bang at the pot is the reward
+    tone(1568, 0.06, 0.025, 'sine', 1, 0, 0.3); ring(p.x, p.y, tgtRGB(), 40, 0.5, TGT_R);   // a quiet tick: the bang at the pot is the reward
   }
 }
 

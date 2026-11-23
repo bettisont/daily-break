@@ -35,6 +35,14 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **The trial plays at night** (playtest: make the look match the pace and the new lettering; options 1-3 of the
+  proposal). The room after dark: painted as by day, then darkened in the scenery cache, least round the table; the
+  cat and turntable are still shapes (the cat's eyes catch the light when it wakes); plants are silhouettes; no window
+  light; the warm lamp at 45%. The table in flat neon (`TABLE_NIGHT`): a dark rail with a pink line, cyan cushion line
+  and sights, blue felt, pink-ringed pockets; targets lime instead of sky blue. The HUD as arcade panels: dark
+  colours (the CSS variables redefined under `body.trial`), 2px borders and hard offset shadows, no blur or glow,
+  three accents (cyan, pink, amber); the banner, floats, tally, chips, call-outs and cards to match. Nothing a frame
+  more than by day: the darkening is cached, the neon is flat strokes. The par game keeps the daytime room.
 - **The tally quicker again and higher up**: `TALLY_PACE` 0.45 (about 1.9 s for a pot, a bank and the multiplier),
   and it sits in the clearest band of the table's top quarter (`tallyBand`, 10-26% down) instead of anywhere to 62%.
 - **A snare that builds with the multiplier**: under the clap from x2.5, ghost notes from x3, a 16th-note roll into

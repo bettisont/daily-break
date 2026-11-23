@@ -82,6 +82,11 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     transition in index.html is set to match). **Meter heat**: `updateStreakMeter` sets `--heat` (0 at x1, 1 at x5)
     on `#iLie`, which drives the cell's tint, the number's size and colour and the bar's height, and counts the number
     to its new value in tenths.
+  - **Night** (`night()` in render.js: the trial): `sceneryReady` repaints when it changes; the room cache adds a
+    still cat and turntable top and `drawNightRoom` (a dark radial wash, lightest round the table); live, only
+    `drawCatEyes`. The table's colours come from `tpal()` (`TABLE_DAY` / `TABLE_NIGHT`); `drawPlant`, `drawBanner`,
+    the floats, the vignette and `tgtRGB()` switch too. The HUD's night colours are a block at the end of the CSS
+    under `body.trial` (variables redefined, `--hard` for the offset shadow).
   - **Lettering**: `newRound` puts `trial` on the body; under it (index.html) numbers and big words are Bungee (one
     weight: always 400) and small labels Chakra Petch, as is the canvas "Table N" banner. The par game is unchanged.
   - **Icons, not emoji**: `ICON` / `ic(name)` (ui.js) draw small line icons in currentColor (`.ic`); the demos'
