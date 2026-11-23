@@ -111,7 +111,15 @@
   #tally .reel.land{animation:land .22s cubic-bezier(.2,1.8,.4,1)}
   @keyframes land{from{translate:0 -10px}}
   #iLie.flash{animation:meterFlash .8s ease-out}
-  /* why the multiplier just changed: tags under the meter that fade in and out */
+  /* why the multiplier grows: each cause flies from the tally into the meter, which pulses as it lands */
+  .mchip{position:fixed;z-index:6;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap;font:800 22px 'DM Sans',sans-serif;color:#fbf8f0;background:#d8552a;padding:4px 12px;border-radius:14px;box-shadow:0 5px 14px rgba(60,45,25,.3);animation:slam .28s cubic-bezier(.2,1.6,.4,1)}
+  .mchip small{font:700 11px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-left:3px}
+  .mchip.trick{background:#3b5ea6} .mchip.gold{background:#c99a3a}
+  .mchip.fly{transition:transform .3s cubic-bezier(.55,0,.9,.45),opacity .3s;opacity:.8}
+  #iLie.gain #smX{display:inline-block;animation:meterGain .45s cubic-bezier(.2,1.8,.4,1)}
+  #iLie.gain{animation:meterFlash .6s ease-out}
+  @keyframes meterGain{30%{scale:1.45;filter:brightness(1.3)}}
+  /* why the multiplier just dropped: tags under the meter that fade in and out */
   #info{position:relative;z-index:3} #info > #iLie{overflow:visible}
   #iLie .mwhy{position:absolute;left:50%;top:calc(100% + 5px);translate:-50% 0;width:max-content;max-width:240px;z-index:4;display:flex;flex-wrap:wrap;justify-content:center;gap:3px;pointer-events:none;animation:mwhy 2.6s ease-in-out forwards}
   #iLie .mwhy span{font:700 9.5px 'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#2f6b4f;background:rgba(251,248,240,.94);border:1px solid #b9c9a8;border-radius:8px;padding:2px 6px;white-space:nowrap}

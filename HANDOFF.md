@@ -78,7 +78,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
   - **Screen.** Header: the clock (`#clockChip`, `updateClock`, plus `#clockBar` draining under the header) and Points (`#ptsChip`, built once and updated in place;
     the "Points" label hides under 370 px). Info bar: "Table 5 · 3 balls left", the multiplier meter,
     labelled "Mult" (`updateStreakMeter` shows `meterShown`, held while a tally applies the old value; when the tally
-    lands `showMultWhy` puts tags under it saying why it rose, from `multWhy`; "½ miss" / "foul: reset" on a drop; full at x5; `crackStreakMeter` when it drains) and the tilt. The lamp warms with the multiplier
+    lands, each cause in `multWhy` flies from the tally into it as a chip and it ticks up per chip (`meterGain`);
+    `showMultWhy` tags "½ miss" / "foul: reset" on a drop; full at x5; `crackStreakMeter` when it drains) and the tilt. The lamp warms with the multiplier
     (`drawLampWarmth`). Between tables a short "Table N" banner.
   - **Results.** `round.cards` holds one `{pts, tricks}` per cleared table; `round.bestMult`, `round.bestShot`. Card
     (`trickFinalHtml`): points, tables cleared and best multiplier, best shot, the rank line, "Practice run" (or "New

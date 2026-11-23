@@ -37,9 +37,11 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   Am-F-C-G, an answering B over F-G-Em-Am; `ARC_HOOK`), a syncopated bass (`ARC_BASS`), swing on the off-beat 16ths,
   off-beat chord stabs from x2, a drum fill into every fourth bar and a crash each phrase, the hook an octave up from x4
   and in the last 10 s, and a rising sweep when the multiplier goes up (falling when it drops).
-- **Why the multiplier moved** (`showMultWhy`): when a tally lands, the Mult meter rises and small tags fade in under
-  it ("+0.5 pot · +0.2 banks · +0.2 golden"); a miss shows "½ miss" and a foul "foul: reset". The meter now holds the
-  old multiplier while the tally applies it (`meterShown`), instead of jumping ahead as the balls stop.
+- **Why the multiplier moved**: the meter holds the old multiplier while a tally applies it (`meterShown`). Once the
+  shot's points have landed, each cause of the rise ("+0.5 POT", "+0.1 BANK", "+0.2 GOLDEN"; `multWhy`) pops up where the
+  tally was and flies into the Mult meter, which ticks up as each lands, with a climbing note and a pulse (`meterGain`).
+  A first version only faded small tags in under the meter; the playtest wanted it clearer and more satisfying. A
+  miss still shows a quiet "½ miss" tag ("foul: reset" for a foul; `showMultWhy`).
 
 ## 22 Nov 2026: trick scoring, on trial behind ?trick
 

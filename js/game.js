@@ -657,7 +657,7 @@ function scoreTrick() {
   hs.mult = roundMult(hs.mult + MULT.pot + MULT.trick * t.parts.length + (t.gold ? MULT.gold : 0));
   // why it rose, said quietly under the meter once the tally has landed (23 Nov playtest)
   const kinds = [...new Set(t.parts)], word = k => k === 'Extra' ? (t.balls >= 3 ? 'triple' : 'double') : k.toLowerCase();
-  multWhy = [`+${MULT.pot} pot`, ...kinds.map(k => { const c = t.parts.filter(p => p === k).length; return `+${roundMult(MULT.trick * c)} ${word(k)}${c > 1 && k !== 'Extra' ? 's' : ''}`; }), ...(t.gold ? [`+${MULT.gold} golden`] : [])];
+  multWhy = [{ inc: MULT.pot, label: 'pot' }, ...kinds.map(k => { const c = t.parts.filter(p => p === k).length; return { inc: roundMult(MULT.trick * c), label: `${word(k)}${c > 1 && k !== 'Extra' ? 's' : ''}` }; }), ...(t.gold ? [{ inc: MULT.gold, label: 'golden' }] : [])];
   round.bestMult = Math.max(round.bestMult || 1, hs.mult);
   if (!round.bestShot || gain > round.bestShot.pts) round.bestShot = { pts: gain, table: round.level + 1 };
   if (t.gold) goldUsed = true;
@@ -713,8 +713,8 @@ function finishTally() { if (tally) endTally(); }
 function endTally() {
   if (!tally) return;
   tally.timers.forEach(clearTimeout); tally.el.remove(); tally = null;
-  updateUI();   // the meter now rises to the new multiplier
-  if (multWhy) { showMultWhy(multWhy); multWhy = null; }
+  document.querySelectorAll('.mchip').forEach(c => c.remove()); multWhy = null;
+  updateUI();   // the meter shows the new multiplier (straight away if the tally was cut short)
   $('iLie')?.classList.remove('flash');
   ptsHold = false;
   const el = $('ptsVal');
@@ -792,8 +792,40 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
     box.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
     box.style.opacity = 0.7;
   });
+  // the points land: the header counts up now
   at(t + 800, () => {
-    endTally(); buzz(10);
+    box.remove(); ptsHold = false; buzz(10);
+    const pv = $('ptsVal'); if (pv) { pv.classList.remove('bump'); void pv.offsetWidth; pv.classList.add('bump'); }
+  });
+  t += 800;
+  // Then why the multiplier grows, one cause at a time (23 Nov playtest: it should be clear what raises it): each cause
+  // ("+0.5 POT", "+0.1 BANK", "+0.2 GOLDEN") pops up where the tally was and flies into the Mult meter, which ticks up
+  // as it lands (x2.5 -> x3.0 -> x3.1 -> x3.3) with a climbing note and a pulse.
+  const why = (multWhy || []).slice(); multWhy = null;
+  let mNow = meterShown;
+  why.forEach(({ inc, label }, j) => {
+    const chip = document.createElement('div');
+    const to = j === why.length - 1 ? roundMult(hs.mult) : roundMult(mNow + inc);
+    at(t, () => {
+      chip.className = `mchip${label === 'golden' ? ' gold' : label === 'pot' ? '' : ' trick'}`; chip.innerHTML = `+${inc} <small>${label}</small>`;
+      chip.style.left = el.style.left; chip.style.top = el.style.top;
+      document.body.appendChild(chip);
+      tone(note(j), 0.07, 0.03, 'triangle', 1, 0, 0.2);
+    });
+    at(t + 260, () => {
+      const m = $('smX'), a = chip.getBoundingClientRect(), b = m ? m.getBoundingClientRect() : a;
+      chip.classList.add('fly');
+      chip.style.transform = `translate(-50%,-50%) translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.5)`;
+    });
+    at(t + 560, () => {
+      chip.remove(); meterShown = to; updateStreakMeter(meterShown); meterGain();
+      tone(note(j + 2) * 2, 0.16, 0.05, 'sine', 1, 0, 0.5); tone(note(j + 2) * 3, 0.12, 0.02, 'sine', 1, 0.02, 0.5); buzz(8);
+    });
+    mNow = to;
+    t += 330;
+  });
+  at(t + (why.length ? 420 : 0), () => {
+    endTally();
     // once per device, and not as a hole ends (it would sit over the next hole's banner): where the explanation is
     if (phase === 'aim' && !ls('dailybreak:shotLogTip')) { ls('dailybreak:shotLogTip', '1'); $('ptsChip')?.classList.add('tip'); float(W / 2, H * 0.2, 'Tap Points to see how it added up', '#2f6b4f', 18, 3); }
   });

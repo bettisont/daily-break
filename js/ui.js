@@ -69,6 +69,11 @@ function showMultWhy(bits, down = false) {
   el.appendChild(w);
   setTimeout(() => w.remove(), 2600);
 }
+// a cause landing in the meter: it pulses and glows for a moment
+function meterGain() {
+  const el = $('iLie');
+  el.classList.remove('gain'); void el.offsetWidth; el.classList.add('gain');
+}
 // a reset: the meter shakes and flashes red as it drains
 function crackStreakMeter() {
   const el = $('iLie');
