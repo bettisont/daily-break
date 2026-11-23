@@ -535,7 +535,7 @@ function drawSkew(dt) {
   }
 }
 function release() {
-  if (round?.trick) round.started = true;   // the timed run's clock starts with its first shot (23 Nov playtest)
+  if (round?.trick) { round.started = true; trackPractice('pstart'); }   // the timed run's clock starts with its first shot (23 Nov playtest)
   const c = table.cue, d = contactDiff(), first = !ls('dailybreak:firstShot');
   const real = contact(d), ct = first ? { tip: { x: aim.spotX, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, side: aim.side, power } : real;
   const teach = first && real.quality !== 'clean' && real.quality !== 'perfect' ? { tip: real.tip, quality: real.quality } : null;
@@ -999,6 +999,7 @@ function endRound() {
   track('finish');
   try { localStorage.removeItem(runKey()); } catch {}
   round.done = true; round.points = hs.points; phase = 'over';
+  trackPractice('pfinish', { points: Math.round(round.points || 0) });   // (practice runs only)
   if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak, ...(round.trick ? { trick: true, shotLog: round.shotLog || [], multLog: round.multLog || [], bestMult: round.bestMult || 1, bestShot: round.bestShot || null } : {}) })); sendResult(); }
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
   if (round.trick) { setTimeout(() => { if (phase === 'over') showFinal(false); }, 600); return; }   // straight to the card
@@ -1167,6 +1168,15 @@ function track(step, extra) {
   if (ls(key)) return;
   ls(key, '1');
   const body = JSON.stringify({ day: round.seed, step, ...extra });
+  try { if (navigator.sendBeacon?.('/api/event', new Blob([body], { type: 'application/json' }))) return; } catch {}
+  fetch('/api/event', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
+}
+// Practice runs of the timed game (23 Nov: to know how many are played): 'pstart' at a run's first shot and 'pfinish'
+// with its points, once each a run, anonymous, from the live site only (not ?trick test runs or local files).
+function trackPractice(step, extra) {
+  if (location.hostname !== 'dailybreak.app' || isMe() || trickFlag || !round?.trick || round.ranked || round['sent_' + step]) return;
+  round['sent_' + step] = true;
+  const body = JSON.stringify({ day: todayKey(), step, ...extra });
   try { if (navigator.sendBeacon?.('/api/event', new Blob([body], { type: 'application/json' }))) return; } catch {}
   fetch('/api/event', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {});
 }

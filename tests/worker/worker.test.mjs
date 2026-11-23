@@ -167,6 +167,13 @@ await check('other paths -> assets', async () => {
   eq(await r.text(), 'asset', 'body');
 });
 
+await check("practice events: pstart and pfinish {points} -> 204; pfinish without points -> 400", async () => {
+  const env = fakeEnv();
+  eq((await worker.fetch(post('/api/event', { day: today, step: 'pstart' }), env)).status, 204, 'pstart');
+  eq((await worker.fetch(post('/api/event', { day: today, step: 'pfinish', points: 12345 }), env)).status, 204, 'pfinish');
+  eq(env.points.EVENTS.at(-1).doubles, [1, 12345], 'pfinish points');
+  eq((await worker.fetch(post('/api/event', { day: today, step: 'pfinish' }), env)).status, 400, 'no points');
+});
 // share cards: a fake PNG header (signature + IHDR with the size), padded
 function png(w, h, size = 100) {
   const b = new Uint8Array(size); b.set([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82]);

@@ -8,7 +8,8 @@
 //                   and is counted in the DayCounts Durable Object. Replies with that day's tally.
 // POST /api/event   one anonymous funnel step {day, step} (open, opennew/openback, intro, pull, shot, clear1, level3,
 //                   finish), sent at most once per device per day; Analytics Engine dataset daily_break_events.
-//                   'left' (page hidden before the first shot) adds {secs, where: intro|table|pulled}.
+//                   'left' (page hidden before the first shot) adds {secs, where: intro|table|pulled}. Practice runs
+//                   of the timed game send 'pstart' (first shot) and 'pfinish' {points}, once a run, no IDs.
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
 //                   so the result card can say "better than X% of today's players". With &mode=par:
 //                   { players, scores: { "<score to par>": count } }. With &mode=trial: { players, scores:
@@ -128,7 +129,7 @@ async function cardPage(env, id) {
 <meta http-equiv="refresh" content="0;url=/"></head><body style="background:#120f24"><script>location.replace('/')</script></body></html>`;
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } });
 }
-const STEPS = new Set(['open', 'opennew', 'openback', 'intro', 'pull', 'shot', 'clear1', 'level3', 'finish', 'left']);
+const STEPS = new Set(['open', 'opennew', 'openback', 'intro', 'pull', 'shot', 'clear1', 'level3', 'finish', 'left', 'pstart', 'pfinish']);   // (pstart/pfinish: practice runs of the timed game, 23 Nov)
 const WHERE = new Set(['intro', 'table', 'pulled']);
 async function recordEvent(request, env) {
   let e;
@@ -138,6 +139,12 @@ async function recordEvent(request, env) {
   if (e.step === 'left') {
     if (!int(e.secs, 0, 86400) || !WHERE.has(e.where)) return new Response('bad event', { status: 400 });
     env.EVENTS?.writeDataPoint({ indexes: [e.day], blobs: [e.day, e.step, e.where], doubles: [1, e.secs] });
+    return new Response(null, { status: 204 });
+  }
+  // 'pfinish' (a practice run finished) also carries its points
+  if (e.step === 'pfinish') {
+    if (!int(e.points, 0, TRIAL_MAX)) return new Response('bad event', { status: 400 });
+    env.EVENTS?.writeDataPoint({ indexes: [e.day], blobs: [e.day, e.step], doubles: [1, e.points] });
     return new Response(null, { status: 204 });
   }
   env.EVENTS?.writeDataPoint({ indexes: [e.day], blobs: [e.day, e.step], doubles: [1] });

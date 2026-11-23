@@ -76,6 +76,33 @@ def left_report(rows, days=14):
     return '\n'.join(out + [''])
 
 
+def fetch_practice(acc, days):
+    sql = (f"SELECT blob1 AS day, blob2 AS step, double2 AS points, _sample_interval AS n FROM daily_break_events "
+           f"WHERE blob2 IN ('pstart', 'pfinish') AND timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY FORMAT JSON")
+    return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+def practice_report(rows, days=14):
+    # practice runs of the timed game (from 23 Nov 2026): started (first shot) and finished, with the finished runs' points
+    started, done = Counter(), defaultdict(list)
+    for r in rows:
+        n = int(float(r['n']))
+        if r['step'] == 'pstart':
+            started[r['day']] += n
+        else:
+            done[r['day']] += [int(float(r['points']))] * n
+    out = ['## Practice runs (timed game; not ranked)', '']
+    days_seen = sorted(set(started) | set(done), reverse=True)[:days]
+    if not days_seen:
+        return '\n'.join(out + ['None recorded yet (it starts from 23 Nov 2026).', ''])
+    out += ['| Day | Started | Finished | Average | Median | Best |', '|---|---|---|---|---|---|']
+    for day in days_seen:
+        p = sorted(done[day]); k = len(p)
+        stats = f'{round(sum(p) / k):,} | {p[(k - 1) // 2]:,} | {p[-1]:,}' if k else '– | – | –'
+        out.append(f"| {dt.date.fromisoformat(day).strftime('%a %-d %b')} | {started[day]} | {k} | {stats} |")
+    return '\n'.join(out + [''])
+
+
 VISITS_Q = """query($acc: string!, $since: Date!) { viewer { accounts(filter: {accountTag: $acc}) {
   days: rumPageloadEventsAdaptiveGroups(limit: 100, filter: {date_geq: $since, requestHost: "dailybreak.app"}, orderBy: [date_DESC]) { count sum { visits } dimensions { date } }
   refs: rumPageloadEventsAdaptiveGroups(limit: 8, filter: {date_geq: $since, requestHost: "dailybreak.app"}, orderBy: [sum_visits_DESC]) { sum { visits } dimensions { refererHost } }
@@ -204,6 +231,10 @@ if __name__ == '__main__':
         print(trick_report(fetch_trick(days, acc), days))
     except Exception as e:   # nor over the trick table
         print(f'## Timed-trial runs\n\nCould not read them: {e}\n')
+    try:
+        print(practice_report(fetch_practice(acc, days), days))
+    except Exception as e:
+        print(f'## Practice runs\n\nCould not read them: {e}\n')
     try:
         print(funnel_report(fetch_funnel(acc, days), days))
     except Exception as e:   # the events dataset only exists once the first event arrives
