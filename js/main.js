@@ -16,7 +16,8 @@ function busy(now) {
   return phase !== 'aim' && phase !== 'over' || hold || drag || demo || spinDemo || cine || lip || zoom
     || now - lastInput < 1500 || fx.shake > 0.05 || fx.glow > 0 || banner || (stamp && stamp.t < 0.5) || trayFly.length
     || fx.particles.length || fx.rings.length || fx.floats.length || fx.sinks.length || fx.confetti.length || fx.flashes.length
-    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || streakGlowBusy() || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
+    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || streakGlowBusy() || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points)
+    || (phase === 'aim' && guideSim.res?.todo.length);   // (the guide still working through its paces: stepGuide)
 }
 // The timed trial (23 Nov: phones got hot; you're touching the screen nearly all the time, so it was 60 fps for the
 // whole run): 60 only for real motion (balls rolling, the strike and its close-up, pulling the cue, the camera, bursts

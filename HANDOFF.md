@@ -99,6 +99,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     `POT_MAX_SPEED` 1050; `potMax`). Measured on 36 holes at four firm paces: pots 160 -> 300, rattle-outs 217 -> 73.
   - `NO_GATE_FROM` 2026-11-16: the one-way gate leaves the feature deck (sand and the cat only).
   - `TUNNELS_FROM` 2026-11-17: the deck is sand, the cat and a tunnel (`featureKeys`).
+  - `NO_TILT_FROM` 2026-11-25: no tilted tables (`buildHole` still draws the tilt's numbers so everything else is dealt
+    as before; only the tilt is zeroed). The guide draws straight lines, and a tilt curved the balls up to 45° off them.
   - Folded in and always on (the old branches are deleted): par scoring and table shapes (12 Nov), spread-out racks
     (13 Nov), the short round with features and golden pockets (14 Nov). So 12-13 Nov no longer regenerate as they
     were played, and an old `?seed=` date opens a par practice round.
@@ -115,8 +117,11 @@ cue down the right.
    order. A "Tap a ball to target it" tip shows on hole 3 until the player has done it (`dailybreak:tappedBall`).
 2. **Aim.** Swipe the full-width aim strip like a scroll wheel (`js/input.js`): `AIM_FINE` 0.01° per pixel on slow
    swipes, gearing up smoothly (`aimGear`, above 120 px/s) to `AIM_GEAR_MAX` 24x (0.24°/px) on fast ones. A tap near
-   either end nudges `AIM_NUDGE` 0.02°; arrow keys 0.02° (Shift: 1°). When the thumb lifts, up to `LIFT_PX` 3 px of
-   movement in the last `LIFT_MS` 60 ms is undone (the finger rolling off the glass). Why so fine: a 0.1° error can
+   either end nudges `AIM_NUDGE` 0.02°; arrow keys 0.02° (Shift: 1°). Since 23 Nov: a press is a tap only if all its
+   movement was a lift-off roll and it lasted under 350 ms (a tap takes back anything it turned, then nudges); when the
+   thumb lifts, at most `LIFT_PX` 3 px that started in the last `LIFT_MS` 25 ms, after the finger was still for
+   `LIFT_STILL_MS` 80 ms, is undone (the finger rolling off the glass); the gearing reads the speed over the last
+   `GEAR_MS` 50 ms, so the same swipe turns the same whatever the touch events' timing. Why so fine: a 0.1° error can
    move a long object-ball line by a whole pocket; the old 0.04°/px and 0.1° taps couldn't place long pots. The
    readout (`aimOffset`) shows hundredths of a degree from dead centre on the ball the line actually hits (not the
    one first targeted, which once gave readings like 115°). Dragging anywhere on the table also turns the cue,
@@ -136,8 +141,16 @@ cue down the right.
      (`finishGuide`). A line into a pocket the ball wouldn't drop into fades out 2.5 R short of it. Why: the ring and
      line used to be decided separately and rings flickered on pockets the line didn't go near (a second ball, an
      undrawn bank) while lines ran into side pockets without lighting.
-   - The ring doesn't depend on how hard you pull: the guide assumes the right pace; judging pace is the player's
-     job. It never shows where balls stop. The Perfect edge (below) isn't assumed.
+   - The ring doesn't depend on how hard you pull, but since 23 Nov the pull cue's track shows the paces that drop
+     the lit pot as green bands (`setPaceBand`). It never shows where balls stop.
+   - Since 23 Nov (an aim review): a pot lights only if it drops struck perfectly AND as a Perfect strike
+     (`potsPerfect`, `guidePotsAt(..., perfect)`); the sims only run when the drawn path ends in or passes within
+     cap + 1.5 R of a pocket (`guideCandidates`); paces are tried nearest your pull first, a few a frame within
+     `GUIDE_BUDGET` 3 ms (`stepGuide`, memoised per aim in `guideSim.res`), with `GUIDE_PACES_MID` tried too when the
+     line ends in a pocket nothing pots into; a line ending in the jaws of a pocket it pots into lights; a bank off a
+     shaped table's corner bounces radially (`trace`); a leg off a bumper or the cat comes from a sim at your pace
+     (`bumperBounce`). The spin hint runs on to the next cushion when side is set and marks a scratch anywhere in the
+     shot. A mis-hit's spin is capped at what the spin ball allows.
    - The moment the aim lands on a pot (`guideLock`) the line and ring flare for 0.6 s with a few sparkles, at most
      once a second so a sweep sets off one burst. No sound.
    - Cushions are counted the guide's own way (`guideWalls`, from each ball's `wallPts`): every contact, except

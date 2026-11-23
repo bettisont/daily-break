@@ -37,6 +37,18 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   Am-F-C-G, an answering B over F-G-Em-Am; `ARC_HOOK`), a syncopated bass (`ARC_BASS`), swing on the off-beat 16ths,
   off-beat chord stabs from x2, a drum fill into every fourth bar and a crash each phrase, the hook an octave up from x4
   and in the last 10 s, and a rising sweep when the multiplier goes up (falling when it drops).
+- **No tilted tables from 25 Nov** (`RULES.NO_TILT_FROM`; asked for after the aim review): the guide draws straight
+  lines, and a tilt curved the balls up to 45° off them on thin cuts. The tilt's random numbers are still drawn, so
+  everything else on a table is dealt as before; 56 future courses (and two practice seeds) changed in the snapshot,
+  nothing on or before 24 Nov. The trial's third info cell shows tables cleared instead of the tilt.
+- **Aim guide review** (a subagent measured it: the object-ball line was already exact on flat tables, 0.000° over
+  13,685 samples). Fixed: the guide's cost while fine-aiming (sims only near a pocket, nearest pace first, spread
+  over frames: median 3.4 -> 0.5 ms a frame, p95 8.5 -> 4.5); the ring flickering across gaps between guide paces
+  (in-between paces); a pot lighting that a Perfect strike would miss (it must drop both ways now); jaw pots staying
+  dark; banks off shaped-table corners drawn up to 99° out; bumper and cat legs 2-3° out (now from a sim at your pace);
+  a lit ring not saying at what pace (green bands on the pull cue); side spin invisible in the half-second hint and
+  late scratches unmarked; a mis-hit giving more spin than the spin ball allows; the slow-motion finish mispredicting
+  Perfect strikes; the aim tick out of step with the readout; a cheaper lit line.
 - **Why the multiplier moved**: the meter holds the old multiplier while a tally applies it (`meterShown`). Once the
   shot's points have landed, each cause of the rise ("+0.5 POT", "+0.1 BANK", "+0.2 GOLDEN"; `multWhy`) pops up where the
   tally was and flies into the Mult meter, which ticks up as each lands, with a climbing note and a pulse (`meterGain`).
