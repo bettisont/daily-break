@@ -1425,7 +1425,9 @@ function draw(t, dt) {
   drawContact(dt);
   catStartle = Math.max(0, catStartle - dt * 1.2);
   if (table) drawTray(dt, S, OX, OY);
-  // a warm golden glow round the edges on pots, stronger as a streak builds
+  // a warm golden glow round the edges on pots, stronger as a streak builds (not in the timed run: 23 Nov playtest,
+  // the golden flashes were annoying)
+  if (round?.trick) fx.glow = 0;
   if (fx.glow > 0) {
     fx.glow = Math.max(0, fx.glow - dt * 1.4);
     const gg = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.3, cw / 2, ch / 2, Math.max(cw, ch) * 0.7);

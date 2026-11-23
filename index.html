@@ -94,10 +94,7 @@
   #tally .tn.pop{animation:tallyPop .28s cubic-bezier(.2,1.8,.4,1)}
   @keyframes tallyPop{30%{scale:1.18}}
   #tally .tn.win{animation:tallyWin .7s cubic-bezier(.2,.8,.3,1)}
-  @keyframes tallyWin{0%{scale:1;filter:brightness(1)}30%{scale:1.16;filter:brightness(1.35);text-shadow:0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0,0 0 26px rgba(255,200,80,.95),0 0 60px rgba(255,170,60,.7)}100%{scale:1;filter:none}}
-  #tally .tn::before{content:'';position:absolute;inset:-30px -40px;z-index:-1;border-radius:50%;background:radial-gradient(closest-side,rgba(255,214,110,.55),rgba(255,214,110,0));opacity:0;pointer-events:none}
-  #tally .tn.win::before{animation:bloom .9s ease-out}
-  @keyframes bloom{0%{opacity:0;scale:.5}30%{opacity:1;scale:1.1}100%{opacity:0;scale:1.4}}
+  @keyframes tallyWin{30%{scale:1.16}}   /* just a punch: the gold glow, bloom and sparkles went (23 Nov playtest: annoying) */
   #tally .ti{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);white-space:nowrap;font:800 22px 'DM Sans',sans-serif;color:#3b5ea6;text-shadow:0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0;animation:tallyIn .18s cubic-bezier(.2,1.6,.4,1)}
   #tally .ti small,#tally .tl{font:700 12px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase}
   #tally .ti small{vertical-align:middle;margin-left:2px;font-size:11px}
@@ -270,6 +267,8 @@
   body.trial #info b.hot #smX{color:color-mix(in srgb,#ff4f8f calc(var(--heat) * 100%),#ffc94a)}
   body.trial #iLie .smbar{background:var(--line)} body.trial #iLie .smbar i{background:linear-gradient(90deg,var(--amber),var(--pink))}
   body.trial #iLie.crack .smbar{background:#6b1c3b}
+  @keyframes meterFlashN{0%,30%{background:rgba(255,61,139,.3)}100%{background:transparent}}   /* (no gold flash: 23 Nov playtest) */
+  body.trial #iLie.flash{animation:meterFlashN .8s ease-out} body.trial #iLie.gain{animation:meterFlashN .6s ease-out}
   body.trial #iLie .mwhy span{color:var(--cyan);background:var(--panel);border:2px solid var(--cyan)} body.trial #iLie .mwhy.down span{color:var(--pink);border-color:var(--pink)}
   body.trial #strip{background:var(--panel);border:2px solid var(--line);box-shadow:var(--hard)}
   body.trial #stripFace{background:repeating-linear-gradient(90deg,#4a3f80 0 2px,transparent 2px 12px)}

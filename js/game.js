@@ -812,7 +812,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
   };
   // each multiplier, slot-machine style: "x2.5 STREAK" slams in beside the number (the streak meter flashes: that's
   // where it comes from), the digits spin like reels and stop left to right on the new total, and it lands with a
-  // tuned chime and a golden bloom
+  // tuned chime and a punch (no golden bloom since 23 Nov)
   muls.forEach(([label, m], i) => {
     if (label === 'Mult') causes();   // the multiplier goes up first, then the new value is applied
     const chip = document.createElement('span'), to = i === muls.length - 1 ? gain : now * m, from = now;
@@ -847,7 +847,6 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
       chip.classList.add('melt'); setTimeout(() => chip.remove(), 280);
       pop('win'); if (label === 'Mult') { box.classList.add('hot'); bigMoment(m, gain, box); }
       sfx.ding(m);
-      sparkle(W / 2, ty, '#ffe9a8', 30, 180); sparkle(W / 2, ty, '#ffd06a', 16, 120);
       buzz([12, 20, 12]);
     });
     now = to;
