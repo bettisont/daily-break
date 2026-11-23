@@ -111,6 +111,12 @@
   #tally .reel.land{animation:land .22s cubic-bezier(.2,1.8,.4,1)}
   @keyframes land{from{translate:0 -10px}}
   #iLie.flash{animation:meterFlash .8s ease-out}
+  /* why the multiplier just changed: tags under the meter that fade in and out */
+  #info{position:relative;z-index:3} #info > #iLie{overflow:visible}
+  #iLie .mwhy{position:absolute;left:50%;top:calc(100% + 5px);translate:-50% 0;width:max-content;max-width:240px;z-index:4;display:flex;flex-wrap:wrap;justify-content:center;gap:3px;pointer-events:none;animation:mwhy 2.6s ease-in-out forwards}
+  #iLie .mwhy span{font:700 9.5px 'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#2f6b4f;background:rgba(251,248,240,.94);border:1px solid #b9c9a8;border-radius:8px;padding:2px 6px;white-space:nowrap}
+  #iLie .mwhy.down span{color:#b8553f;border-color:#e8a99a}
+  @keyframes mwhy{0%{opacity:0;transform:translateY(-4px)}12%,75%{opacity:1;transform:none}100%{opacity:0}}
   @keyframes meterFlash{0%,30%{background:#f6c27a}100%{background:transparent}}
   #tally .ti.in{transition:transform .18s cubic-bezier(.6,0,.9,.4),opacity .18s;transform:translateX(-50%) translateY(-70px) scale(.5);opacity:0}
   /* the Points chip opens the breakdown */

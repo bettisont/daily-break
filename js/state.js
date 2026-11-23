@@ -75,6 +75,8 @@ let tshot = null, thole = { pts: 0, tricks: [] };
 // trick scoring: this table's moving targets and their clock (physics time while the balls roll), the run's clock
 // (seconds of aiming time left; lastShot once it has hit zero), and whether the header's count-up is held for a tally
 let targets = [], tgtClock = 0, shotClock0 = 0, ptsHold = false, trialLeft = TRIAL_S, lastShot = false;
+// the multiplier the meter shows (it holds while a tally applies the old one), and why it last rose (multWhy)
+let meterShown = 1, multWhy = null;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 // Animation: a ball on the lip gets slow motion and a heartbeat (lip),

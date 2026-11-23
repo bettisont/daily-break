@@ -22,7 +22,8 @@ function updateUI() {
   $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
   if (round.trick) {
     $('iHole').innerHTML = `Table ${round.level + 1}<b>${left} ball${left === 1 ? '' : 's'} left</b>`;
-    updateStreakMeter(roundMult(hs.mult));
+    if (!tally) meterShown = roundMult(hs.mult);   // (held while a tally applies the old one)
+    updateStreakMeter(meterShown);
   } else { $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`; $('iLie').classList.remove('max'); }
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
@@ -54,6 +55,17 @@ function updateStreakMeter(m) {
   $('smX').parentElement.classList.toggle('hot', m > 1);
   $('smFill').style.width = `${Math.min(1, (m - 1) / 4) * 100}%`;   // (no cap on the multiplier; the bar is full at x5)
   el.classList.toggle('max', m >= 3);
+}
+// Why the multiplier just changed: small tags under the meter ("+0.5 pot · +0.1 bank · +0.2 golden", or "½ miss"),
+// fading in and out on their own.
+function showMultWhy(bits, down = false) {
+  const el = $('iLie');
+  el.querySelector('.mwhy')?.remove();
+  const w = document.createElement('div');
+  w.className = `mwhy${down ? ' down' : ''}`;
+  w.innerHTML = bits.map(b => `<span>${b}</span>`).join('');
+  el.appendChild(w);
+  setTimeout(() => w.remove(), 2600);
 }
 // a reset: the meter shakes and flashes red as it drains
 function crackStreakMeter() {

@@ -72,7 +72,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     a blip in the last 10 s). Only under the trial with the music on; `playChord` (the piano) skips the trial.
   - **Screen.** Header: the clock (`#clockChip`, `updateClock`, plus `#clockBar` draining under the header) and Points (`#ptsChip`, built once and updated in place;
     the "Points" label hides under 370 px). Info bar: "Table 5 · 3 balls left", the multiplier meter,
-    labelled "Mult" (`updateStreakMeter`, full at x5; `crackStreakMeter` when it drains) and the tilt. The lamp warms with the multiplier
+    labelled "Mult" (`updateStreakMeter` shows `meterShown`, held while a tally applies the old value; when the tally
+    lands `showMultWhy` puts tags under it saying why it rose, from `multWhy`; "½ miss" / "foul: reset" on a drop; full at x5; `crackStreakMeter` when it drains) and the tilt. The lamp warms with the multiplier
     (`drawLampWarmth`). Between tables a short "Table N" banner.
   - **Results.** `round.cards` holds one `{pts, tricks}` per cleared table; `round.bestMult`, `round.bestShot`. Card
     (`trickFinalHtml`): points, tables cleared and best multiplier, best shot, the rank line, "Practice run" (or "New

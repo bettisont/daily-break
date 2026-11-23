@@ -26,6 +26,9 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   an upbeat chiptune loop in A minor whose tempo rises with the multiplier (112 bpm at x1 to 132 at x5) and again in
   the last 30 and 10 s, with layers coming in as the multiplier builds (hats, then 16ths, an arpeggio from x2, a snare
   from x3). It replaces the electric-piano chords under the trial only, and stops when the run ends.
+- **Why the multiplier moved** (`showMultWhy`): when a tally lands, the Mult meter rises and small tags fade in under
+  it ("+0.5 pot · +0.2 banks · +0.2 golden"); a miss shows "½ miss" and a foul "foul: reset". The meter now holds the
+  old multiplier while the tally applies it (`meterShown`), instead of jumping ahead as the balls stop.
 
 ## 22 Nov 2026: trick scoring, on trial behind ?trick
 

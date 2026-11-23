@@ -173,7 +173,7 @@ function tgtStep() {
 function newRound(seed, ranked) {
   if (trickFlag) ranked = false;   // the ?trick trial never counts as anyone's daily round
   round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
-  hs = { points: 0, streak: 0, mult: 1 }; shownPts = 0; trialLeft = TRIAL_S; lastShot = false;
+  hs = { points: 0, streak: 0, mult: 1 }; shownPts = 0; trialLeft = TRIAL_S; lastShot = false; meterShown = 1; multWhy = null;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
   tshot = null; thole = { pts: 0, tricks: [] }; endTally(); round.shotLog = []; $('card9').innerHTML = '';
   const saved = ranked ? ls(parKey(seed)) : null;
@@ -643,7 +643,7 @@ function breakStreak(foul) {
   if (!round.trick) return;
   const was = hs.mult;
   hs.mult = foul ? 1 : roundMult(1 + (hs.mult - 1) / 2);
-  if (was - hs.mult >= 0.25) { if (foul || was >= 2) sfx.fizzle(); crackStreakMeter(); }
+  if (was - hs.mult >= 0.25) { if (foul || was >= 2) sfx.fizzle(); crackStreakMeter(); showMultWhy([foul ? 'foul: reset' : '½ miss'], true); }
 }
 // Trick scoring: a shot that potted something, with no foul. 100 a pot, 200 for each trick element seen as the balls
 // dropped (trickDrop), doubled by the golden pocket, times the streak. The tally then shows it (showTally).
@@ -655,6 +655,9 @@ function scoreTrick() {
   const gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * gold * mult);
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   hs.mult = roundMult(hs.mult + MULT.pot + MULT.trick * t.parts.length + (t.gold ? MULT.gold : 0));
+  // why it rose, said quietly under the meter once the tally has landed (23 Nov playtest)
+  const kinds = [...new Set(t.parts)], word = k => k === 'Extra' ? (t.balls >= 3 ? 'triple' : 'double') : k.toLowerCase();
+  multWhy = [`+${MULT.pot} pot`, ...kinds.map(k => { const c = t.parts.filter(p => p === k).length; return `+${roundMult(MULT.trick * c)} ${word(k)}${c > 1 && k !== 'Extra' ? 's' : ''}`; }), ...(t.gold ? [`+${MULT.gold} golden`] : [])];
   round.bestMult = Math.max(round.bestMult || 1, hs.mult);
   if (!round.bestShot || gain > round.bestShot.pts) round.bestShot = { pts: gain, table: round.level + 1 };
   if (t.gold) goldUsed = true;
@@ -710,6 +713,8 @@ function finishTally() { if (tally) endTally(); }
 function endTally() {
   if (!tally) return;
   tally.timers.forEach(clearTimeout); tally.el.remove(); tally = null;
+  updateUI();   // the meter now rises to the new multiplier
+  if (multWhy) { showMultWhy(multWhy); multWhy = null; }
   $('iLie')?.classList.remove('flash');
   ptsHold = false;
   const el = $('ptsVal');
