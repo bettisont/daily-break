@@ -688,8 +688,8 @@ const TRICK_WHY = { Bank: 'the ball came off a cushion', Kick: 'the cue ball hit
 // number was for is kept (logShot) and shown when the Points chip is tapped (showShotLog).
 let tally = null;
 // the tally's pace: every step's timing (and the moves between them) times this (23 Nov playtest: quicker and smaller,
-// it was in the way of getting on with the next shot)
-const TALLY_PACE = 0.6;
+// it was in the way of getting on with the next shot; 0.6, then 0.45 the same day)
+const TALLY_PACE = 0.45;
 function rollNum(el, from, to, ms, pre = '') {
   const t0 = performance.now();
   // (k is clamped: the first frame's timestamp can come before t0, which made the number dip below `from`)
@@ -736,13 +736,13 @@ function endTally() {
   if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 }
 // Where the tally goes (23 Nov sweep: at a fixed 30% it covered balls on a quarter of holes, most on small phones):
-// the band of the table, between the top and the lower part where the cue is, that's furthest from any ball or
-// target, preferring the upper half. Returns the table y; the screen position comes from the view.
+// the band in the table's top quarter that's furthest from any ball or target (23 Nov playtest: higher up, out of the
+// way of the next shot; it used to range down to 62%). Returns the table y; the screen position comes from the view.
 function tallyBand() {
   const things = [table.cue, ...table.balls].filter(b => !b.potted).map(b => b.y).concat(targets.filter(o => !o.hit).flatMap(o => [o.ay, o.by]));
-  let best = H * 0.3, bestScore = -1;
-  for (const f of [0.2, 0.26, 0.32, 0.38, 0.44, 0.5, 0.56, 0.62]) {
-    const y = H * f, clear = Math.min(...things.map(v => Math.abs(v - y)), 400), score = clear - (f > 0.45 ? 30 : 0);
+  let best = H * 0.18, bestScore = -1;
+  for (const f of [0.1, 0.14, 0.18, 0.22, 0.26]) {
+    const y = H * f, clear = Math.min(...things.map(v => Math.abs(v - y)), 400), score = clear;
     if (score > bestScore) { bestScore = score; best = y; }
   }
   return best;

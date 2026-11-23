@@ -78,7 +78,7 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     (`arcSnare`) under the clap from x2.5, ghost notes from x3, a roll into every 4th bar from x3.5, every 2nd from x4.5. Multiplier up: the
     filter jumps open and settles back. Down: the drums drop out until the next bar but one (`ARC.dropTo`) and the
     filter dips. Each run starts from the top. Only under the trial with the music on; `playChord` skips it.
-  - **Tally pace**: `TALLY_PACE` (0.6) scales every step of `showTally` and the moves between them (the `.mchip.fly`
+  - **Tally pace**: `TALLY_PACE` (0.45) scales every step of `showTally` and the moves between them (the `.mchip.fly`
     transition in index.html is set to match). **Meter heat**: `updateStreakMeter` sets `--heat` (0 at x1, 1 at x5)
     on `#iLie`, which drives the cell's tint, the number's size and colour and the bar's height, and counts the number
     to its new value in tenths.
