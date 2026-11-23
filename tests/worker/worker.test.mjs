@@ -33,15 +33,22 @@ function fakeEnv({ limiters = true } = {}) {
     async tallyTrial(d) { const s = tricks[d] || {}; return { players: sum(s), scores: s }; },
     async addTrial(d, b) { const s = (tricks[d] ||= {}); s[b] = (s[b] || 0) + 1; return { players: sum(s), scores: s }; },
   };
+  const store = {};
+  const cardsObj = {
+    async put(id, img, meta) { store[id] = { img, meta: { ...meta, at: Date.now() } }; },
+    async meta(id) { return store[id]?.meta || null; },
+    async image(id) { return store[id]?.img || null; },
+  };
   const points = { RESULTS: [], EVENTS: [] };
   const env = {
     ASSETS: { fetch: async () => new Response('asset', { status: 200 }) },
     DAYS: { idFromName: n => n, get: () => days },
+    CARDS: { idFromName: n => n, get: () => cardsObj },
     RESULTS: { writeDataPoint: p => points.RESULTS.push(p) },
     EVENTS: { writeDataPoint: p => points.EVENTS.push(p) },
     points,
   };
-  if (limiters) { env.RESULT_LIMIT = fakeLimiter(5); env.EVENT_LIMIT = fakeLimiter(30); }
+  if (limiters) { env.RESULT_LIMIT = fakeLimiter(5); env.EVENT_LIMIT = fakeLimiter(30); env.CARD_LIMIT = fakeLimiter(5); }
   return env;
 }
 
@@ -160,5 +167,40 @@ await check('other paths -> assets', async () => {
   eq(await r.text(), 'asset', 'body');
 });
 
+// share cards: a fake PNG header (signature + IHDR with the size), padded
+function png(w, h, size = 100) {
+  const b = new Uint8Array(size); b.set([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82]);
+  const dv = new DataView(b.buffer); dv.setUint32(16, w); dv.setUint32(20, h); return b;
+}
+const postCard = (q, body, ip = '203.0.113.9') => new Request('https://dailybreak.app/api/card' + q, { method: 'POST', headers: { 'content-type': 'image/png', 'cf-connecting-ip': ip }, body });
+await check('share card: upload, preview page and image', async () => {
+  const env = fakeEnv();
+  const res = await worker.fetch(postCard(`?points=48210&day=${today}`, png(1200, 630)), env);
+  eq(res.status, 200, 'upload status');
+  const { id } = await res.json();
+  if (!/^[A-Za-z0-9]{10}$/.test(id)) throw new Error('id: ' + id);
+  const page = await worker.fetch(new Request('https://dailybreak.app/r/' + id), env), html = await page.text();
+  eq(page.status, 200, 'page status');
+  if (!html.includes(`og:image" content="https://dailybreak.app/r/${id}.png"`) || !html.includes('48,210 points on Daily Break')) throw new Error('page: ' + html.slice(0, 300));
+  const img = await worker.fetch(new Request(`https://dailybreak.app/r/${id}.png`), env);
+  eq([img.status, img.headers.get('content-type'), (await img.arrayBuffer()).byteLength], [200, 'image/png', 100], 'image');
+});
+await check('share card: practice day ok; wrong size, not a PNG, too big, bad points -> refused', async () => {
+  const env = fakeEnv();
+  eq((await worker.fetch(postCard('?points=10&day=practice', png(1200, 630)), env)).status, 200, 'practice');
+  eq((await worker.fetch(postCard(`?points=10&day=${today}`, png(1080, 1350)), env)).status, 400, 'wrong size');
+  eq((await worker.fetch(postCard(`?points=10&day=${today}`, new Uint8Array(100)), env)).status, 400, 'not png');
+  eq((await worker.fetch(postCard(`?points=10&day=${today}`, png(1200, 630, 300_001)), env)).status, 413, 'too big');
+  eq((await worker.fetch(postCard(`?points=-1&day=${today}`, png(1200, 630)), env)).status, 400, 'bad points');
+  eq((await worker.fetch(postCard('?points=10&day=2020-01-01', png(1200, 630), '203.0.113.50'), env)).status, 400, 'old day');
+});
+await check('share card: 6th upload in a minute -> 429; unknown id -> redirect / 404', async () => {
+  const env = fakeEnv();
+  for (let i = 0; i < 5; i++) await worker.fetch(postCard('?points=1&day=practice', png(1200, 630)), env);
+  eq((await worker.fetch(postCard('?points=1&day=practice', png(1200, 630)), env)).status, 429, '6th');
+  const page = await worker.fetch(new Request('https://dailybreak.app/r/AAAAAAAAAA'), env);
+  eq([page.status, page.headers.get('location')], [302, 'https://dailybreak.app/'], 'unknown page');
+  eq((await worker.fetch(new Request('https://dailybreak.app/r/AAAAAAAAAA.png'), env)).status, 404, 'unknown image');
+});
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

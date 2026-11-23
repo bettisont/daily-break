@@ -98,6 +98,10 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     weight: always 400) and small labels Chakra Petch, as is the canvas "Table N" banner. The par game is unchanged.
   - **Icons, not emoji**: `ICON` / `ic(name)` (ui.js) draw small line icons in currentColor (`.ic`); the demos'
     pointer is a `.touch` dot. Emoji are left only in the par share card (⛳ and the coloured squares).
+  - **Link previews**: `uploadPreview` sends `drawPreviewCard` (1200x630 PNG) to POST /api/card once a run on the
+    real site; the id (`round.shareId`, kept in today's result) makes the share link dailybreak.app/r/<id>. The
+    worker's `ShareCards` Durable Object (binding CARDS) keeps each card 30 days; GET /r/<id> is an og:image page that
+    sends people on to the game, GET /r/<id>.png the image.
   - **Share**: `trickShareText` (score and tables, best multiplier and best shot, `multStrip` of `round.multLog`, the
     rank, the link) and an image card (`prepShareCard` draws it with `drawShareCard` when the result shows and when
     the rank arrives; `shareResult` attaches it via `navigator.share({ files })` on phones; "Save image" elsewhere).

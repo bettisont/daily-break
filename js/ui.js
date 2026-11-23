@@ -296,7 +296,80 @@ async function prepShareCard() {
     if (shareCard.url) URL.revokeObjectURL(shareCard.url);
     shareCard.file = new File([blob], `daily-break-${round.seed}.png`, { type: 'image/png' });
     shareCard.url = URL.createObjectURL(blob);
+    uploadPreview(round);
   } catch (e) { console.error('share card', e); }
+}
+// The link preview (23 Nov): a landscape copy of the card goes up to the server once a run (POST /api/card), and the
+// share text then links to dailybreak.app/r/<id>, which chat apps show with that card. Only on the real site; if it
+// fails the share keeps the plain link. The id is kept with today's result so coming back to the card reuses it.
+function uploadPreview(r) {
+  if (r.shareId || r.shareUp || location.hostname !== 'dailybreak.app') return;
+  r.shareUp = (async () => {
+    const blob = await new Promise(res => drawPreviewCard(r).toBlob(res, 'image/png'));
+    if (!blob) return;
+    const day = r.ranked && isDailySeed(r.seed) ? r.seed : 'practice';
+    const res = await fetch(`/api/card?points=${Math.round(r.points || 0)}&day=${day}`, { method: 'POST', headers: { 'content-type': 'image/png' }, body: blob });
+    const j = res.ok ? await res.json() : null;
+    if (!j?.id || !/^[A-Za-z0-9]{10}$/.test(j.id)) return;
+    r.shareId = j.id;
+    if (r.ranked) { try { const k = parKey(r.seed), rec = JSON.parse(ls(k)); if (rec) ls(k, JSON.stringify({ ...rec, shareId: j.id })); } catch {} }
+    if (round === r && $('share')) $('share').textContent = shareText();
+  })().catch(e => console.error('preview upload', e)).finally(() => { r.shareUp = null; });
+}
+// the same card, landscape (1200x630) for link previews: the score and date on the left, the badges and the
+// multiplier strip on the right
+function drawPreviewCard(r) {
+  const Wc = 1200, Hc = 630, c = document.createElement('canvas'); c.width = Wc; c.height = Hc;
+  const g = c.getContext('2d'), DISP = 'Bungee, sans-serif', LAB = "'Chakra Petch', monospace";
+  const PINK = '#ff3d8b', CYAN = '#35e0e8', AMBER = '#ffc94a', PURPLE = '#7b5cff', INK = '#f4efff', HARD = '#05040c';
+  g.fillStyle = '#120f24'; g.fillRect(0, 0, Wc, Hc);
+  g.fillStyle = '#16294a'; g.beginPath(); g.roundRect(40, 40, Wc - 80, Hc - 80, 36); g.fill();
+  g.lineWidth = 7; g.strokeStyle = PINK; g.stroke();
+  g.lineWidth = 3.5; g.strokeStyle = CYAN; g.beginPath(); g.roundRect(64, 64, Wc - 128, Hc - 128, 24); g.stroke();
+  g.fillStyle = HARD; for (const [x, y] of [[40, 40], [Wc / 2, 40], [Wc - 40, 40], [40, Hc - 40], [Wc / 2, Hc - 40], [Wc - 40, Hc - 40]]) { g.beginPath(); g.arc(x, y, 26, 0, Math.PI * 2); g.fill(); g.lineWidth = 4; g.strokeStyle = PINK; g.stroke(); }
+  const text = (s, x, y, font, col, align = 'center', shadow = 0) => {
+    g.font = font; g.textAlign = align; g.textBaseline = 'alphabetic';
+    if (shadow) { g.fillStyle = HARD; g.fillText(s, x + shadow, y + shadow); }
+    g.fillStyle = col; g.fillText(s, x, y);
+  };
+  const fit = (s, font, size, maxW) => { g.font = font.replace('SZ', size); while (g.measureText(s).width > maxW && size > 20) { size -= 4; g.font = font.replace('SZ', size); } return font.replace('SZ', size); };
+  const L = 330;   // the left column's centre
+  text('DAILY BREAK', L, 165, `400 58px ${DISP}`, PINK, 'center', 5);
+  text(isDailySeed(r.seed) && r.ranked ? dayLabel(r.seed).toUpperCase() : 'PRACTICE RUN', L, 212, `700 30px ${LAB}`, CYAN);
+  const pts = fmtPts(r.points || 0);
+  text(pts, L, 380, fit(pts, `400 SZpx ${DISP}`, 130, 470), AMBER, 'center', 8);
+  text('POINTS', L, 430, `700 30px ${LAB}`, INK);
+  text('DAILYBREAK.APP', L, 520, `400 30px ${DISP}`, INK);
+  const best = r.bestShot, n = tablesCleared(r), badges = [['BEST', fmtMult(r.bestMult || 1), PINK, '#fff'], ['TABLES', String(n), PURPLE, '#fff'], ...(best ? [['BEST SHOT', fmtPts(best.pts), AMBER, '#120f24']] : [])];
+  const R0 = 640, RW = 470, bw = (RW - (badges.length - 1) * 14) / badges.length;
+  badges.forEach(([lab, val, bg, fg], k) => {
+    const x = R0 + k * (bw + 14), y = 130;
+    g.fillStyle = HARD; g.beginPath(); g.roundRect(x + 6, y + 6, bw, 116, 20); g.fill();
+    g.fillStyle = bg; g.beginPath(); g.roundRect(x, y, bw, 116, 20); g.fill();
+    text(lab, x + bw / 2, y + 40, `700 22px ${LAB}`, fg);
+    text(val, x + bw / 2, y + 94, fit(val, `400 SZpx ${DISP}`, 46, bw - 20), fg);
+  });
+  const bars = multStrip(r.multLog, 24);
+  if (bars) {
+    const lv = [...bars].map(ch => STRIP_BARS.indexOf(ch)), bwid = Math.min(36, RW / lv.length), top = 300, h = 160, sx = R0 + (RW - lv.length * bwid) / 2;
+    lv.forEach((l, k) => {
+      const bh = 14 + (h - 14) * l / 7;
+      g.fillStyle = l >= 6 ? PINK : l >= 3 ? '#ff7a5c' : AMBER; g.beginPath(); g.roundRect(sx + k * bwid, top + h - bh, bwid * 0.78, bh, 5); g.fill();
+    });
+    text('MULTIPLIER, SHOT BY SHOT', R0 + RW / 2, top + h + 42, `700 22px ${LAB}`, '#9d94c2');
+  }
+  return c;
+}
+// "Copy image": the card onto the clipboard, to paste into any chat (23 Nov playtest). Where the browser can put an
+// image there (Safari and Chrome can; the card is made beforehand, so the copy happens inside the tap).
+const canCopyImage = () => !!(window.ClipboardItem && navigator.clipboard?.write);
+async function copyShareCard(b) {
+  const done = t => { b.textContent = t; setTimeout(() => { b.textContent = 'Copy image'; }, 1800); };
+  try {
+    const blob = shareCard.file || new Promise((res, rej) => prepShareCard().then(() => shareCard.file ? res(shareCard.file) : rej(new Error('no card'))));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    done('Copied!');
+  } catch (e) { console.error('copy image', e); done('Couldn’t copy'); }
 }
 function saveShareCard(b) {
   if (!shareCard.url) { b.textContent = 'One moment…'; prepShareCard().then(() => { b.textContent = 'Save image'; if (shareCard.url) saveShareCard(b); }); return; }
@@ -431,6 +504,7 @@ $('card').addEventListener('click', e => {
   if ('close' in b.dataset) { if (!ls('dailybreak:seenHelp')) track('intro'); ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
   else if ('copy' in b.dataset) shareResult(b);
   else if ('saveimg' in b.dataset) saveShareCard(b);
+  else if ('copyimg' in b.dataset) copyShareCard(b);
   else if ('trynew' in b.dataset) { $('overlay').classList.remove('show'); newRound(Math.random().toString(36).slice(2, 8), false); }   // ?trick: another course, no practice used
   else if ('random' in b.dataset) startPractice(Math.random().toString(36).slice(2, 8));   // a fresh random course
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
