@@ -115,8 +115,13 @@
   #tally .ti.in{transition:transform .18s cubic-bezier(.6,0,.9,.4),opacity .18s;transform:translateX(-50%) translateY(-70px) scale(.5);opacity:0}
   /* the Points chip opens the breakdown */
   #card9 button.c{cursor:pointer;font:500 11px 'DM Mono',monospace}
-  /* the timed trial's clock */
-  #card9 .clock b{font-variant-numeric:tabular-nums;min-width:4.2ch;text-align:center;display:inline-block}
+  /* the timed trial's clock: a bigger chip, and a bar under the header that drains with it */
+  #card9 .clock{padding:3px 9px}
+  #card9 .clock b{font:800 15px 'DM Sans',sans-serif;font-variant-numeric:tabular-nums;min-width:3.4ch;text-align:center;display:inline-block;letter-spacing:0}
+  #clockBar{width:min(100%,640px);margin-inline:auto;height:4px;background:var(--line)}
+  #clockBar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2f6b4f,#3d8758);transition:width .25s linear}
+  #clockBar.urgent i{background:linear-gradient(90deg,#d8452a,#e8742a);animation:urgentBar .5s ease-in-out infinite alternate}
+  @keyframes urgentBar{to{opacity:.55}}
   #card9 .clock.urgent{background:#f6d3c8;border-color:#d8552a;animation:urgent 1s ease-in-out infinite}
   #card9 .clock.urgent b{color:#b8352a}
   @keyframes urgent{50%{background:#fbe6df}}
@@ -219,6 +224,7 @@
       <button class="round" id="help" title="How to play">?</button>
     </div>
   </header>
+  <div id="clockBar" hidden><i></i></div>
   <div id="info"><div id="iHole"></div><div id="iLie"></div><div id="iTilt"></div></div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">

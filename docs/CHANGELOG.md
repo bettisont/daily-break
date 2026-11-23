@@ -21,6 +21,11 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   gone (it was never live).
 - **Test**: `tests/run.js trial` plays a short real run and checks every shot against the rules.
 - Seen in bot runs: with no cap a near-perfect player reaches x15 and about 300,000 points; a sloppy one about 58,000.
+- Same day, after a playtest: the clock is bigger, with a bar under the header that drains with it (red and pulsing in
+  the last 10 s); "Streak" is now "Mult" on screen; and the trial has its own soundtrack (`arcadeTick`, `arcadeStep`):
+  an upbeat chiptune loop in A minor whose tempo rises with the multiplier (112 bpm at x1 to 132 at x5) and again in
+  the last 30 and 10 s, with layers coming in as the multiplier builds (hats, then 16ths, an arpeggio from x2, a snare
+  from x3). It replaces the electric-piano chords under the trial only, and stops when the run ends.
 
 ## 22 Nov 2026: trick scoring, on trial behind ?trick
 

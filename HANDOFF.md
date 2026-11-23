@@ -66,9 +66,13 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     shot's breakdown (`TRICK_WHY`, the sum) in `round.shotLog` (newest first, at most 30), shown by tapping the Points
     chip or pressing P (`showShotLog`; a one-off tip, `dailybreak:shotLogTip`). Text on the table only for something
     going wrong (scratch, miscue, pushed off line, rattled out); a foul says "multiplier lost".
-  - **Screen.** Header: the clock (`#clockChip`, `updateClock`) and Points (`#ptsChip`, built once and updated in place;
-    the "Points" label hides under 370 px). Info bar: "Table 5 · 3 balls left", the multiplier meter
-    (`updateStreakMeter`, full at x5; `crackStreakMeter` when it drains) and the tilt. The lamp warms with the multiplier
+  - **Soundtrack** (`arcadeTick` every 30 ms schedules `arcadeStep` 16ths 0.15 s ahead on the audio clock, into
+    `arcadeBus`): A minor, Am-F-C-G; 112 bpm + 5 per multiplier step to x5, +8 under 30 s, +16 under 10 s; layers by
+    multiplier (kick and bass; hats from x1.5, 16ths from x2; arpeggio from x2, an octave up from x4; snare from x3;
+    a blip in the last 10 s). Only under the trial with the music on; `playChord` (the piano) skips the trial.
+  - **Screen.** Header: the clock (`#clockChip`, `updateClock`, plus `#clockBar` draining under the header) and Points (`#ptsChip`, built once and updated in place;
+    the "Points" label hides under 370 px). Info bar: "Table 5 · 3 balls left", the multiplier meter,
+    labelled "Mult" (`updateStreakMeter`, full at x5; `crackStreakMeter` when it drains) and the tilt. The lamp warms with the multiplier
     (`drawLampWarmth`). Between tables a short "Table N" banner.
   - **Results.** `round.cards` holds one `{pts, tricks}` per cleared table; `round.bestMult`, `round.bestShot`. Card
     (`trickFinalHtml`): points, tables cleared and best multiplier, best shot, the rank line, "Practice run" (or "New

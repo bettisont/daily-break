@@ -40,12 +40,16 @@ function updateClock() {
   const txt = lastShot ? 'Last shot' : `${Math.floor(Math.ceil(trialLeft) / 60)}:${String(Math.ceil(trialLeft) % 60).padStart(2, '0')}`;
   if (el.textContent !== txt) el.textContent = txt;
   $('clockChip').classList.toggle('urgent', lastShot || trialLeft <= 10);
+  // and a thin bar under the header that drains with it (23 Nov: the clock should be more obvious)
+  const bar = $('clockBar');
+  bar.hidden = false; bar.classList.toggle('urgent', lastShot || trialLeft <= 10);
+  bar.firstChild.style.width = `${clamp(trialLeft / TRIAL_S, 0, 1) * 100}%`;
 }
 // Trick scoring's streak meter (22 Nov): the multiplier, and a bar under it that fills and heats up from x1 to x3,
 // with a flame from x2, pulsing at x3. Built once and updated, so its animations aren't restarted every update.
 function updateStreakMeter(m) {
   const el = $('iLie');
-  if (!$('smX')) el.innerHTML = 'Streak<b><span id="smX"></span></b><span class="smbar"><i id="smFill"></i></span>';
+  if (!$('smX')) el.innerHTML = 'Mult<b><span id="smX"></span></b><span class="smbar"><i id="smFill"></i></span>';   // (was "Streak" until 23 Nov)
   $('smX').textContent = `${fmtMult(m)}${m >= 2 ? ' 🔥' : ''}`;
   $('smX').parentElement.classList.toggle('hot', m > 1);
   $('smFill').style.width = `${Math.min(1, (m - 1) / 4) * 100}%`;   // (no cap on the multiplier; the bar is full at x5)

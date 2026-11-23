@@ -29,6 +29,7 @@ function ensureAudio() {
   }
   syncAudio();
   if (!musicTimer) { playChord(); musicTimer = setInterval(playChord, 6400); }
+  if (!ARC.timer) ARC.timer = setInterval(arcadeTick, 30);
 }
 // Sounds can be placed left/right by where they happen on the table (set `pan` around a call with atX).
 let pan = 0;
@@ -87,11 +88,36 @@ function epiano(f, t, len, vol) {
   g.connect(trem).connect(musicBus); lfo.start(t); lfo.stop(t + len + 0.1);
 }
 function playChord() {
-  if (!audio || !musicOn || muted || document.hidden) return;
+  if (!audio || !musicOn || muted || document.hidden || round?.trick) return;   // (the timed trial has its own soundtrack)
   const t = audio.currentTime + 0.05, ch = CHORDS[chordIdx++ % CHORDS.length];
   ch.forEach((f, k) => epiano(f, t + k * 0.035, 6, k ? 0.016 : 0.022));
   const mel = [523.25, 587.33, 659.25, 783.99, 880];
   for (let k = 0; k < 3; k++) if (Math.random() < 0.55) epiano(mel[Math.floor(Math.random() * mel.length)], t + 1.6 + k * 1.3 + Math.random() * 0.3, 2.2, 0.012);
+}
+// The timed trial's soundtrack (23 Nov): an upbeat chiptune loop, A minor, Am-F-C-G, scheduled a little ahead on the
+// audio clock (arcadeTick every 30 ms, ARC_AHEAD seconds of 16th notes). It reacts to the run: the tempo rises with the
+// multiplier (112 bpm at x1, 132 at x5) and again in the last 30 and 10 seconds, and layers come in as the multiplier
+// builds (kick and bass; hats from x1.5, then 16ths; an arpeggio from x2; a snare from x3; a high blip in the last 10 s).
+// It plays only under the trial, with the music on, and stops when the run ends.
+const ARC = { next: 0, step: 0, timer: null }, ARC_AHEAD = 0.15;
+const ARC_PROG = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]];
+let arcadeBus = null;
+function arcadeTick() {
+  if (!audio || audio.state !== 'running' || !round?.trick || round.done || !musicOn || muted || document.hidden) { ARC.next = 0; return; }
+  if (!arcadeBus) { arcadeBus = audio.createGain(); arcadeBus.gain.value = 0.8; arcadeBus.connect(master); }
+  const now = audio.currentTime, m = Math.min(hs?.mult || 1, 5), late = lastShot || trialLeft <= 10;
+  if (ARC.next < now) ARC.next = now + 0.05;
+  const bpm = 112 + (m - 1) * 5 + (late ? 16 : trialLeft <= 30 ? 8 : 0), s16 = 60 / bpm / 4;
+  while (ARC.next < now + ARC_AHEAD) { arcadeStep(ARC.step, ARC.next - now, m, late); ARC.next += s16; ARC.step = (ARC.step + 1) % 64; }
+}
+function arcadeStep(st, d, m, late) {
+  const i = st % 16, ch = ARC_PROG[Math.floor(st / 16)], B = arcadeBus;
+  if (i % 4 === 0) tone(150, 0.16, 0.26, 'sine', 0.3, d, 0, B);   // kick: four on the floor
+  if (i % 2 === 0) tone(ch[0] / (i % 4 === 2 ? 1 : 2), 0.11, 0.07, 'triangle', 1, d, 0, B);   // bass: octave bounce on the root
+  if (m >= 2 ? true : m >= 1.5 ? i % 2 === 1 : i % 4 === 2) noise(0.03, m >= 2 && i % 2 === 0 ? 0.02 : 0.035, 8000, 'highpass', d, 0.7, B);   // hats
+  if (m >= 2) tone(ch[[0, 1, 2, 1][i % 4]] * (m >= 4 ? 4 : 2), 0.07, 0.022, 'square', 1, d, 0, B);   // arpeggio (an octave up from x4)
+  if (m >= 3 && (i === 4 || i === 12)) noise(0.11, 0.09, 1800, 'bandpass', d, 0.8, B);   // snare
+  if (late && i % 8 === 0) tone(ch[2] * 4, 0.05, 0.018, 'square', 1, d, 0, B);   // urgency blip
 }
 const POT_SCALE = [392, 440, 523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];
 const sfx = {

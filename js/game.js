@@ -661,7 +661,7 @@ function scoreTrick() {
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
   if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
-  const muls = [...(t.gold ? [['Golden', 2, 'into the golden pocket']] : []), ...(mult > 1 ? [['Streak', mult, 'your multiplier, built by the pots and tricks before this shot']] : [])];
+  const muls = [...(t.gold ? [['Golden', 2, 'into the golden pocket']] : []), ...(mult > 1 ? [['Mult', mult, 'your multiplier, built by the pots and tricks before this shot']] : [])];
   showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots, pots === 1 ? '1 ball potted' : `${pots} balls potted`], items, muls, gain);
 }
 // what each element is for, in the breakdown behind the Points chip
@@ -763,15 +763,15 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
     const chip = document.createElement('span'), to = i === muls.length - 1 ? gain : now * m, from = now;
     t += 150;
     at(t, () => {
-      chip.className = `tx ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
+      chip.className = `tx ${label === 'Mult' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
       box.appendChild(chip);
-      if (label === 'Streak') { const sm = $('iLie'); sm.classList.remove('flash'); void sm.offsetWidth; sm.classList.add('flash'); }
+      if (label === 'Mult') { const sm = $('iLie'); sm.classList.remove('flash'); void sm.offsetWidth; sm.classList.add('flash'); }
       buzz(12);
     });
     at(t + 250, () => spinTo(n, from, to, 480));
     at(t + 760, () => {
       chip.classList.add('melt'); setTimeout(() => chip.remove(), 280);
-      pop('win'); if (label === 'Streak') box.classList.add('hot');
+      pop('win'); if (label === 'Mult') box.classList.add('hot');
       sfx.ding(m);
       sparkle(W / 2, ty, '#ffe9a8', 30, 180); sparkle(W / 2, ty, '#ffd06a', 16, 120);
       buzz([12, 20, 12]);
