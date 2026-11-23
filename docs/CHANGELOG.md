@@ -43,6 +43,10 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   lines, and a tilt curved the balls up to 45° off them on thin cuts. The tilt's random numbers are still drawn, so
   everything else on a table is dealt as before; 56 future courses (and two practice seeds) changed in the snapshot,
   nothing on or before 24 Nov. The trial's third info cell shows tables cleared instead of the tilt.
+- **A kiss shows** (`kissAt`; playtest: a line into a pocket stayed dark because, with the spin set, the white came back
+  into the object ball, and nothing showed it while aiming): when a line into a pocket isn't lit, one sim at your pace
+  checks whether the cue ball meets that ball again; if so its path to there is drawn faintly with a small red cross.
+  (A version that labelled every reason a line wasn't lit was tried first and taken out the same day.)
 - **Aim guide review** (a subagent measured it: the object-ball line was already exact on flat tables, 0.000° over
   13,685 samples). Fixed: the guide's cost while fine-aiming (sims only near a pocket, nearest pace first, spread
   over frames: median 3.4 -> 0.5 ms a frame, p95 8.5 -> 4.5); the ring flickering across gaps between guide paces

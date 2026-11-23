@@ -769,6 +769,31 @@ function guideCandidates(c, dx, dy, hit) {
   return out;
 }
 let guidePath = null;   // (set by drawGuide: its objPath, for guideCandidates)
+// A kiss (23 Nov playtest: a line into a pocket stayed dark because, with the spin set, the cue ball came back into the
+// object ball, and nothing showed it while aiming). One sim at your pace (0.05 steps) follows the cue ball after it
+// first hits the ball: if it meets that ball again, its path up to there comes back, with the point where they meet.
+function kissAt(ball) {
+  const pw = Math.max(0.05, Math.round((hold ? power : (lastPower || 0.4)) * 20) / 20), k = `${guideSim.key}:${pw}`;
+  if (guideSim.kiss?.k === k) return guideSim.kiss.v;
+  const bi = table.balls.indexOf(ball);
+  let v = null;
+  if (bi >= 0) {
+    const s = cloneTable(table); s.shoot(aim.angle, pw, aim.spin, aim.side);
+    const sb = s.balls[bi], c = s.cue, pts = [];
+    let apart = false;
+    for (let n = 0; n < 6000 && s.moving() && !sb.potted && !c.potted; n++) {
+      s.step();
+      if (s.shot.firstHit !== sb) { if (s.shot.firstHit) break; continue; }   // (only when this ball is the one hit first)
+      if (!pts.length) pts.push([c.x, c.y]);
+      else if (n % 3 === 0) pts.push([c.x, c.y]);
+      const d = Math.hypot(c.x - sb.x, c.y - sb.y);
+      if (d > 2 * R + 3) apart = true;
+      else if (apart && d < 2 * R + 0.5) { pts.push([c.x, c.y]); v = { pts, x: (c.x + sb.x) / 2, y: (c.y + sb.y) / 2 }; break; }
+    }
+  }
+  guideSim.kiss = { k, v };
+  return v;
+}
 // Work through the current aim's paces (guideSim.res.todo), at least one and then as many as fit in GUIDE_BUDGET ms.
 // A pace adds the pockets the followed ball drops into, struck perfectly and Perfect. If none of the paces pots into
 // the pocket the line ends in, the in-between paces are tried too (some pots only drop between two guide paces).
@@ -902,7 +927,19 @@ function drawGuide(c, dx, dy, hit, t) {
     const segs = [], end = objPath(px, py, ux, uy, skip, from, 0, 0, segs);
     if (end != null && guideSim.potsInto.has(end)) { guideSim.pks = [end]; onTargetPath(segs); return; }
     // The line points into a pocket the ball doesn't actually drop into (it clips the jaws, or a bank comes off the
-    // cushion a little differently): fade it out short of the pocket, so it never looks like it goes in unlit.
+    // cushion a little differently): fade it out short of the pocket, so it never looks like it goes in unlit. If it's
+    // because the cue ball comes back into it (a kiss), show the cue ball's path to there and a small red cross.
+    if (end != null && segs.length && !guideSim.res?.todo.length) {
+      const kz = kissAt(skip);
+      if (kz && kz.pts.length > 1) {
+        ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(251,248,240,.5)'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); kz.pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+        const r = 7, X = () => { ctx.beginPath(); ctx.moveTo(kz.x - r, kz.y - r); ctx.lineTo(kz.x + r, kz.y + r); ctx.moveTo(kz.x + r, kz.y - r); ctx.lineTo(kz.x - r, kz.y + r); ctx.stroke(); };
+        ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.lineWidth = 6; X();   // a light outline, so it reads on the felt
+        ctx.strokeStyle = '#e0573d'; ctx.lineWidth = 3.5; X();
+        ctx.restore();
+      }
+    }
     if (end != null && segs.length) {
       const [ax, ay, bx, by] = segs[segs.length - 1], L = Math.hypot(bx - ax, by - ay), k = Math.max(0, L - 2.5 * R) / (L || 1);
       segs[segs.length - 1] = [ax, ay, ax + (bx - ax) * k, ay + (by - ay) * k, segs[segs.length - 1][4], true];
