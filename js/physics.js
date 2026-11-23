@@ -115,11 +115,13 @@ class Table {
       for (let i = 0; i < 6 && !potted; i++) {
         if (!this.openPocket(i)) continue;
         const pk = this.pk[i], dx = b.x - pk.x, dy = b.y - pk.y, d = Math.hypot(dx, dy);
-        // a Perfect strike's shot gets slightly kinder pockets: a touch wider and harder to rattle out of
+        // a Perfect strike's shot gets kinder pockets: a touch wider, and its object balls never rattle out for pace
+        // (23 Nov playtest: a perfect hit shouldn't be punished for power; it was 15% more pace before). The cue ball
+        // still rattles (a rattle there saves a scratch). Course generation never sets shot.perfect: no course changes.
         const pf = s?.perfect;
         if (d >= pk.cap * (pf ? PERFECT_POCKET : 1)) continue;
         const sp = Math.hypot(b.vx, b.vy);
-        if (sp > potMax(this.hole) * (pf ? PERFECT_POCKET_PACE : 1)) {
+        if (!(pf && !b.isCue) && sp > potMax(this.hole)) {
           // too hot: it rattles in the jaws and spits back out
           const nx = dx / (d || 1), ny = dy / (d || 1), vn = b.vx * nx + b.vy * ny;
           if (vn < 0) { b.vx = (b.vx - 2 * vn * nx) * 0.4; b.vy = (b.vy - 2 * vn * ny) * 0.4; }
