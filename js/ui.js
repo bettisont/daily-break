@@ -425,7 +425,9 @@ function drawShareCard(r) {
 const canNativeShare = () => !!navigator.share && matchMedia('(pointer: coarse)').matches;
 async function shareResult(b) {
   const text = shareText();
-  if (canNativeShare()) {
+  // the timed run: one button, Copy result (23 Nov playtest): the text and its link, whose preview is the card. (The
+  // share sheet with the image attached, Copy image and Save image were taken off the card; the code stays.)
+  if (canNativeShare() && !round?.trick) {
     // the timed run: the image card goes with the text when the phone can share files (it's made beforehand, so the
     // share starts inside the tap: iOS refuses one that waits on anything)
     const file = round?.trick && shareCard.file;

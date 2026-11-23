@@ -1042,9 +1042,7 @@ function showFinal(already) {
     <div id="rank" hidden></div>
     <div id="share" hidden>${shareText()}</div>
     <div class="row">
-      <button class="btn primary" data-copy>${canNativeShare() ? 'Share' : 'Copy'} result</button>
-      ${canCopyImage() ? '<button class="btn" data-copyimg>Copy image</button>' : ''}
-      ${canNativeShare() ? '' : '<button class="btn" data-saveimg>Save image</button>'}
+      <button class="btn primary" data-copy>Copy result</button>
       <button class="btn" data-trynew>${trickFlag ? 'New run' : 'Practice run'}</button>
       ${!round.ranked && !trickFlag ? `<button class="btn" data-daily>Today's run</button>` : ''}
     </div>
