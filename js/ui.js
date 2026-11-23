@@ -295,14 +295,14 @@ const TRICK_INTRO = `
     <div class="k mono">Daily Break · daily pool</div>
     <h2>Two minutes. Pot with style.</h2>
     <div class="howto">
-      <p>${ic('clock')}You have <b>2 minutes</b> of aiming time: the clock stops while the balls roll. Clear a table and the next one deals in.</p>
+      <p>${ic('clock')}You have <b>2 minutes</b> of aiming time: the clock starts with your first shot and stops while the balls roll. Clear a table and the next one deals in.</p>
       <p>${ic('ball')}Every pot is 100 points. Tricks add more: a bank, a combination, two in one, a moving target, a long pot…</p>
       <p>${ic('mult')}Each pot raises your <b>multiplier</b>, and tricks raise it faster. A miss halves it; a foul resets it.</p>
       <p>${ic('pull')}Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
 const TRICK_HELP = `
-      <p>${ic('clock')}<b>A two-minute run.</b> The clock (top left) counts only while you're aiming: it stops while the balls roll, the score adds up and the next table deals in. Clear a table and the next one comes: one ball, then two, then three, with new shapes and things in the way. When the clock runs out you get <b>one last shot</b>. Everyone plays the same tables each day.</p>
+      <p>${ic('clock')}<b>A two-minute run.</b> The clock (top left) starts with your first shot and counts only while you're aiming: it stops while the balls roll, the score adds up and the next table deals in. Clear a table and the next one comes: one ball, then two, then three, with new shapes and things in the way. When the clock runs out you get <b>one last shot</b>. Everyone plays the same tables each day.</p>
       <p>${ic('ball')}<b>Points:</b> every pot is <b>100</b>. <b>Tricks</b> add to a shot that pots: <b>+200</b> each for a <b>bank</b> (the ball comes off a cushion), a <b>combination</b> (potted by another ball), a <b>cannon</b> (the cue ball hits two balls before one drops), <b>two or three in one</b>, a pot through a <b>tunnel</b>, or a ball rolling through a moving <b>target</b> ring before anything drops; <b>+100</b> for a <b>kick</b> (the cue ball hits a cushion first). A <b>long pot</b>, from more than halfway down the table to its pocket, adds <b>+150</b> (it doesn't raise the multiplier). The first pot into a table's <b>golden pocket</b> doubles the shot.</p>
       <p>${ic('mult')}<b>Multiplier:</b> every shot that pots raises it, by 0.5, plus 0.1 for each trick and 0.2 for the golden pocket, with no limit, and the shot is then multiplied by the new value. A <b>miss halves</b> what you've built above ×1; a <b>foul</b> (a scratch, or hitting nothing) resets it to ×1 and scores nothing.</p>
       <p>${ic('info')}Tap <b>Points</b> at the top (or press P) to see how each shot added up.</p>`;

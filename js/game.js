@@ -515,6 +515,7 @@ function drawSkew(dt) {
   }
 }
 function release() {
+  if (round?.trick) round.started = true;   // the timed run's clock starts with its first shot (23 Nov playtest)
   const c = table.cue, d = contactDiff(), first = !ls('dailybreak:firstShot');
   const real = contact(d), ct = first ? { tip: { x: aim.spotX, y: aim.spotY }, quality: 'clean', off: 0, spin: aim.spin, side: aim.side, power } : real;
   const teach = first && real.quality !== 'clean' && real.quality !== 'perfect' ? { tip: real.tip, quality: real.quality } : null;
@@ -1074,7 +1075,7 @@ function saveRun(nextLevel) {
   if (!round.ranked || !isDailySeed(round.seed) || round.done || ls(parKey(round.seed))) return;
   const fresh = nextLevel != null;
   ls(runKey(), JSON.stringify({
-    par: true, trick: round.trick, log: round.shotLog || [], hole: fresh ? { pts: 0, tricks: [] } : thole,
+    par: true, trick: round.trick, started: !!round.started, log: round.shotLog || [], hole: fresh ? { pts: 0, tricks: [] } : thole,
     left: trialLeft, last: lastShot, mult: hs.mult, bestMult: round.bestMult || 1, bestShot: round.bestShot || null, tg: fresh ? null : targets.map(o => o.hit ? 1 : 0), level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
     points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes, bonus: fresh ? 0 : holeBonus, gold: !fresh && goldUsed,
     cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
@@ -1087,7 +1088,7 @@ function resumeRun() {
   if (!!r.trick !== round.trick) return false;   // scored the other way (the switch came mid-round): start afresh
   Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0, shotLog: Array.isArray(r.log) ? r.log : [] });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
-  if (round.trick) { trialLeft = Number.isFinite(r.left) ? r.left : TRIAL_S; lastShot = !!r.last; hs.mult = r.mult || 1; round.bestMult = r.bestMult || 1; round.bestShot = r.bestShot || null; }
+  if (round.trick) { round.started = !!r.started || r.left < TRIAL_S; trialLeft = Number.isFinite(r.left) ? r.left : TRIAL_S; lastShot = !!r.last; hs.mult = r.mult || 1; round.bestMult = r.bestMult || 1; round.bestShot = r.bestShot || null; }
   startHole(r.level);
   if (r.balls && r.balls.length === table.balls.length) {
     r.balls.forEach(([x, y, p], k) => Object.assign(table.balls[k], { x, y, potted: !!p }));

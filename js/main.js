@@ -162,10 +162,11 @@ function frame(now) {
     if (replay.T >= replay.endT) { replay = null; replayed = true; phase = 'moving'; resolveShot(); }
   }
   // trick scoring: targets slide at the table's pace between shots (tgtStep moves them on physics time while the balls
-  // roll), and the run's clock counts down only while you aim: not while the balls roll, the score tallies, the next
+  // roll), and the run's clock counts down only while you aim: not before the run's first shot (round.started, 23 Nov
+  // playtest: it ran while you were still reading the table), nor while the balls roll, the score tallies, the next
   // table deals in (its banner) or a card is open. At zero you get one last shot (lastShot).
   if (phase !== 'moving' && phase !== 'replay') tgtClock += dt * PLAY;
-  if (round?.trick && !round.done && !lastShot && phase === 'aim' && !banner && !tally && !$('overlay').classList.contains('show')) {
+  if (round?.trick && round.started && !round.done && !lastShot && phase === 'aim' && !banner && !tally && !$('overlay').classList.contains('show')) {
     const was = trialLeft;
     trialLeft = Math.max(0, trialLeft - dt);
     if (trialLeft > 0 && trialLeft <= 10 && Math.ceil(was) !== Math.ceil(trialLeft)) sfx.clockTick(trialLeft);

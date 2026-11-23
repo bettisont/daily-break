@@ -1,7 +1,7 @@
 # Daily Break - handoff
 
 A daily pool game for the browser, live at https://dailybreak.app. Since 23 Nov 2026 the daily game is the timed
-run: two minutes of aiming time through an endless run of seeded tables, the same for everyone each day, scored in
+run: two minutes of aiming time (from the first shot) through an endless run of seeded tables, the same for everyone each day, scored in
 points with trick bonuses and a multiplier, in a night-time arcade look. (Before that: six holes scored like golf,
 the "par" game, which old dates and the code still keep.) Plain HTML, CSS and
 classic scripts, no framework and no build step to play: open `index.html` in a browser.
