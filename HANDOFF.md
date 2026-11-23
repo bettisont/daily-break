@@ -67,13 +67,16 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     shot's breakdown (`TRICK_WHY`, the sum) in `round.shotLog` (newest first, at most 30), shown by tapping the Points
     chip or pressing P (`showShotLog`; a one-off tip, `dailybreak:shotLogTip`). Text on the table only for something
     going wrong (scratch, miscue, pushed off line, rattled out); a foul says "multiplier lost".
-  - **Soundtrack** (`arcadeTick` every 30 ms schedules `arcadeStep` 16ths 0.15 s ahead on the audio clock, into
-    `arcadeBus`): `ARC_SONG`, eight 4-bar sections (about a minute), each picking chords (`ARC_PROG`), a hook
-    (`ARC_HOOKS`), a bass pattern (`ARC_BASSES`) and a drum feel (full, half time, or a breakdown with a pad); a new key
-    each time round (`ARC_KEYS`); swung off-beat 16ths; seeded hat variations. 112 bpm + 5 per multiplier step to x5,
-    +8 under 30 s, +16 under 10 s; layers by multiplier (hats from x1.5, 16ths from x2; chord stabs from x2; snare from
-    x3; the hook an octave up from x4 and in the last 10 s); a sweep up or down when the multiplier changes. Only under
-    the trial with the music on; `playChord` (the piano) skips it.
+  - **Soundtrack** (`arcadeTick` every 30 ms schedules `arcadeStep` 16ths 0.15 s ahead on the audio clock): a dark
+    synthwave groove in A minor at a steady 120 bpm (`ARC_BPM`). `ARC_SONG`: eight 4-bar sections (64 s) over three
+    progressions (`ARC_PROG`: Am7-Fmaj7-Dm7-Em7, Fmaj7-G-Em7-Am7, Dm7-Am7-Bbmaj7-E), with an arpeggio shape per
+    section (`ARC_ARPS`) and a sparse lead (`ARC_LEAD`). Drums go to `arcadeBus`; synths through `arcPump` (ducked under
+    each kick) and `arcSynth`, a low-pass that opens with the multiplier (`arcCut`: about 700 Hz at x1, wide open from x4
+    and in the last 10 s); the arp and lead feed a dotted-8th echo (`arcDelay`). Layers by multiplier: kick, rolling
+    bass, pad and off-beat hats always; arp from x1.5; clap and 16th hats from x2; lead from x3; an open hat under 30 s;
+    16th hats, arp, lead and a swell every bar in the last 10 s. Multiplier up: the filter jumps open and settles back.
+    Down: the drums drop out until the next bar but one (`ARC.dropTo`) and the filter dips. Each run starts from the
+    top. Only under the trial with the music on; `playChord` (the piano) skips it.
   - **Performance** (phones got hot, 23 Nov): `trialFps` paces the trial (60 for motion, 40 while aiming, 30 idle,
     15 behind a card); `draw` skips the cloud shadows and the film grain under the trial; `resize` caps the trial's
     canvas at 1.5x. Par keeps its pacing, layers and 2x.

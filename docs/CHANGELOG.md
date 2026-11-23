@@ -35,6 +35,12 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **The soundtrack reworked** (playtest: the chiptune was "a bit cringey"): a dark synthwave groove in A minor, after
+  the vertical layering in Tetris Effect, Lumines and Rez. A steady 120 bpm (no more tempo rises, key changes, swing
+  or square-wave hook); a rolling 16th bass and a wide pad that pump under the kick; a low-pass over the synths that
+  opens as the multiplier builds (the run gets brighter, not faster); an arpeggio from x1.5, a clap from x2, a sparse
+  lead from x3; the drums drop out for a bar when the multiplier falls and come back on the downbeat. Mixed about
+  1.5 dB above the old one (it is denser; the bus is at 0.55).
 - **The soundtrack got a tune** (playtest: "slightly boring"): an eight-bar song with a chiptune hook (A over
   Am-F-C-G, an answering B over F-G-Em-Am; `ARC_HOOK`), a syncopated bass (`ARC_BASS`), swing on the off-beat 16ths,
   off-beat chord stabs from x2, a drum fill into every fourth bar and a crash each phrase, the hook an octave up from x4
