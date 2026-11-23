@@ -35,6 +35,9 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **Arcade lettering** (playtest: the fonts should feel more exciting): under the trial only (`body.trial`), Bungee for
+  the clock, points, info values, tally, chips, call-outs, banner and result card, and Chakra Petch for the small
+  labels. The par game keeps DM Sans and DM Mono.
 - **Playtest follow-ups**: no warm lamp over the table or glow on the meter as the multiplier builds (the 🔥 stays);
   the soundtrack follows only the multiplier, not the clock, and speeds up with it again (112 bpm at x1, +6 a step,
   136 from x5; the open hat moved from the last 30 s to x4, and the last 10 s no longer open everything up); time

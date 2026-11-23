@@ -173,6 +173,7 @@ function tgtStep() {
 function newRound(seed, ranked) {
   if (trickFlag) ranked = false;   // the ?trick trial never counts as anyone's daily round
   round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
+  document.body.classList.toggle('trial', round.trick);   // the trial's arcade lettering (index.html)
   hs = { points: 0, streak: 0, mult: 1 }; shownPts = 0; trialLeft = TRIAL_S; lastShot = false; meterShown = 1; multWhy = null;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
   tshot = null; thole = { pts: 0, tricks: [] }; endTally(); round.shotLog = []; $('card9').innerHTML = '';
