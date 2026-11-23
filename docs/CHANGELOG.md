@@ -11,6 +11,11 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **No share-text box on the timed run's result card** (playtest: "why does it show that little link?"): the score
+  and badges say it all; the text is still what Share/Copy sends, and the box only appears if copying fails.
+- **A shorter share text** (playtest: it looked messy in WhatsApp, where the block-character strip wrapped onto two
+  lines): "Daily Break · 23 Nov / 29,485 points / Beat 73% of today's players / link". The best multiplier, strip,
+  tables and best shot are on the image card and the link preview, which do the rest.
 - **Link previews with your card** (playtest: the image should show when you just share the link): the game draws
   a landscape 1200x630 copy of the card (`drawPreviewCard`) and uploads it once a run (`uploadPreview`, POST
   /api/card, only on dailybreak.app); the share text then links to dailybreak.app/r/<id>, a tiny page whose og:image

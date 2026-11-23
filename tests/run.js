@@ -198,7 +198,7 @@ const tests = {
     if (r.moving.length) throw new Error('the clock ran while the balls rolled: ' + r.moving.join(', '));
     if (!r.last) throw new Error('the run ended without its last shot');
     if (r.points !== r.hs || (r.shots <= 30 && r.logSum !== r.points)) throw new Error(`points don't add up: round ${r.points}, total ${r.hs}, shots ${r.logSum}`);
-    if (!/points · \d+ table/.test(r.share) || !/^[▁▂▃▄▅▆▇█]+$/m.test(r.share)) throw new Error('share text (points, tables, multiplier strip): ' + r.share);
+    if (!/^Daily Break · .+\n[\d,]+ points$/m.test(r.share) || /[▁▂▃▄▅▆▇█]/.test(r.share)) throw new Error('share text (day, points): ' + r.share);
     return `${r.shots} shots, ${r.tables} table(s) cleared, ${r.points.toLocaleString('en-US')} points: every shot scored by the rules, clock stopped while rolling`;
   },
 };
