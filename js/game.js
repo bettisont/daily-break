@@ -981,15 +981,15 @@ function endRound() {
 }
 // Trick scoring's share text: the points and the rank line.
 // (22 Nov playtest: a line of emoji per hole was too much; now just the points and how you did against everyone)
-// The timed run's share (23 Nov, revamped after going live): the score, tables, best multiplier and best shot, and a
-// multiplier strip, the run's shape at a glance (multStrip). Block characters, not emoji, so it reads the same in
-// every chat app. On phones an image card goes with it (shareCard in ui.js).
+// The timed run's share (23 Nov, after going live): short and plain, because the picture does the rest: the image
+// card goes with it on phones, and the link (dailybreak.app/r/<id>) previews the same card in chat apps. The
+// multiplier strip is only drawn on the cards: as block characters in the text it wrapped and looked messy in
+// WhatsApp (playtest).
 function trickShareText(r) {
-  const rank = trickRankLine(r), n = tablesCleared(r), best = r.bestShot, strip = multStrip(r.multLog);
-  return [`DAILY BREAK · ${isDailySeed(r.seed) ? dayLabel(r.seed).toUpperCase() : 'PRACTICE'}`,
-    `${fmtPts(r.points || 0)} points · ${n} table${n === 1 ? '' : 's'}`,
-    `best ${fmtMult(r.bestMult || 1)}${best ? ` · best shot ${fmtPts(best.pts)}` : ''}`,
-    ...(strip ? [strip] : []), ...(rank ? [rank] : []), r.shareId ? `${SITE_URL.replace(/\/$/, '')}/r/${r.shareId}` : gameUrl()].join('\n');
+  const rank = trickRankLine(r);
+  return [`Daily Break · ${isDailySeed(r.seed) && r.ranked ? dayLabel(r.seed) : 'practice run'}`,
+    `${fmtPts(r.points || 0)} points · best ${fmtMult(r.bestMult || 1)}`,
+    ...(rank ? [rank] : []), r.shareId ? `${SITE_URL.replace(/\/$/, '')}/r/${r.shareId}` : gameUrl()].join('\n');
 }
 // each shot's multiplier as a bar, x1 lowest up to the run's own peak (at least x3, so a short run doesn't look
 // huge): runs reach x15, so a fixed scale would show most of a good run as full bars. A long run is squeezed to 24

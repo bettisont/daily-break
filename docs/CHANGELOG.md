@@ -11,6 +11,9 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **A shorter share text** (playtest: it looked messy in WhatsApp, where the block-character strip wrapped onto two
+  lines): "Daily Break · 23 Nov / 29,485 points · best ×7.3 / rank / link". The strip, tables and best shot are on
+  the image card and the link preview, which do the rest.
 - **Link previews with your card** (playtest: the image should show when you just share the link): the game draws
   a landscape 1200x630 copy of the card (`drawPreviewCard`) and uploads it once a run (`uploadPreview`, POST
   /api/card, only on dailybreak.app); the share text then links to dailybreak.app/r/<id>, a tiny page whose og:image
