@@ -11,6 +11,10 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **Catapult: +100 when a ball you pot rolled under the jumping cat** (playtest). The physics notes each ball that
+  passes under the hopping cat once a shot (`shot.catUnder`, only when the cat is out of the bumps, so course
+  generation never sees it); a pot by one of those scores +100 (`TRICK_PTS.catapult`), points only, once a shot.
+  CATAPULT! slams in by the pocket (after ROCKET! if both) with a meow; the tally shows "+100 CATAPULT".
 - **Rocket: +100 for a full-power pot** (playtest; named so it isn't mixed up with Cannon): a shot with the cue
   pulled all the way back (`tshot.rocket`, power 1) that pots scores +100 (`TRICK_PTS.rocket`), points only like a
   long pot (no multiplier rise). ROCKET! slams in by the pocket as the first ball drops (`slamWord`, split out of

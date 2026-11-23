@@ -95,6 +95,12 @@ class Table {
           if (-vn > 40) this.ev(o.cat ? 'cat' : 'bumper', { o, speed: -vn });
         }
       }
+      // a hopping cat (out of the bumps in play, 23 Nov): note each ball that rolls under it, once a shot, for the
+      // Catapult bonus. It only records: nothing moves, and course generation's tables (cat solid) never get here.
+      const ct = this.cat;
+      if (ct && s && !this.bumps.includes(ct) && Math.hypot(b.x - ct.x, b.y - ct.y) < ct.r + R && !(s.catUnder ||= new Set()).has(b)) {
+        s.catUnder.add(b); this.ev('catUnder', { ball: b });
+      }
       let under = false;
       for (let k = 0; k < mouths.length && !under; k++) {
         const m = mouths[k];

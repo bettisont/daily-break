@@ -56,7 +56,7 @@ const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 // long: a flat bonus for a long pot (23 Nov playtest), when the ball started at least LONG_D (60% of the table's
 // length) from the pocket it went into. Points only: it doesn't raise the multiplier, but the shot's multiplier
 // applies to it like the rest.
-const TRICK_PTS = { pot: 100, part: 200, long: 150, rocket: 100 }, LONG_D = 600;   // rocket: a full-power shot that pots (23 Nov), points only too
+const TRICK_PTS = { pot: 100, part: 200, long: 150, rocket: 100, catapult: 100 }, LONG_D = 600;   // rocket: a full-power shot that pots; catapult: a pot that went under the cat (23 Nov); points only too
 const TRIAL_S = 120;
 const MULT = { pot: 0.5, trick: 0.1, gold: 0.2 };
 const roundMult = m => Math.round(m * 100) / 100;

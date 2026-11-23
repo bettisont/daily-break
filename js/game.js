@@ -93,7 +93,7 @@ function onEvent(type, e) {
 // bang that grows with how good the shot is so far (trickBang).
 function trickPart(kind) { tshot.parts.push(kind); tshot.has[kind] = true; }
 // how good is this shot so far: one for each trick element and each ball after the first, two for the golden pocket
-const shotQ = t => t.parts.length + (t.gold ? 2 : 0) + (t.long ? 1 : 0);
+const shotQ = t => t.parts.length + (t.gold ? 2 : 0) + (t.long ? 1 : 0) + (t.catapult ? 1 : 0);
 function trickBang(x, y, q) {
   const k = Math.min(q, 6);
   if (k <= 0) return;
@@ -120,6 +120,8 @@ function trickDrop(b, pocket, tx, ty) {
   // targets crossed before anything dropped count now that something has
   for (const o of t.tgt) if (!o.hit) { o.hit = true; o.hitClock = o.pendClock; got.push('Target'); }
   got.forEach(trickPart);
+  // Catapult: this potted ball rolled under the hopping cat on the way (once a shot; flat points only, 23 Nov)
+  if (!t.catapult && table.shot?.catUnder?.has(b)) t.catapult = true;
   // a long pot: the ball started at least LONG_D from the pocket it dropped into (once a shot; flat points only)
   const f = t.from?.get(b), pk = table.pk[pocket];
   if (!t.long && f && pk && Math.hypot(f.x - pk.x, f.y - pk.y) >= LONG_D) t.long = true;
@@ -128,9 +130,15 @@ function trickDrop(b, pocket, tx, ty) {
   if (!table.cue.potted) trickBang(tx, ty, shotQ(t));   // (the cue ball already down means a foul: no bang)
   // a full-power pot: ROCKET! slams in over the table by the pocket as the first ball drops (before the tally, so the
   // two don't overlap)
-  if (t.rocket && t.balls === 1 && !table.cue.potted) {
-    const cr = canvas.getBoundingClientRect(), px = clamp(tx, W * 0.25, W * 0.75), py = clamp(ty + (ty < H / 2 ? 130 : -130), H * 0.15, H * 0.85);
-    slamWord('ROCKET!', 2, { getBoundingClientRect: () => { const x = cr.left + view.ox + px * view.s, y = cr.top + view.oy + py * view.s - 46; return { left: x, width: 0, bottom: y }; } });
+  // (CATAPULT! the same way, when this ball went under the cat; a second word sits a little further in)
+  const word = (txt, k) => {
+    const cr = canvas.getBoundingClientRect(), dir = ty < H / 2 ? 1 : -1, px = clamp(tx, W * 0.4, W * 0.6), py = clamp(ty + dir * (130 + k * 70), H * 0.15, H * 0.85);
+    slamWord(txt, 2, { getBoundingClientRect: () => { const x = cr.left + view.ox + px * view.s, y = cr.top + view.oy + py * view.s - 46; return { left: x, width: 0, bottom: y }; } });
+  };
+  if (!table.cue.potted) {
+    let k = 0;
+    if (t.rocket && t.balls === 1) word('ROCKET!', k++);
+    if (t.catapult && !t.catSaid) { t.catSaid = true; setTimeout(() => word('CATAPULT!', k), k ? 260 : 0); meow(); }
   }
 }
 // Cannon: the cue ball touches two object balls before anything drops (trickDrop checks at each pot). Contacts after
@@ -570,7 +578,7 @@ function release() {
     $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand"><i class="touch"></i></div>');
   }
   shotLog = [];
-  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false, long: false, rocket: ct.power >= 0.999, from: new Map(table.balls.filter(b => !b.potted).map(b => [b, { x: b.x, y: b.y }])) } : null;
+  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false, long: false, catapult: false, rocket: ct.power >= 0.999, from: new Map(table.balls.filter(b => !b.potted).map(b => [b, { x: b.x, y: b.y }])) } : null;
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
@@ -681,7 +689,7 @@ function scoreTrick() {
   // benefit straight away from what it builds; it used to raise it only for the next shot)
   const pots = shotLog.length, gold = t.gold ? 2 : 1, multFrom = roundMult(hs.mult);
   hs.mult = roundMult(hs.mult + MULT.pot + MULT.trick * t.parts.length + (t.gold ? MULT.gold : 0));
-  const mult = hs.mult, gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0) + (t.long ? TRICK_PTS.long : 0) + (t.rocket ? TRICK_PTS.rocket : 0)) * gold * mult);
+  const mult = hs.mult, gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0) + (t.long ? TRICK_PTS.long : 0) + (t.rocket ? TRICK_PTS.rocket : 0) + (t.catapult ? TRICK_PTS.catapult : 0)) * gold * mult);
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   // why it rose: each cause flies into the meter during the tally, before the new multiplier is applied
   const kinds = [...new Set(t.parts)], word = k => k === 'Extra' ? (t.balls >= 3 ? 'triple' : 'double') : k.toLowerCase();
@@ -692,6 +700,7 @@ function scoreTrick() {
   if (t.gold) goldUsed = true;
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
   if (t.rocket) items.push(['Rocket', TRICK_PTS.rocket, 'a full-power shot that potted']);
+  if (t.catapult) items.push(['Catapult', TRICK_PTS.catapult, 'the ball you potted rolled under the cat as it jumped']);
   if (t.long) items.push(['Long', TRICK_PTS.long, 'a long pot: the ball started over 60% of the table from its pocket']);
   if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
