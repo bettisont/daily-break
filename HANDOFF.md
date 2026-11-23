@@ -67,9 +67,11 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     chip or pressing P (`showShotLog`; a one-off tip, `dailybreak:shotLogTip`). Text on the table only for something
     going wrong (scratch, miscue, pushed off line, rattled out); a foul says "multiplier lost".
   - **Soundtrack** (`arcadeTick` every 30 ms schedules `arcadeStep` 16ths 0.15 s ahead on the audio clock, into
-    `arcadeBus`): A minor, Am-F-C-G; 112 bpm + 5 per multiplier step to x5, +8 under 30 s, +16 under 10 s; layers by
-    multiplier (kick and bass; hats from x1.5, 16ths from x2; arpeggio from x2, an octave up from x4; snare from x3;
-    a blip in the last 10 s). Only under the trial with the music on; `playChord` (the piano) skips the trial.
+    `arcadeBus`): an eight-bar chiptune song, hook A over Am-F-C-G and an answering B over F-G-Em-Am (`ARC_HOOK`,
+    `ARC_CHORDS`), a syncopated bass (`ARC_BASS`), swung off-beat 16ths, a fill into every fourth bar, a crash each
+    phrase. 112 bpm + 5 per multiplier step to x5, +8 under 30 s, +16 under 10 s; layers by multiplier (hats from x1.5,
+    16ths from x2; chord stabs from x2; snare from x3; the hook an octave up from x4 and in the last 10 s); a sweep up
+    or down when the multiplier changes. Only under the trial with the music on; `playChord` (the piano) skips it.
   - **Screen.** Header: the clock (`#clockChip`, `updateClock`, plus `#clockBar` draining under the header) and Points (`#ptsChip`, built once and updated in place;
     the "Points" label hides under 370 px). Info bar: "Table 5 · 3 balls left", the multiplier meter,
     labelled "Mult" (`updateStreakMeter` shows `meterShown`, held while a tally applies the old value; when the tally

@@ -94,30 +94,62 @@ function playChord() {
   const mel = [523.25, 587.33, 659.25, 783.99, 880];
   for (let k = 0; k < 3; k++) if (Math.random() < 0.55) epiano(mel[Math.floor(Math.random() * mel.length)], t + 1.6 + k * 1.3 + Math.random() * 0.3, 2.2, 0.012);
 }
-// The timed trial's soundtrack (23 Nov): an upbeat chiptune loop, A minor, Am-F-C-G, scheduled a little ahead on the
-// audio clock (arcadeTick every 30 ms, ARC_AHEAD seconds of 16th notes). It reacts to the run: the tempo rises with the
-// multiplier (112 bpm at x1, 132 at x5) and again in the last 30 and 10 seconds, and layers come in as the multiplier
-// builds (kick and bass; hats from x1.5, then 16ths; an arpeggio from x2; a snare from x3; a high blip in the last 10 s).
-// It plays only under the trial, with the music on, and stops when the run ends.
-const ARC = { next: 0, step: 0, timer: null }, ARC_AHEAD = 0.15;
-const ARC_PROG = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]];
+// The timed trial's soundtrack (23 Nov): an upbeat chiptune song, scheduled a little ahead on the audio clock
+// (arcadeTick every 30 ms, ARC_AHEAD seconds of 16th notes). Eight bars: a hook (A) over Am-F-C-G, then an answering
+// phrase (B) over F-G-Em-Am, with a syncopated bass, swing on the off-beat 16ths, a drum fill into every fourth bar
+// and a crash at each phrase. It reacts to the run: the tempo rises with the multiplier (112 bpm at x1, 132 at x5)
+// and again in the last 30 and 10 seconds; layers come in as the multiplier builds (hats, then 16ths; chord stabs from
+// x2; a snare from x3; the hook an octave up from x4 and in the last 10 s); a rising sweep plays when the multiplier
+// goes up and a falling one when it drops. Only under the trial, with the music on; it stops when the run ends.
+// (A first version, a beat with a plain arpeggio, was "slightly boring".)
+const ARC = { next: 0, step: 0, timer: null, mult: 1 }, ARC_AHEAD = 0.15;
+const NOTE = { G3: 196, A3: 220, B3: 246.94, C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880 };
+// chords (root, third, fifth) for each of the eight bars
+const ARC_CHORDS = [['A3', 'C4', 'E4'], ['F4', 'A4', 'C5'], ['C4', 'E4', 'G4'], ['G3', 'B3', 'D4'], ['F4', 'A4', 'C5'], ['G3', 'B3', 'D4'], ['E4', 'G4', 'B4'], ['A3', 'C4', 'E4']].map(c => c.map(n => NOTE[n]));
+// the melody: per bar, [16th step, note, length in 16ths]
+const ARC_HOOK = [
+  [[0, 'A4', 2], [3, 'C5', 2], [6, 'E5', 2], [8, 'D5', 2], [10, 'C5', 2], [12, 'E5', 3], [15, 'G5', 1]],
+  [[0, 'A5', 3], [3, 'G5', 2], [6, 'E5', 2], [8, 'D5', 2], [10, 'C5', 2], [12, 'D5', 4]],
+  [[0, 'E5', 3], [3, 'G5', 2], [6, 'E5', 2], [8, 'D5', 2], [10, 'C5', 2], [12, 'A4', 2], [14, 'C5', 2]],
+  [[0, 'D5', 3], [3, 'E5', 2], [6, 'D5', 2], [8, 'B4', 2], [10, 'G4', 2], [12, 'A4', 4]],
+  [[0, 'C5', 2], [2, 'A4', 2], [4, 'C5', 2], [6, 'F5', 4], [12, 'E5', 2], [14, 'C5', 2]],
+  [[0, 'D5', 2], [2, 'B4', 2], [4, 'D5', 2], [6, 'G5', 4], [12, 'F5', 2], [14, 'D5', 2]],
+  [[0, 'E5', 2], [2, 'B4', 2], [4, 'E5', 2], [6, 'G5', 3], [10, 'A5', 2], [12, 'G5', 2], [14, 'E5', 2]],
+  [[0, 'A5', 4], [6, 'E5', 2], [8, 'C5', 2], [10, 'B4', 2], [12, 'A4', 4]],
+].map(bar => Object.fromEntries(bar.map(([st, n, len]) => [st, [NOTE[n], len]])));
+// the bass: per 16th of a bar, the note as a multiple of the chord's root (0: rest)
+const ARC_BASS = [0.5, 0, 0, 0.5, 0, 0, 1, 0, 0.5, 0, 0.75, 0, 0.5, 0, 1, 0.5];
 let arcadeBus = null;
 function arcadeTick() {
-  if (!audio || audio.state !== 'running' || !round?.trick || round.done || !musicOn || muted || document.hidden) { ARC.next = 0; return; }
+  if (!audio || audio.state !== 'running' || !round?.trick || round.done || !musicOn || muted || document.hidden) { ARC.next = 0; ARC.mult = hs?.mult || 1; return; }
   if (!arcadeBus) { arcadeBus = audio.createGain(); arcadeBus.gain.value = 0.8; arcadeBus.connect(master); }
   const now = audio.currentTime, m = Math.min(hs?.mult || 1, 5), late = lastShot || trialLeft <= 10;
   if (ARC.next < now) ARC.next = now + 0.05;
+  // the multiplier moved: a sweep up, or a falling one when it drops
+  if ((hs?.mult || 1) > ARC.mult + 0.01) { tone(320, 0.45, 0.03, 'sawtooth', 4, 0.02, 0.3, arcadeBus); noise(0.4, 0.03, 3000, 'bandpass', 0.02, 1.5, arcadeBus); }
+  else if ((hs?.mult || 1) < ARC.mult - 0.01) tone(700, 0.4, 0.025, 'sawtooth', 0.35, 0, 0.2, arcadeBus);
+  ARC.mult = hs?.mult || 1;
   const bpm = 112 + (m - 1) * 5 + (late ? 16 : trialLeft <= 30 ? 8 : 0), s16 = 60 / bpm / 4;
-  while (ARC.next < now + ARC_AHEAD) { arcadeStep(ARC.step, ARC.next - now, m, late); ARC.next += s16; ARC.step = (ARC.step + 1) % 64; }
+  while (ARC.next < now + ARC_AHEAD) {
+    const swing = ARC.step % 2 ? s16 * 0.14 : 0;   // the off-beat 16ths come a touch late
+    arcadeStep(ARC.step, ARC.next + swing - now, m, late, s16);
+    ARC.next += s16; ARC.step = (ARC.step + 1) % 128;
+  }
 }
-function arcadeStep(st, d, m, late) {
-  const i = st % 16, ch = ARC_PROG[Math.floor(st / 16)], B = arcadeBus;
-  if (i % 4 === 0) tone(150, 0.16, 0.26, 'sine', 0.3, d, 0, B);   // kick: four on the floor
-  if (i % 2 === 0) tone(ch[0] / (i % 4 === 2 ? 1 : 2), 0.11, 0.07, 'triangle', 1, d, 0, B);   // bass: octave bounce on the root
-  if (m >= 2 ? true : m >= 1.5 ? i % 2 === 1 : i % 4 === 2) noise(0.03, m >= 2 && i % 2 === 0 ? 0.02 : 0.035, 8000, 'highpass', d, 0.7, B);   // hats
-  if (m >= 2) tone(ch[[0, 1, 2, 1][i % 4]] * (m >= 4 ? 4 : 2), 0.07, 0.022, 'square', 1, d, 0, B);   // arpeggio (an octave up from x4)
-  if (m >= 3 && (i === 4 || i === 12)) noise(0.11, 0.09, 1800, 'bandpass', d, 0.8, B);   // snare
-  if (late && i % 8 === 0) tone(ch[2] * 4, 0.05, 0.018, 'square', 1, d, 0, B);   // urgency blip
+function arcadeStep(st, d, m, late, s16) {
+  const bar = Math.floor(st / 16), i = st % 16, ch = ARC_CHORDS[bar], B = arcadeBus, fill = bar % 4 === 3 && i >= 12;
+  if (i % 4 === 0 && !(fill && i === 12)) tone(150, 0.16, 0.26, 'sine', 0.3, d, 0, B);   // kick: four on the floor
+  if (st % 64 === 0) noise(0.7, 0.045, 5000, 'highpass', d, 0.5, B);   // a crash at the top of each phrase
+  const bn = ARC_BASS[i];   // the bass: syncopated, a sub and a little grit on top
+  if (bn) { tone(ch[0] * bn, s16 * 1.6, 0.075, 'triangle', 1, d, 0, B); tone(ch[0] * bn * 2, s16 * 1.2, 0.012, 'square', 1, d, 0, B); }
+  if (late ? true : m >= 2 ? true : m >= 1.5 ? i % 2 === 1 : i % 4 === 2) noise(0.03, i % 2 ? 0.035 : 0.018, 8000, 'highpass', d, 0.7, B);   // hats
+  if (m >= 2 && (i === 2 || i === 6 || i === 10 || i === 14) && !fill) ch.forEach(f => tone(f * 2, 0.07, 0.011, 'square', 1, d, 0.15, B));   // off-beat chord stabs
+  if ((m >= 3 && (i === 4 || i === 12)) || fill) noise(0.11, fill ? 0.05 + 0.02 * (i - 12) : 0.09, 1800, 'bandpass', d, 0.8, B);   // snare, and the fill
+  const note = ARC_HOOK[bar][i];   // the hook: a square lead with a softer triangle under it and a little echo
+  if (note) {
+    const f = note[0] * (m >= 4 || late ? 2 : 1), len = Math.min(0.32, note[1] * s16 * 0.9);
+    tone(f, len, 0.032, 'square', 1, d, 0.25, B); tone(f / 2, len, 0.02, 'triangle', 1, d, 0, B);
+  }
 }
 const POT_SCALE = [392, 440, 523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];
 const sfx = {

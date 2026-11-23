@@ -26,6 +26,10 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   an upbeat chiptune loop in A minor whose tempo rises with the multiplier (112 bpm at x1 to 132 at x5) and again in
   the last 30 and 10 s, with layers coming in as the multiplier builds (hats, then 16ths, an arpeggio from x2, a snare
   from x3). It replaces the electric-piano chords under the trial only, and stops when the run ends.
+- **The soundtrack got a tune** (playtest: "slightly boring"): an eight-bar song with a chiptune hook (A over
+  Am-F-C-G, an answering B over F-G-Em-Am; `ARC_HOOK`), a syncopated bass (`ARC_BASS`), swing on the off-beat 16ths,
+  off-beat chord stabs from x2, a drum fill into every fourth bar and a crash each phrase, the hook an octave up from x4
+  and in the last 10 s, and a rising sweep when the multiplier goes up (falling when it drops).
 - **Why the multiplier moved** (`showMultWhy`): when a tally lands, the Mult meter rises and small tags fade in under
   it ("+0.5 pot · +0.2 banks · +0.2 golden"); a miss shows "½ miss" and a foul "foul: reset". The meter now holds the
   old multiplier while the tally applies it (`meterShown`), instead of jumping ahead as the balls stop.
