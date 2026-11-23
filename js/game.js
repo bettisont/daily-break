@@ -683,6 +683,9 @@ const TRICK_WHY = { Bank: 'the ball came off a cushion', Kick: 'the cue ball hit
 // the streak, pulled down out of the streak meter) is applied last, onto the whole; and the shot's score flies into the header's Points, which only then counts up (ptsHold). What each
 // number was for is kept (logShot) and shown when the Points chip is tapped (showShotLog).
 let tally = null;
+// the tally's pace: every step's timing (and the moves between them) times this (23 Nov playtest: quicker and smaller,
+// it was in the way of getting on with the next shot)
+const TALLY_PACE = 0.6;
 function rollNum(el, from, to, ms, pre = '') {
   const t0 = performance.now();
   // (k is clamped: the first frame's timestamp can come before t0, which made the number dip below `from`)
@@ -752,7 +755,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
   ptsHold = true;
   const n = el.querySelector('.tv'), box = el.querySelector('.tn'), tl = el.querySelector('.tl'), timers = [];
   tally = { el, timers, gain };
-  const at = (ms, f) => timers.push(setTimeout(f, ms));
+  const at = (ms, f) => timers.push(setTimeout(f, ms * TALLY_PACE));
   const pop = cls => { box.classList.remove('pop', 'win'); void box.offsetWidth; box.classList.add(cls); };
   const note = i => POT_SCALE[Math.min(POT_SCALE.length - 1, 3 + i)];   // the tally's steps climb the pot notes' scale
   tone(note(0) / 2, 0.1, 0.04, 'triangle', 1, 0, 0.3);
@@ -830,7 +833,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
       box.appendChild(chip);
       buzz(12);
     });
-    at(t + 250, () => spinTo(n, from, to, 480));
+    at(t + 250, () => spinTo(n, from, to, 480 * TALLY_PACE));
     at(t + 760, () => {
       chip.classList.add('melt'); setTimeout(() => chip.remove(), 280);
       pop('win'); if (label === 'Mult') box.classList.add('hot');
@@ -845,7 +848,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
   at(t + 300, () => {
     const dst = $('ptsVal'), a = box.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
     n.textContent = `+${fmtPts(gain)}`;
-    box.style.transition = 'transform .5s cubic-bezier(.5,0,.8,.4), opacity .5s';
+    box.style.transition = `transform ${0.5 * TALLY_PACE}s cubic-bezier(.5,0,.8,.4), opacity ${0.5 * TALLY_PACE}s`;
     box.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
     box.style.opacity = 0.7;
   });

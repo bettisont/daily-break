@@ -35,6 +35,10 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **A quicker, smaller tally** (playtest: it was in the way of the next shot): every step at 0.6 of its old timing
+  (`TALLY_PACE`; a pot with a bank and the multiplier about 2.5 s instead of 4.2), the number about 25% smaller, the
+  chips to match. **The Mult meter heats up gradually** (`--heat`, x1 to x5): a warm tint fills the cell, the number
+  grows up to 30% and goes from amber to red, the bar thickens, and the number counts to a new value in tenths.
 - **Arcade lettering** (playtest: the fonts should feel more exciting): under the trial only (`body.trial`), Bungee for
   the clock, points, info values, tally, chips, call-outs, banner and result card, and Chakra Petch for the small
   labels. The par game keeps DM Sans and DM Mono.

@@ -77,6 +77,10 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     x1.5; clap and 16th hats from x2; lead from x3; open hat from x4; a swell into every fourth bar. Multiplier up: the
     filter jumps open and settles back. Down: the drums drop out until the next bar but one (`ARC.dropTo`) and the
     filter dips. Each run starts from the top. Only under the trial with the music on; `playChord` skips it.
+  - **Tally pace**: `TALLY_PACE` (0.6) scales every step of `showTally` and the moves between them (the `.mchip.fly`
+    transition in index.html is set to match). **Meter heat**: `updateStreakMeter` sets `--heat` (0 at x1, 1 at x5)
+    on `#iLie`, which drives the cell's tint, the number's size and colour and the bar's height, and counts the number
+    to its new value in tenths.
   - **Lettering**: `newRound` puts `trial` on the body; under it (index.html) numbers and big words are Bungee (one
     weight: always 400) and small labels Chakra Petch, as is the canvas "Table N" banner. The par game is unchanged.
   - **Time call-outs** (`timeCall`, `TIME_CALLS`): "90 seconds", "1 minute left", "30 seconds", "10 seconds!" (red)

@@ -24,7 +24,7 @@ function updateUI() {
     $('iHole').innerHTML = `Table ${round.level + 1}<b>${left} ball${left === 1 ? '' : 's'} left</b>`;
     if (!tally) meterShown = roundMult(hs.mult);   // (held while a tally applies the old one)
     updateStreakMeter(meterShown);
-  } else { $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`; $('iLie').classList.remove('max'); }
+  } else { $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`; $('iLie').classList.remove('max'); $('iLie').style.removeProperty('--heat'); }
   // (tilted tables went on 25 Nov: the trial shows the tables cleared there instead)
   if (round.trick) $('iTilt').innerHTML = `Cleared<b>${round.cards.length}</b>`;
   else $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
@@ -63,13 +63,28 @@ function timeCall(s) {
   sfx.timeCall(s); buzz(s <= 10 ? [20, 40, 20] : 15);
   setTimeout(() => el.remove(), 2000);
 }
-// Trick scoring's streak meter (22 Nov): the multiplier, and a bar under it that fills and heats up from x1 to x3,
-// with a flame from x2, pulsing at x3. Built once and updated, so its animations aren't restarted every update.
+// Trick scoring's multiplier meter (22 Nov): the multiplier, and a bar under it that fills from x1 to x5, with a flame
+// from x2; the whole cell heats up gradually on the way (--heat, index.html). Built once and updated, so its
+// animations aren't restarted every update.
 function updateStreakMeter(m) {
   const el = $('iLie');
   if (!$('smX')) el.innerHTML = 'Mult<b><span id="smX"></span></b><span class="smbar"><i id="smFill"></i></span>';   // (was "Streak" until 23 Nov)
-  $('smX').textContent = `${fmtMult(m)}${m >= 2 ? ' 🔥' : ''}`;
-  $('smX').parentElement.classList.toggle('hot', m > 1);
+  // the number counts to its new value in tenths rather than jumping (23 Nov playtest), and the cell heats up (--heat)
+  const sx = $('smX');
+  if (sx.to !== m) {
+    const from = sx.val ?? m, t0 = performance.now(), ms = Math.min(500, 120 + Math.abs(m - from) * 250);
+    sx.to = m;
+    const show = v => { sx.val = v; sx.textContent = `${fmtMult(v)}${v >= 2 ? ' 🔥' : ''}`; };
+    const step = now => {
+      if (sx.to !== m) return;   // a newer value took over
+      const k = clamp((now - t0) / ms, 0, 1), e = 1 - (1 - k) ** 3;
+      show(k < 1 ? Math.round((from + (m - from) * e) * 10) / 10 : m);
+      if (k < 1) requestAnimationFrame(step);
+    };
+    if (from === m) show(m); else requestAnimationFrame(step);
+  }
+  el.style.setProperty('--heat', clamp((m - 1) / 4, 0, 1).toFixed(3));
+  sx.parentElement.classList.toggle('hot', m > 1);
   $('smFill').style.width = `${Math.min(1, (m - 1) / 4) * 100}%`;   // (no cap on the multiplier; the bar is full at x5)
   el.classList.toggle('max', m >= 3);
 }
