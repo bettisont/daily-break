@@ -11,6 +11,11 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **A Perfect strike never rattles an object ball out for pace** (playtest: a perfect hit shouldn't be punished for
+  power). Before, it allowed 15% more pace than an ordinary strike (`PERFECT_POCKET_PACE`, gone). The cue ball still
+  rattles, since that saves a scratch. On 12 tables at full power: 73 shots rattled an object ball out; struck
+  Perfect, none do and 64 pot. Course generation never sets `shot.perfect`, so no course changed; the guide still
+  lights only pots that drop both ways.
 - **The share always says how you did** (playtest): a practice run is compared with today's ranked runs ("Would beat
   80% of today's players", `loadPracticeRank`); the day's lowest score says "Beat 0%" instead of nothing; and Copy
   result waits for the rank to come in, up to 3 s (`holdCopyForRank`), so the copied text has it.

@@ -235,7 +235,8 @@ cue down the right.
      and high/low error changes the spin.
    - **Miscue** (tip beyond 0.6 sideways or well off the spot): -4°, 35% power, no spin.
    - A Perfect strike's shot gets slightly kinder pockets (`table.shot.perfect`): capture radius x`PERFECT_POCKET` 1.12
-     and rattle speed x`PERFECT_POCKET_PACE` 1.15 (568 -> 717 balls potted on the same test shots). Its feel is a
+     and, since 23 Nov, its object balls never rattle out for pace (the cue ball still can: that saves a scratch;
+     it was rattle speed x1.15 before). (568 -> 717 balls potted on the same test shots with the old x1.15.) Its feel is a
      small gold sparkle, "Perfect strike!" and a soft two-note lift (the flash, slow motion and trail were too much).
    - After an off-centre strike the object ball's line visibly swings from the aimed line to the real one, gold if
      it still drops and amber if not (`skew`, `skewGeom`, `drawSkew`).

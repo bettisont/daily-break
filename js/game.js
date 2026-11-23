@@ -459,7 +459,7 @@ const tipInCore = d => { const p = tipPos(d); return Math.hypot(p.x - aim.spotX,
 // GOOD_PUSH degrees, and players couldn't see why a Clean missed); 'near' still starts its push from GOOD_PUSH.
 const PERFECT_CORE = 0.4, GOOD_PUSH = 0.15;
 // The Perfect edge: for that shot every pocket takes balls 12% further from its centre and lets them in 15% faster.
-const PERFECT_POCKET = 1.12, PERFECT_POCKET_PACE = 1.15;
+const PERFECT_POCKET = 1.12;   // (a Perfect strike's pockets: 12% wider, and no rattle for pace since 23 Nov)
 function contact(d) {
   const tip = tipPos(d), r = spotR(d), ex = tip.x - aim.spotX, ey = tip.y - aim.spotY, dist = Math.hypot(ex, ey), side = aim.side;
   if (dist <= r * PERFECT_CORE) return { tip, quality: 'perfect', off: 0, spin: aim.spin, side, power };
