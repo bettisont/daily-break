@@ -112,7 +112,7 @@ def visits_report(v):
 def fetch(days, acc=None):
     acc = acc or account()
     sql = (f"SELECT blob1 AS day, double1 AS level, SUM(_sample_interval) AS n FROM daily_break_results "
-           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 != 'par' GROUP BY day, level FORMAT JSON")
+           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 NOT IN ('par', 'trick', 'trial') GROUP BY day, level FORMAT JSON")
     return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
 
 
@@ -120,6 +120,34 @@ def fetch_par(days, acc):
     sql = (f"SELECT blob1 AS day, double1 AS score, SUM(_sample_interval) AS n FROM daily_break_results "
            f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 = 'par' GROUP BY day, score FORMAT JSON")
     return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+def fetch_trick(days, acc):
+    sql = (f"SELECT blob1 AS day, double1 AS points, SUM(_sample_interval) AS n FROM daily_break_results "
+           f"WHERE timestamp > NOW() - INTERVAL '{int(days) + 2}' DAY AND blob2 = 'trial' GROUP BY day, points FORMAT JSON")
+    return call(f'{API}/accounts/{acc}/analytics_engine/sql', sql.encode())['data']
+
+
+def trick_report(rows, days=14):
+    by_day = defaultdict(Counter)
+    for r in rows:
+        by_day[r['day']][int(float(r['points']))] += int(float(r['n']))
+    out = ['## Timed-trial runs (points, higher is better)', '']
+    if not by_day:
+        return '\n'.join(out + ['No timed-trial runs recorded yet.', ''])
+    out += ['| Day | Players | Average | Median | Best |', '|---|---|---|---|---|']
+    for day in sorted(by_day, reverse=True)[:days]:
+        c = by_day[day]; n = sum(c.values()); pts = sorted(c.elements())
+        label = dt.date.fromisoformat(day).strftime('%a %-d %b')
+        out.append(f'| {label} | {n} | {round(sum(pts) / n):,} | {pts[(n - 1) // 2]:,} | {max(c):,} |')
+    latest = max(by_day); c = by_day[latest]; n = sum(c.values()); step = 5000
+    out += ['', f'## Points on {latest}', '', '| Points | Rounds | |', '|---|---|---|']
+    buckets = Counter({p // step * step: 0 for p in c})
+    for p, k in c.items():
+        buckets[p // step * step] += k
+    for b in range(min(buckets), max(buckets) + step, step):
+        out.append(f"| {b:,}-{b + step - 1:,} | {buckets[b]} | {'█' * round(20 * buckets[b] / n)} |")
+    return '\n'.join(out + [''])
 
 
 def par_label(n):
@@ -172,6 +200,10 @@ if __name__ == '__main__':
         print(par_report(fetch_par(days, acc), days))
     except Exception as e:   # never fail the results report over the par table
         print(f'## Par rounds\n\nCould not read them: {e}\n')
+    try:
+        print(trick_report(fetch_trick(days, acc), days))
+    except Exception as e:   # nor over the trick table
+        print(f'## Timed-trial runs\n\nCould not read them: {e}\n')
     try:
         print(funnel_report(fetch_funnel(acc, days), days))
     except Exception as e:   # the events dataset only exists once the first event arrives

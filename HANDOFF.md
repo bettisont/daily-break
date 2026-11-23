@@ -1,7 +1,9 @@
 # Daily Break - handoff
 
-A daily pool game for the browser, live at https://dailybreak.app. Six holes, scored like golf, the same for
-everyone each day; a round takes a few minutes and ends with a shareable emoji scorecard. Plain HTML, CSS and
+A daily pool game for the browser, live at https://dailybreak.app. Since 23 Nov 2026 the daily game is the timed
+run: two minutes of aiming time through an endless run of seeded tables, the same for everyone each day, scored in
+points with trick bonuses and a multiplier, in a night-time arcade look. (Before that: six holes scored like golf,
+the "par" game, which old dates and the code still keep.) Plain HTML, CSS and
 classic scripts, no framework and no build step to play: open `index.html` in a browser.
 
 This file is the current state, by topic. What changed when, and the experiments that were tried and dropped,
@@ -31,12 +33,102 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
 - **Gimmes / tap-ins** (`findGimmes`, `tapIn`): a ball within two ball widths of an open pocket's mouth, with a clear,
   nearly straight line from the cue ball (`potLine` cos > 0.9), glows green with "Tap in ⛳". Tapping it pots it for
   one stroke and the cue ball doesn't move. Never into an unused golden pocket.
+- **The timed trial** (on trial, 22-23 Nov; ADRs `docs/adr/0001-trick-points-replace-par.md` and
+  `0002-timed-trial.md`). On for a round when `trickOn(seed)` holds: `?trick` in the URL, or `RULES.TRICK_SCORE_FROM`
+  (`'2026-11-23'`: live since then) set and the day reached. `?trick` opens today's tables (or `?seed=`) unranked: it saves, sends and
+  tracks nothing, and uses no practice. `round.trick` picks the branch everywhere; par is untouched.
+  - **The run.** `TRIAL_S` (120) seconds of aiming time (`trialLeft`, counted down in `frame` only while `phase` is
+    `aim` with no banner, tally or card up: never while the balls roll). Tables are `makeHole(seed, n)` for n = 0, 1,
+    2, ... (1 ball, 2, then 3 with shapes, features, the golden pocket and targets), so tables 1-6 are the old holes and
+    the layouts snapshot still guards them; the next one is built ahead as before. Clear a table and the next deals in
+    (`finishHole` waits for the tally, then `act`). No shot limit, no skip. At zero `lastShot` is set (the clock chip
+    reads "Last shot", `sfx.lastShot`); that shot plays out and scores, then `endWhenTallied` -> `endRound`. Last ten
+    seconds: the chip turns red and `sfx.clockTick` ticks each second.
+  - **Scoring** (`scoreTrick`, `TRICK_PTS`, `partPts`). A pot is 100; each trick element +200 (kick +100); a long pot +150 once a shot (`t.long`: the potted ball started
+    at least `LONG_D`, 600, from its pocket; points only, no multiplier rise); the first
+    pot into a table's golden pocket doubles the shot. The shot first raises `hs.mult` (`MULT.pot` 0.5 + `MULT.trick`
+    0.1 per element + `MULT.gold` 0.2, no cap) and is then multiplied by the new value (since 23 Nov; it used to raise
+    it only for the next shot). In the tally the causes fly into the meter before the new multiplier is applied. `breakStreak`: a
+    miss halves the part above x1 (`roundMult(1 + (m - 1) / 2)`), a foul resets it to x1; a foul's pots score 0 and it
+    costs no time. Clearing a table scores nothing extra. No tap-ins, no stroke back, no replays, no lessons.
+  - **Tricks** are counted as each ball drops (`trickDrop`, into `tshot`), and that list is what gets scored: an extra
+    ball (the 2nd and 3rd drop), a bank (each ball off a cushion), a kick (once), a combination (once: a potted ball
+    that isn't the one the cue ball hit first), a tunnel (once: the potted ball went through, or the cue ball did before
+    anything dropped; `tshot.tun` from `tunnelIn`), a cannon (once: the cue ball touched 2+ object balls before anything
+    dropped; `tshot.cueHits` from the `hit` event's `a`/`b`) and each target crossed before anything dropped.
+  - **Targets** (`makeTargets`, `tgtPos`, `tgtStep`, `drawTargets`): none on table 1, one on tables 2-3, two from table
+    4; sky-blue rings (`TGT_R` 2 R, `TGT_RGB`) sliding on straight tracks from their own seeded numbers
+    (`rngFor('<seed>:targets:<i>')`, never the hole's), kept off pockets, sand, bumpers and the cat. `tgtClock` moves
+    by `DT` per physics step while the balls roll and by `dt * PLAY` otherwise. A crossing is a quiet tick; it scores at
+    the first drop; with no pot it stays, on a foul it comes back. Saved runs keep which are hit (`tg`).
+  - **Feedback.** At a pot, no text: `trickBang` (flash, rings, sparks, shake, hit-stop, `sfx.bang`) scaled by `shotQ`,
+    skipped when the cue ball is already down. When the balls stop, the tally (`showTally`, a fixed overlay in the
+    clearest band, `tallyBand`): "100 POT", each "+200 BANK" flying in, then "x2 GOLDEN" and "x3.7 STREAK" (with
+    `#iLie` flashing) spinning the number like reels (`spinTo`) to land with `sfx.ding` (tuned roots) and a golden bloom,
+    then the score flies into `#ptsVal` (`ptsHold` holds the count-up until then). Every step's from/to is worked out
+    up front. A tap on the table or a pull finishes it (`finishTally`); the clock waits for it. `logShot` keeps each
+    shot's breakdown (`TRICK_WHY`, the sum) in `round.shotLog` (newest first, at most 30), shown by tapping the Points
+    chip or pressing P (`showShotLog`; a one-off tip, `dailybreak:shotLogTip`). Text on the table only for something
+    going wrong (scratch, miscue, pushed off line, rattled out); a foul says "multiplier lost".
+  - **Soundtrack** (`arcadeTick` every 30 ms schedules `arcadeStep` 16ths 0.15 s ahead on the audio clock): a dark
+    synthwave groove in A minor that follows only the multiplier, never the clock. `ARC_SONG`: eight 4-bar sections
+    over three progressions (`ARC_PROG`: Am7-Fmaj7-Dm7-Em7, Fmaj7-G-Em7-Am7, Dm7-Am7-Bbmaj7-E), with an arpeggio
+    shape per section (`ARC_ARPS`) and a sparse lead (`ARC_LEAD`). Tempo `arcBpm`: 112 at x1, +6 per step, 136 from x5.
+    Drums go to `arcadeBus`; synths through `arcPump` (ducked under each kick) and `arcSynth`, a low-pass that opens
+    with the multiplier (`arcCut`: about 700 Hz at x1, wide open by x4); the arp and lead feed a dotted-8th echo
+    (`arcEcho`, kept in time as the tempo moves). Layers: kick, rolling bass, pad and off-beat hats always; arp from
+    x1.5; clap and 16th hats from x2; lead from x3; open hat from x4; a swell into every fourth bar; a snare
+    (`arcSnare`) under the clap from x2.5, ghost notes from x3, a roll into every 4th bar from x3.5, every 2nd from x4.5. Multiplier up: the
+    filter jumps open and settles back. Down: the drums drop out until the next bar but one (`ARC.dropTo`) and the
+    filter dips. Each run starts from the top. Only under the trial with the music on; `playChord` skips it.
+  - **Tally pace**: `TALLY_PACE` (0.45) scales every step of `showTally` and the moves between them (the `.mchip.fly`
+    transition in index.html is set to match). **Meter heat**: `updateStreakMeter` sets `--heat` (0 at x1, 1 at x5)
+    on `#iLie`, which drives the cell's tint, the number's size and colour and the bar's height, and counts the number
+    to its new value in tenths.
+  - **Night** (`night()` in render.js: the trial): `sceneryReady` repaints when it changes; the room cache adds a
+    still cat and turntable top and `drawNightRoom` (a dark radial wash, lightest round the table); live, only
+    `drawCatEyes`. The table's colours come from `tpal()` (`TABLE_DAY` / `TABLE_NIGHT`); `drawPlant`, `drawBanner`,
+    the floats, the vignette and `tgtRGB()` switch too. The HUD's night colours are a block at the end of the CSS
+    under `body.trial` (variables redefined, `--hard` for the offset shadow).
+  - **Big moments** (`bigMoment`, from the tally's multiplier landing): from x3 a screen shake and a 70 ms white
+    `#flash`; a shot of 1,000+ / 2,500+ / 6,000+ gets NICE / HUGE / INSANE slammed in under the tally (`BIG_WORDS`,
+    `.bigword`, `sfx.slam`). **Result card** (`trickFinalHtml`): the score counts up, then badges pop in (best
+    multiplier, tables, best shot).
+  - **Lettering**: `newRound` puts `trial` on the body; under it (index.html) numbers and big words are Bungee (one
+    weight: always 400) and small labels Chakra Petch, as is the canvas "Table N" banner. The par game is unchanged.
+  - **Icons, not emoji**: `ICON` / `ic(name)` (ui.js) draw small line icons in currentColor (`.ic`); the demos'
+    pointer is a `.touch` dot. Emoji are left only in the par share card (⛳ and the coloured squares).
+  - **Time call-outs** (`timeCall`, `TIME_CALLS`): "90 seconds", "1 minute left", "30 seconds", "10 seconds!" (red)
+    and "Last shot!" drop in under the info bar with `sfx.timeCall`, hold and fade (`#timeCall`, 2 s, no taps).
+  - **Performance** (phones got hot, 23 Nov): `trialFps` paces the trial (60 for motion, 40 while aiming, 30 idle,
+    15 behind a card); `draw` skips the cloud shadows and the film grain under the trial; `resize` caps the trial's
+    canvas at 1.5x. Par keeps its pacing, layers and 2x.
+  - **Screen.** Header: the clock (`#clockChip`, `updateClock`, plus `#clockBar` draining under the header) and Points (`#ptsChip`, built once and updated in place;
+    the "Points" label hides under 370 px). Info bar: "Table 5 · 3 balls left", the multiplier meter,
+    labelled "Mult" (`updateStreakMeter` shows `meterShown`, held while a tally applies the old value; when the tally
+    lands, each cause in `multWhy` flies from the tally into it as a chip and it ticks up per chip (`meterGain`);
+    `showMultWhy` tags "½ miss" / "foul: reset" on a drop; full at x5; `crackStreakMeter` when it drains) and the tilt. (No lamp warmth or meter glow since 23 Nov.)
+    Between tables a short "Table N" banner.
+  - **Results.** `round.cards` holds one `{pts, tricks}` per cleared table; `round.bestMult`, `round.bestShot`. Card
+    (`trickFinalHtml`): points, tables cleared and best multiplier, best shot, the rank line, "Practice run" (or "New
+    run" under `?trick`: unlimited, `newRound(random, false)`, no practice used), and points stats (`statsHtml(true)`).
+    Share (`trickShareText`): "Daily Break 23 Nov ⏱️ 38,470 points · 7 tables" and `trickRankLine` ("Beat 73% of
+    today's players": no player count). One ranked run a day; a run in progress resumes exactly (`saveRun` keeps the
+    clock, `lastShot`, the multiplier, the breakdown); a saved run or result scored the other way isn't used.
+  - **Rank:** `mode: 'trial'` ({points, tables}), higher is better, in `TRICK_BUCKET` 100-point buckets (the worker's
+    `r:<day>`).
+  - The intro and help describe the trial when it's on (`TRICK_INTRO`, `TRICK_HELP`; the rest of the help says
+    "table" for "hole").
+  - Test: `tests/run.js` `trial` plays a short run of real perfect strikes and checks every shot's points and
+    multiplier against the rules, the clock stopping while the balls roll, the last shot and the totals.
 - **Date switches** (`RULES` in `js/core.js`, checked with `ruleOn(seed, from)`; a practice seed, anything that isn't
   a `YYYY-MM-DD`, always gets the newest rules):
   - `FORGIVE_FROM` 2026-11-16: a ball rattles out of a pocket only above `POT_MAX_FORGIVING` 1700 (was
     `POT_MAX_SPEED` 1050; `potMax`). Measured on 36 holes at four firm paces: pots 160 -> 300, rattle-outs 217 -> 73.
   - `NO_GATE_FROM` 2026-11-16: the one-way gate leaves the feature deck (sand and the cat only).
   - `TUNNELS_FROM` 2026-11-17: the deck is sand, the cat and a tunnel (`featureKeys`).
+  - `NO_TILT_FROM` 2026-11-25: no tilted tables (`buildHole` still draws the tilt's numbers so everything else is dealt
+    as before; only the tilt is zeroed). The guide draws straight lines, and a tilt curved the balls up to 45° off them.
   - Folded in and always on (the old branches are deleted): par scoring and table shapes (12 Nov), spread-out racks
     (13 Nov), the short round with features and golden pockets (14 Nov). So 12-13 Nov no longer regenerate as they
     were played, and an old `?seed=` date opens a par practice round.
@@ -53,8 +145,11 @@ cue down the right.
    order. A "Tap a ball to target it" tip shows on hole 3 until the player has done it (`dailybreak:tappedBall`).
 2. **Aim.** Swipe the full-width aim strip like a scroll wheel (`js/input.js`): `AIM_FINE` 0.01° per pixel on slow
    swipes, gearing up smoothly (`aimGear`, above 120 px/s) to `AIM_GEAR_MAX` 24x (0.24°/px) on fast ones. A tap near
-   either end nudges `AIM_NUDGE` 0.02°; arrow keys 0.02° (Shift: 1°). When the thumb lifts, up to `LIFT_PX` 3 px of
-   movement in the last `LIFT_MS` 60 ms is undone (the finger rolling off the glass). Why so fine: a 0.1° error can
+   either end nudges `AIM_NUDGE` 0.02°; arrow keys 0.02° (Shift: 1°). Since 23 Nov: a press is a tap only if all its
+   movement was a lift-off roll and it lasted under 350 ms (a tap takes back anything it turned, then nudges); when the
+   thumb lifts, at most `LIFT_PX` 3 px that started in the last `LIFT_MS` 25 ms, after the finger was still for
+   `LIFT_STILL_MS` 80 ms, is undone (the finger rolling off the glass); the gearing reads the speed over the last
+   `GEAR_MS` 50 ms, so the same swipe turns the same whatever the touch events' timing. Why so fine: a 0.1° error can
    move a long object-ball line by a whole pocket; the old 0.04°/px and 0.1° taps couldn't place long pots. The
    readout (`aimOffset`) shows hundredths of a degree from dead centre on the ball the line actually hits (not the
    one first targeted, which once gave readings like 115°). Dragging anywhere on the table also turns the cue,
@@ -74,8 +169,19 @@ cue down the right.
      (`finishGuide`). A line into a pocket the ball wouldn't drop into fades out 2.5 R short of it. Why: the ring and
      line used to be decided separately and rings flickered on pockets the line didn't go near (a second ball, an
      undrawn bank) while lines ran into side pockets without lighting.
-   - The ring doesn't depend on how hard you pull: the guide assumes the right pace; judging pace is the player's
-     job. It never shows where balls stop. The Perfect edge (below) isn't assumed.
+   - The ring doesn't depend on how hard you pull: judging pace is the player's job (a green band of potting paces on
+     the pull cue was tried on 23 Nov and taken out). It never shows where balls stop.
+   - Since 23 Nov (an aim review): a pot lights only if it drops struck perfectly AND as a Perfect strike
+     (`potsPerfect`, `guidePotsAt(..., perfect)`); the sims only run when the drawn path ends in or passes within
+     cap + 1.5 R of a pocket (`guideCandidates`); paces are tried nearest your pull first, a few a frame within
+     `GUIDE_BUDGET` 3 ms (`stepGuide`, memoised per aim in `guideSim.res`), with `GUIDE_PACES_MID` tried too when the
+     line ends in a pocket nothing pots into; a line ending in the jaws of a pocket it pots into lights; a bank off a
+     shaped table's corner bounces radially (`trace`); a leg off a bumper or the cat comes from a sim at your pace
+     (`bumperBounce`). The spin hint runs on to the next cushion when side is set and marks a scratch anywhere in the
+     shot. A mis-hit's spin is capped at what the spin ball allows.
+   - A line into a pocket that doesn't light (once every pace is tried) checks for a kiss (`kissAt`: one sim at your
+     pace in 0.05 steps): if the cue ball meets the object ball again, its path to there is drawn faintly with a red
+     cross where they meet.
    - The moment the aim lands on a pot (`guideLock`) the line and ring flare for 0.6 s with a few sparkles, at most
      once a second so a sweep sets off one burst. No sound.
    - Cushions are counted the guide's own way (`guideWalls`, from each ball's `wallPts`): every contact, except
@@ -211,7 +317,7 @@ replay shots to validate a score.
   `?seed=`, so friends land in today's game). Uses the phone's share sheet (`navigator.share`, coarse pointers only)
   or copies. Days are named by date (`dayLabel`, en-GB), never numbered. Players never see the word "ladder" (it
   reads as a ranking table in the UK).
-- **Rank** (`loadRank`, `fillRank`): "Better than X% of today's players" (X = players with a worse score / everyone
+- **Rank** (`loadRank`, `fillRank`; trick scoring: higher is better, by bucket): "Better than X% of today's players" (X = players with a worse score / everyone
   else; no player count on purpose), "Best round today so far 🏆", "Joint best…" or "You're the first to finish…".
   Only on dailybreak.app, ranked daily rounds.
 - **Practice** (`startPractice`): 3 a day per device (`PRACTICE_PER_DAY`), each on a random seed (the "Practice course" button),
@@ -331,11 +437,13 @@ Cloudflare Registrar.
 - `POST /api/result`: `{day, mode: 'par', score, strokes, points}` (score -30..60, strokes 0..200) -> Analytics Engine
   `daily_break_results` (blob1 day, blob2 'par', double1 score, double2 strokes, double3 points) and counted in
   `DayCounts` under `p:<day>`; replies `{players, scores}`. The old lives format `{day, level, potted, points}` is still
-  accepted (key `d:<day>`, blob2 empty). The day must be within the window a local calendar can be on
+  accepted (key `d:<day>`, blob2 empty). The timed trial sends `{day, mode: 'trial', points, tables}`
+  (points 0..2000000) -> blob2 'trial', double1 points, double2 tables, counted under `r:<day>` in 100-point buckets. The day must be within the window a local calendar can be on
   (`dayIsCurrent`: noon UTC of that day within -2.5 / +1.5 days of now).
 - `POST /api/event`: `{day, step}` -> `daily_break_events` (blob1 day, blob2 step); `left` adds `{secs, where}` as
   blob3 and double2.
-- `GET /api/day?day=&mode=par`: `{players, scores}` (without `mode`, the old level tally).
+- `GET /api/day?day=&mode=par` (or `mode=trial`, scores keyed by bucket): `{players, scores}` (without `mode`, the old
+  level tally).
 - **Rate limits** (Workers Rate Limiting, keyed on `cf-connecting-ip`, never stored): `RESULT_LIMIT` 5/min (429
   `{error: 'slow down'}`), `EVENT_LIMIT` 30/min (429, no body). A real player sends one result and ~10 events a day. A
   missing or failing limiter allows the request.

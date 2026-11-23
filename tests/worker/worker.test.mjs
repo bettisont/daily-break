@@ -24,12 +24,14 @@ function fakeLimiter(max) {
   };
 }
 function fakeEnv({ limiters = true } = {}) {
-  const levels = {}, scores = {};
+  const levels = {}, scores = {}, tricks = {};
   const days = {
     async tally(d) { const l = levels[d] || {}; return { players: sum(l), levels: l }; },
     async add(d, lv) { const l = (levels[d] ||= {}); l[lv] = (l[lv] || 0) + 1; return { players: sum(l), levels: l }; },
     async tallyPar(d) { const s = scores[d] || {}; return { players: sum(s), scores: s }; },
     async addPar(d, sc) { const s = (scores[d] ||= {}); s[sc] = (s[sc] || 0) + 1; return { players: sum(s), scores: s }; },
+    async tallyTrial(d) { const s = tricks[d] || {}; return { players: sum(s), scores: s }; },
+    async addTrial(d, b) { const s = (tricks[d] ||= {}); s[b] = (s[b] || 0) + 1; return { players: sum(s), scores: s }; },
   };
   const points = { RESULTS: [], EVENTS: [] };
   const env = {
@@ -63,6 +65,27 @@ await check('valid par result -> 200 with tally', async () => {
   eq(r.status, 200, 'status');
   eq(await r.json(), { players: 1, scores: { '-2': 1 } }, 'body');
   eq(env.points.RESULTS.length, 1, 'data points');
+});
+await check('valid trial result -> 200, counted in its 100-point bucket', async () => {
+  const env = fakeEnv();
+  let r = await worker.fetch(post('/api/result', { day: today, mode: 'trial', points: 38470, tables: 7 }), env);
+  eq([r.status, await r.json()], [200, { players: 1, scores: { 38400: 1 } }], 'first');
+  r = await worker.fetch(post('/api/result', { day: today, mode: 'trial', points: 38400, tables: 6 }), env);
+  eq(await r.json(), { players: 2, scores: { 38400: 2 } }, 'same bucket');
+  eq(env.points.RESULTS[0].blobs, [today, 'trial'], 'blobs');
+  eq(env.points.RESULTS[0].doubles, [38470, 7], 'doubles');
+  r = await worker.fetch(new Request(`https://dailybreak.app/api/day?day=${today}&mode=trial`), env);
+  eq(await r.json(), { players: 2, scores: { 38400: 2 } }, 'tally');
+  r = await worker.fetch(new Request(`https://dailybreak.app/api/day?day=${today}&mode=par`), env);
+  eq(await r.json(), { players: 0, scores: {} }, 'par tally untouched');
+});
+await check('trial result out of range -> 400', async () => {
+  const env = fakeEnv({ limiters: false });
+  for (const bad of [{ points: 2000001, tables: 10 }, { points: -1, tables: 1 }, { points: 1.5, tables: 1 }, { points: 100, tables: 1001 }, { points: 100 }]) {
+    const r = await worker.fetch(post('/api/result', { day: today, mode: 'trial', ...bad }), env);
+    eq([r.status, await r.json()], [400, { error: 'bad result' }], JSON.stringify(bad));
+  }
+  eq(env.points.RESULTS.length, 0, 'nothing written');
 });
 await check('valid lives result -> 200 with tally', async () => {
   const r = await worker.fetch(post('/api/result', { day: today, level: 3, potted: 12, points: 900 }), fakeEnv());

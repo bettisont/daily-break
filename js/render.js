@@ -110,6 +110,19 @@ function drawBall(b, x, y, sc = 1, alpha = 1) {
 
 /* ----- the room ----- */
 
+// The timed trial plays at night (23 Nov playtest: the look should match its pace and its arcade lettering): the
+// same room after dark, the table under one spotlight, the furniture and plants as silhouettes, and the table trimmed
+// in flat neon (pink rail line, cyan cushion line and sights, blue felt). Flat colours, no glow: cheap on a phone.
+// The par game keeps the daytime room.
+const night = () => !!round?.trick;
+const TABLE_DAY = { shadow: 'rgba(50,30,12,.45)', rail: '#6e4a30', wood0: '#8e6141', wood1: '#6f4a31', edge: 'rgba(255,225,190,.22)', edgeW: 2,
+  sight: '#efe4ca', cushion: '#4f7f68', felt0: '#7aa98e', felt1: '#5f8f76', nose: 'rgba(30,50,35,.25)', noseW: 3, line: 'rgba(255,255,240,.18)',
+  pocketRim: '#3a2618', pocket0: '#0d0906', pocket1: '#2a1c12', ring: null, isl0: '#9a6b48', isl1: '#6a452d', islCush: '#2f5242', grain: true };
+const TABLE_NIGHT = { shadow: 'rgba(0,0,0,.65)', rail: '#16122b', wood0: '#251d42', wood1: '#161130', edge: '#ff3d8b', edgeW: 3,
+  sight: '#35e0e8', cushion: '#143a5c', felt0: '#2c6f9d', felt1: '#1d4c74', nose: '#35e0e8', noseW: 2.5, line: 'rgba(53,224,232,.28)',
+  pocketRim: '#0a0816', pocket0: '#020104', pocket1: '#0c0a18', ring: '#ff3d8b', isl0: '#2a2148', isl1: '#171230', islCush: '#122f4a', grain: false };
+const tpal = () => night() ? TABLE_NIGHT : TABLE_DAY;
+
 const PLANKS = ['#d8c29b', '#d2b98f', '#dcc8a4', '#cdb287', '#d5bd95'];
 const DECOR = {
   plants: [[-RAIL - 75, -RAIL - 45, 64, 1], [W + RAIL + 72, H * 0.36, 54, 2], [-RAIL - 62, H + RAIL + 34, 58, 3], [W + RAIL + 66, H + RAIL + 56, 68, 4], [-RAIL - 210, H * 0.18, 70, 5]],
@@ -164,21 +177,22 @@ function drawRug() {
   }
 }
 function drawPlant([x, y, r, seed], t) {
-  ctx.drawImage(SOFT_SHADOW, x - r * 1.1 + 10, y - r * 1.1 + 14, r * 2.3, r * 2.3);
-  ctx.fillStyle = '#b4623f'; ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#8c4a2f'; ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, TAU); ctx.fill();
-  const greens = ['#5f8a5a', '#4a7449', '#7aa36e', '#567f50'];
+  const dark = night();   // (at night: a silhouette, a shade lighter than the room so its shape still reads)
+  if (!dark) ctx.drawImage(SOFT_SHADOW, x - r * 1.1 + 10, y - r * 1.1 + 14, r * 2.3, r * 2.3);
+  ctx.fillStyle = dark ? '#100d22' : '#b4623f'; ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = dark ? '#0b0918' : '#8c4a2f'; ctx.beginPath(); ctx.arc(x, y, r * 0.42, 0, TAU); ctx.fill();
+  const greens = dark ? ['#15122c', '#110e25', '#1a1633', '#131029'] : ['#5f8a5a', '#4a7449', '#7aa36e', '#567f50'];
   const n = 12;
   for (let k = 0; k < n; k++) {
     const a = k / n * TAU + hash01(seed * 10 + k) * 0.5 + Math.sin(t * 0.7 + k + seed) * 0.05, len = r * (0.7 + 0.35 * hash01(seed * 20 + k));
     ctx.save(); ctx.translate(x, y); ctx.rotate(a);
     ctx.fillStyle = greens[(k + seed) % greens.length];
     ctx.beginPath(); ctx.ellipse(len * 0.55, 0, len * 0.55, r * 0.17, 0, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(230,240,200,.35)'; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = dark ? 'rgba(120,110,190,.18)' : 'rgba(230,240,200,.35)'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(len * 0.95, 0); ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = '#3f6340'; ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, TAU); ctx.fill();
+  ctx.fillStyle = dark ? '#0b0918' : '#3f6340'; ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, TAU); ctx.fill();
 }
 function drawChair() {
   const { x, y } = DECOR.chair;
@@ -295,7 +309,7 @@ function catAfterShot() {
   const c = table.cat, hit = table.shot?.catHit;
   if (!c || !hit) return;
   c.hits = (c.hits || 0) + 1;
-  const from = { x: c.x, y: c.y, rot: c.rot, sc: CAT_SC }, say = (txt, col) => float(clamp(c.x, 90, W - 90), clamp(c.y - 55, 40, H - 40), txt, col, 19, 1.8);
+  const from = { x: c.x, y: c.y, rot: c.rot, sc: CAT_SC }, say = (txt, col) => { if (!round.trick) float(clamp(c.x, 90, W - 90), clamp(c.y - 55, 40, H - 40), txt, col, 19, 1.8); };   // (no cat lines under trick scoring)
   meow();
   if (c.hits >= 2 || hit > 900) {
     say("The cat's had enough", '#b8553f');
@@ -400,43 +414,44 @@ function feltPath(sh) { ctx.beginPath(); polyPath(sh.outer); for (const isl of s
 // edged with cushion.
 function drawShapedTable(sh) {
   ctx.save(); ctx.lineJoin = 'round';
-  ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
-  ctx.beginPath(); polyPath(sh.outer); ctx.fillStyle = '#6e4a30'; ctx.fill(); ctx.strokeStyle = '#6e4a30'; ctx.lineWidth = RAIL * 2; ctx.stroke();
+  const P = tpal();
+  ctx.shadowColor = P.shadow; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
+  ctx.beginPath(); polyPath(sh.outer); ctx.fillStyle = P.rail; ctx.fill(); ctx.strokeStyle = P.rail; ctx.lineWidth = RAIL * 2; ctx.stroke();
   ctx.restore();
   const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
-  wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
+  wood.addColorStop(0, P.wood0); wood.addColorStop(1, P.wood1);
   ctx.save(); ctx.lineJoin = 'round';
   ctx.beginPath(); polyPath(sh.outer);
-  ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = RAIL * 2 - 4; ctx.stroke();
-  ctx.strokeStyle = wood; ctx.lineWidth = RAIL * 2 - 9; ctx.stroke();
-  ctx.strokeStyle = '#4f7f68'; ctx.lineWidth = 24; ctx.stroke();   // the cushion
+  ctx.strokeStyle = P.edge; ctx.lineWidth = RAIL * 2 - 4; ctx.stroke();
+  ctx.strokeStyle = wood; ctx.lineWidth = RAIL * 2 - 4 - 2 * P.edgeW - 1; ctx.stroke();
+  ctx.strokeStyle = P.cushion; ctx.lineWidth = 24; ctx.stroke();   // the cushion
   feltPath(sh);
   const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
-  felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
+  felt.addColorStop(0, P.felt0); felt.addColorStop(1, P.felt1);
   ctx.fillStyle = felt; ctx.fill('evenodd');
   ctx.fillStyle = FELT_NOISE; ctx.fill('evenodd');
-  ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = P.nose; ctx.lineWidth = P.noseW; ctx.stroke();
   for (const isl of sh.islands) {
     // a raised walnut block, like a piece of the rail: it casts a shadow on the felt, has a dark cushion round it,
     // a bevelled top with grain, and cream sights like the outer rail, so it reads as a wall, not a mat
     ctx.save();
     ctx.shadowColor = 'rgba(25,15,6,.55)'; ctx.shadowBlur = 22 * view.s * view.dpr; ctx.shadowOffsetY = 12 * view.s * view.dpr;
-    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = '#2f5242'; ctx.lineWidth = 24; ctx.stroke();   // its cushion, on the felt side
+    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = P.islCush; ctx.lineWidth = 24; ctx.stroke();   // its cushion, on the felt side
     ctx.restore();
-    ctx.strokeStyle = 'rgba(200,230,210,.35)'; ctx.lineWidth = 2;   // the cushion's lit lip
+    ctx.strokeStyle = night() ? P.nose : 'rgba(200,230,210,.35)'; ctx.lineWidth = 2;   // the cushion's lit lip
     ctx.save(); ctx.beginPath(); polyPath(isl.map(([x, y]) => { const cx = isl.reduce((a, q) => a + q[0], 0) / isl.length, cy = isl.reduce((a, q) => a + q[1], 0) / isl.length, d = Math.hypot(x - cx, y - cy) || 1; return [x + (x - cx) / d * 11, y + (y - cy) / d * 11]; })); ctx.stroke(); ctx.restore();
     ctx.beginPath(); polyPath(isl);
     const top = ctx.createLinearGradient(0, 0, W * 0.3, H * 0.3);
-    top.addColorStop(0, '#9a6b48'); top.addColorStop(1, '#6a452d');
+    top.addColorStop(0, P.isl0); top.addColorStop(1, P.isl1);
     ctx.fillStyle = top; ctx.fill();
     ctx.save(); ctx.clip();
     ctx.strokeStyle = 'rgba(60,35,18,.28)'; ctx.lineWidth = 1.5;   // grain
-    for (let k = -40; k < 40; k++) { ctx.beginPath(); ctx.moveTo(-50, k * 9 + H / 2); ctx.bezierCurveTo(W * 0.3, k * 9 + H / 2 + 6, W * 0.6, k * 9 + H / 2 - 6, W + 50, k * 9 + H / 2 + 2); ctx.stroke(); }
+    if (P.grain) for (let k = -40; k < 40; k++) { ctx.beginPath(); ctx.moveTo(-50, k * 9 + H / 2); ctx.bezierCurveTo(W * 0.3, k * 9 + H / 2 + 6, W * 0.6, k * 9 + H / 2 - 6, W + 50, k * 9 + H / 2 + 2); ctx.stroke(); }
     ctx.beginPath(); polyPath(isl); ctx.strokeStyle = 'rgba(30,15,5,.45)'; ctx.lineWidth = 14; ctx.stroke();      // bevel: shade inside the edge
-    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = 'rgba(255,230,195,.35)'; ctx.lineWidth = 4; ctx.stroke();   // and a lit top edge
+    ctx.beginPath(); polyPath(isl); ctx.strokeStyle = night() ? P.edge : 'rgba(255,230,195,.35)'; ctx.lineWidth = night() ? 5 : 4; ctx.stroke();   // and a lit top edge
     ctx.restore();
     // cream diamond sights at the middle of each side, like the outer rail's
-    ctx.fillStyle = '#f1e3c4';
+    ctx.fillStyle = night() ? P.sight : '#f1e3c4';
     isl.forEach(([ax, ay], k) => {
       const [bx, by] = isl[(k + 1) % isl.length], mx = (ax + bx) / 2, my = (ay + by) / 2, cx = isl.reduce((a, q) => a + q[0], 0) / isl.length, cy = isl.reduce((a, q) => a + q[1], 0) / isl.length;
       const d = Math.hypot(cx - mx, cy - my) || 1, x = mx + (cx - mx) / d * 9, y = my + (cy - my) / d * 9;
@@ -455,24 +470,25 @@ function drawTableBase() {
   const sh = hole.shape;
   if (sh) drawShapedTable(sh);
   else {
+    const P = tpal();
     ctx.save();
-    ctx.shadowColor = 'rgba(50,30,12,.45)'; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
-    ctx.fillStyle = '#6e4a30'; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
+    ctx.shadowColor = P.shadow; ctx.shadowBlur = 36 * view.s * view.dpr; ctx.shadowOffsetY = 16 * view.s * view.dpr;
+    ctx.fillStyle = P.rail; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
     ctx.restore();
     const wood = ctx.createLinearGradient(-RAIL, -RAIL, W + RAIL, H + RAIL);
-    wood.addColorStop(0, '#8e6141'); wood.addColorStop(1, '#6f4a31');
+    wood.addColorStop(0, P.wood0); wood.addColorStop(1, P.wood1);
     ctx.fillStyle = wood; ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 26); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,225,190,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
-    ctx.fillStyle = '#efe4ca';
+    ctx.strokeStyle = P.edge; ctx.lineWidth = P.edgeW; ctx.beginPath(); ctx.roundRect(-RAIL + 4, -RAIL + 4, W + 2 * RAIL - 8, H + 2 * RAIL - 8, 22); ctx.stroke();
+    ctx.fillStyle = P.sight;
     const dia = (x, y) => { ctx.beginPath(); ctx.moveTo(x, y - 4); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 3, y); ctx.fill(); };
     for (let i = 1; i < 8; i++) if (i !== 4) for (const x of [-RAIL / 2 - 2, W + RAIL / 2 + 2]) dia(x, H * i / 8);
     for (let i = 1; i < 4; i++) for (const y of [-RAIL / 2 - 2, H + RAIL / 2 + 2]) dia(W * i / 4, y);
-    ctx.fillStyle = '#4f7f68'; ctx.fillRect(-12, -12, W + 24, H + 24);
+    ctx.fillStyle = P.cushion; ctx.fillRect(-12, -12, W + 24, H + 24);
     const felt = ctx.createRadialGradient(W / 2, H * 0.45, 40, W / 2, H / 2, H * 0.65);
-    felt.addColorStop(0, '#7aa98e'); felt.addColorStop(1, '#5f8f76');
+    felt.addColorStop(0, P.felt0); felt.addColorStop(1, P.felt1);
     ctx.fillStyle = felt; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = FELT_NOISE; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(30,50,35,.25)'; ctx.lineWidth = 3; ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+    ctx.strokeStyle = P.nose; ctx.lineWidth = P.noseW; ctx.strokeRect(P.noseW / 2, P.noseW / 2, W - P.noseW, H - P.noseW);
   }
   if (!feltMoves(hole)) drawFelt(0);
 }
@@ -509,18 +525,20 @@ function drawFelt(t) {
     }
     ctx.restore();
   }
-  if (!sh) { ctx.strokeStyle = 'rgba(255,255,240,.18)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke(); }
+  const P = tpal();
+  if (!sh) { ctx.strokeStyle = P.line; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75); ctx.stroke(); }
   ctx.restore();   // end of the felt clip
   table.pk.forEach((p, i) => {
     const pr = Math.min(p.cap, R * 1.75) * 0.95;
-    ctx.fillStyle = '#3a2618'; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.fill();
+    ctx.fillStyle = P.pocketRim; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.fill();
+    if (P.ring) { ctx.strokeStyle = P.ring; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, pr + 6, 0, TAU); ctx.stroke(); }
     if (!table.openPocket(i)) {
       ctx.fillStyle = '#9a6c48'; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
       ctx.strokeStyle = '#5e3c26'; ctx.lineWidth = 3; const k = R * 0.6;
       ctx.beginPath(); ctx.moveTo(p.x - k, p.y - k); ctx.lineTo(p.x + k, p.y + k); ctx.moveTo(p.x + k, p.y - k); ctx.lineTo(p.x - k, p.y + k); ctx.stroke();
     } else {
       const g = ctx.createRadialGradient(p.x, p.y, pr * 0.15, p.x, p.y, pr);
-      g.addColorStop(0, '#0d0906'); g.addColorStop(1, '#2a1c12');
+      g.addColorStop(0, P.pocket0); g.addColorStop(1, P.pocket1);
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, TAU); ctx.fill();
     }
   });
@@ -556,20 +574,33 @@ const spinKind = s => s > 0.2 ? 0 : s < -0.2 ? 2 : 1;
 // The cue ball's first half second after it meets the first ball (or less, if it drops in a pocket).
 // Time, not distance, so a harder hit draws a longer line.
 const PATH_STEPS = 120;
+// (23 Nov review) With side set, the hint runs on past its half second to the next cushion (side shows off a
+// cushion, and it was invisible on a fifth of shots), and a scratch is looked for over the whole shot, not just the part
+// drawn: the X goes where the cue ball drops.
 function cuePath(angle, pw, spin, side = 0) {
   const s = cloneTable(table); s.shoot(angle, pw, spin, side);
-  const pts = []; let hitAt = -1, lx = s.cue.x, ly = s.cue.y;
+  const pts = []; let hitAt = -1, lx = s.cue.x, ly = s.cue.y, drawing = true, cush0 = -1, lastX = s.cue.x, lastY = s.cue.y;
   for (let n = 0; n < 9000 && s.moving(); n++) {
     s.step();
     if (s.cue.potted) break;
+    lastX = s.cue.x; lastY = s.cue.y;
     const jump = Math.hypot(s.cue.x - lx, s.cue.y - ly) > 4 * R; lx = s.cue.x; ly = s.cue.y;
-    if (s.cue.uN) continue;
+    if (s.cue.uN || !drawing) continue;
     if (jump && hitAt >= 0) pts.push(gapPt(s.cue.x, s.cue.y));
     if (hitAt < 0 && s.shot.firstHit) { hitAt = n; pts.push([s.cue.x, s.cue.y]); }
-    else if (hitAt >= 0) { if (n % 3 === 0) pts.push([s.cue.x, s.cue.y]); if (n - hitAt >= PATH_STEPS) break; }
+    else if (hitAt >= 0) {
+      if (n % 3 === 0) pts.push([s.cue.x, s.cue.y]);
+      if (n - hitAt >= PATH_STEPS) {
+        if (Math.abs(side) < 0.1 || n - hitAt >= PATH_STEPS * 3) drawing = false;
+        else if (cush0 < 0) cush0 = s.cue.cush || 0;
+        else if ((s.cue.cush || 0) > cush0) drawing = false;
+        if (!drawing) pts.push([s.cue.x, s.cue.y]);
+      }
+    }
   }
   const scratch = s.cue.potted && hitAt >= 0;
-  if (hitAt >= 0 && !s.cue.potted) pts.push([s.cue.x, s.cue.y]);
+  if (hitAt >= 0 && drawing && !s.cue.potted) pts.push([s.cue.x, s.cue.y]);
+  if (scratch) pts.push(gapPt(lastX, lastY));   // the X marks where it drops
   return { pts: hitAt >= 0 ? pts : [], scratch };
 }
 let spinCache = { key: '', paths: [] };
@@ -695,9 +726,110 @@ function guideShownPots(t, angle, pw, spin, side = 0) {
   if (s.shot.scratch || !b || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
   return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
 }
+// (23 Nov review) paces tried in between the guide's own when the line ends in a pocket but none of those pots: some
+// pots only drop at a pace between two of them, and the ring flickered on and off as the aim swept across them
+const GUIDE_PACES_MID = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+// The same shot struck Perfect (its pockets are a touch kinder: Table.step reads shot.perfect). The ring only lights
+// when the pot drops with an ordinary perfect-aim strike AND a Perfect one, so a Perfect strike never misses a lit pot
+// (it did on 2% of lit aims: the bigger pocket changes the rebound).
+function simPerfect(t, angle, pw, spin, side = 0) {
+  const s = cloneTable(t);
+  s.shoot(angle, pw, spin, side); s.shot.perfect = true;
+  for (let n = 0; n < 9000 && s.moving(); n++) s.step();
+  return s;
+}
+const potsPerfect = (angle, pw, spin, side, pocket) => guidePotsAt(table, angle, pw, spin, GUIDE_KICK, GUIDE_CUSH, side, true).includes(pocket);
+// The direction a ball really leaves a bumper or the cat in, from one simulation at your pace (pulling: the pull;
+// otherwise your last pace): the physics pushes a ball out along how far it sank in, which depends on pace, so the
+// mirror-angle line was off by a median 2-3° (up to 23°). Kept for the last aim.
+function bumperBounce(ball, bumper) {
+  const pw = hold ? power : (lastPower || 0.4), bi = table.balls.indexOf(ball), oi = table.bumps.indexOf(bumper);
+  const k = `${aim.angle}:${aim.spin}:${aim.side}:${pw.toFixed(2)}:${bi}:${oi}:${strokes}`;
+  if (guideSim.bounce?.k === k) return guideSim.bounce.d;
+  let d = null;
+  if (bi >= 0 && oi >= 0) {
+    const s = cloneTable(table); s.shoot(aim.angle, pw, aim.spin, aim.side);
+    const sb = s.balls[bi], bm = s.bumps[oi];
+    let near = false;
+    for (let n = 0; n < 3000 && s.moving() && !sb.potted; n++) {
+      s.step();
+      const dd = Math.hypot(sb.x - bm.x, sb.y - bm.y);
+      if (dd < bm.r + R + 1.5) near = true;
+      else if (near) { const l = Math.hypot(sb.vx, sb.vy); if (l > 1) d = [sb.vx / l, sb.vy / l]; break; }
+    }
+  }
+  guideSim.bounce = { k, d };
+  return d;
+}
 // a path point where the line jumps (the ball came out of a tunnel): move there without drawing
 const gapPt = (x, y) => Object.assign([x, y], { gap: true });
 const guideLock = { on: false, at: -9, fired: false };   // the aim on a pot, and when it last flared
+// The pockets the drawn object-ball path ends in or passes near (the guide only simulates when there's one): the same
+// geometry drawGuide draws (into a tunnel and out, one cushion), with no pockets lit yet.
+function guideCandidates(c, dx, dy, hit) {
+  const out = new Set(), was = guideSim.potsInto;
+  guideSim.potsInto = new Set();
+  try {
+    let h = hit, sx = c.x, sy = c.y;
+    if (h.tunnel != null) { const o = tunExit(tunMouths(hole)[1 - h.tunnel]); sx = o.x; sy = o.y; h = trace(table, sx, sy, dx, dy); }
+    if (!h.ball || !isFinite(h.t)) return out;
+    const gx = sx + dx * h.t, gy = sy + dy * h.t, b = h.ball, segs = [];
+    const end = guidePath(b.x, b.y, (b.x - gx) / (2 * R), (b.y - gy) / (2 * R), b, segs);
+    if (end != null) { out.add(end); out.ends = end; }
+    table.pk.forEach((p, i) => {
+      if (!table.openPocket(i)) return;
+      for (const [ax, ay, bx, by] of segs) {
+        const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1, u = clamp(((p.x - ax) * ex + (p.y - ay) * ey) / L2, 0, 1);
+        if (Math.hypot(ax + ex * u - p.x, ay + ey * u - p.y) < p.cap + 1.5 * R) { out.add(i); break; }
+      }
+    });
+  } finally { guideSim.potsInto = was; }
+  return out;
+}
+let guidePath = null;   // (set by drawGuide: its objPath, for guideCandidates)
+// A kiss (23 Nov playtest: a line into a pocket stayed dark because, with the spin set, the cue ball came back into the
+// object ball, and nothing showed it while aiming). One sim at your pace (0.05 steps) follows the cue ball after it
+// first hits the ball: if it meets that ball again, its path up to there comes back, with the point where they meet.
+function kissAt(ball) {
+  const pw = Math.max(0.05, Math.round((hold ? power : (lastPower || 0.4)) * 20) / 20), k = `${guideSim.key}:${pw}`;
+  if (guideSim.kiss?.k === k) return guideSim.kiss.v;
+  const bi = table.balls.indexOf(ball);
+  let v = null;
+  if (bi >= 0) {
+    const s = cloneTable(table); s.shoot(aim.angle, pw, aim.spin, aim.side);
+    const sb = s.balls[bi], c = s.cue, pts = [];
+    let apart = false;
+    for (let n = 0; n < 6000 && s.moving() && !sb.potted && !c.potted; n++) {
+      s.step();
+      if (s.shot.firstHit !== sb) { if (s.shot.firstHit) break; continue; }   // (only when this ball is the one hit first)
+      if (!pts.length) pts.push([c.x, c.y]);
+      else if (n % 3 === 0) pts.push([c.x, c.y]);
+      const d = Math.hypot(c.x - sb.x, c.y - sb.y);
+      if (d > 2 * R + 3) apart = true;
+      else if (apart && d < 2 * R + 0.5) { pts.push([c.x, c.y]); v = { pts, x: (c.x + sb.x) / 2, y: (c.y + sb.y) / 2 }; break; }
+    }
+  }
+  guideSim.kiss = { k, v };
+  return v;
+}
+// Work through the current aim's paces (guideSim.res.todo), at least one and then as many as fit in GUIDE_BUDGET ms.
+// A pace adds the pockets the followed ball drops into, struck perfectly and Perfect. If none of the paces pots into
+// the pocket the line ends in, the in-between paces are tried too (some pots only drop between two guide paces).
+const GUIDE_BUDGET = 3;
+function stepGuide(sp, sd) {
+  const res = guideSim.res, t0 = performance.now();
+  if (!res) return;
+  while (res.todo.length && (performance.now() - t0 < GUIDE_BUDGET || res.todo.length === (res.mid ? GUIDE_PACES_MID : GUIDE_PACES).length)) {
+    const pw = res.todo.shift();
+    for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH, sd)) {
+      if (!potsPerfect(aim.angle, pw, sp, sd, i)) continue;
+      res.pots.add(i);
+      if (!res.paces.has(i)) res.paces.set(i, []);
+      const v = res.paces.get(i); v.push(pw); v.sort((a, b) => a - b);
+    }
+    if (!res.todo.length && !res.mid && res.ends != null && !res.pots.has(res.ends)) { res.mid = true; res.todo = [...GUIDE_PACES_MID]; }
+  }
+}
 function drawGuide(c, dx, dy, hit, t) {
   // kept subtle (GUIDE_A scales every line): a hint on the cloth, not the brightest thing on the table
   const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([5, 8]); ctx.strokeStyle = `rgba(251,248,240,${a * GUIDE_A})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
@@ -735,21 +867,6 @@ function drawGuide(c, dx, dy, hit, t) {
   // the line didn't go near while you aimed).
   // Each pace's sim stops as soon as its answer is settled (guidePotsAt), and the answers for the last few hundred aims
   // on this table are kept, so working the aim back and forth over the same spot doesn't simulate it again.
-  const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}:${sd.toFixed(2)}`;
-  if (guideSim.key !== key) {
-    // (kept only while the table is the same one with every ball where it was)
-    const at = [table.cue, ...table.balls].map(b => b.potted ? '-' : `${b.x},${b.y}`).join(';') + `;${table.gp}`;
-    if (guideSim.memoOf !== table || guideSim.memoAt !== at) { guideSim.memoOf = table; guideSim.memoAt = at; guideSim.memo = new Map(); }
-    const mkey = `${aim.angle}:${sp}:${sd}`;   // the exact inputs the sims see
-    let pots = guideSim.memo.get(mkey);
-    if (!pots) {
-      pots = new Set();
-      for (const pw of GUIDE_PACES) for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH, sd)) pots.add(i);
-      if (guideSim.memo.size >= 400) guideSim.memo.delete(guideSim.memo.keys().next().value);
-      guideSim.memo.set(mkey, pots);
-    }
-    guideSim.key = key; guideSim.potsInto = pots;
-  }
   // The ring and the bright line are one signal, decided once the line is drawn (finishGuide, below): they light
   // only when the pocket the line goes into is one the ball really drops into at some pace.
   guideSim.pks = [];
@@ -760,7 +877,7 @@ function drawGuide(c, dx, dy, hit, t) {
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(255,210,120,1)'; ctx.shadowBlur = (14 + 22 * flare) * view.s * view.dpr;
     ctx.strokeStyle = `rgba(255,246,222,${0.9 + 0.1 * flare})`; ctx.lineWidth = 3.5 + 4 * flare;
-    for (let n = 0; n < 2; n++) { ctx.beginPath(); for (const [ax, ay, bx, by] of segs) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); } ctx.stroke(); }
+    ctx.beginPath(); for (const [ax, ay, bx, by] of segs) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); } ctx.stroke();
     ctx.shadowBlur = 0;
     // the shimmer: one bright band travelling the whole path towards the pocket
     const lens = segs.map(([ax, ay, bx, by]) => Math.hypot(bx - ax, by - ay)), total = lens.reduce((x, y) => x + y, 0) || 1, at = ((t * 0.55) % 1) * total;
@@ -805,21 +922,42 @@ function drawGuide(c, dx, dy, hit, t) {
       const o = tunExit(tunMouths(hole)[1 - h.tunnel]);
       return objPath(o.x, o.y, ux, uy, skip, 0, depth + 1, leg, segs);
     }
+    // a line that stops in the jaws of a pocket the ball really drops into goes in (it ended ~3 px short on steep
+    // approaches to a corner, and those pots stayed dark: 23 Nov review)
+    const jp = [...guideSim.potsInto].find(i => jawOf(table, i, x, y));
+    if (jp != null) return jp;
     // a full line to the first thing it meets; off a cushion (or bumper) it carries on for one more leg, then stops
     if (leg > 0 || h.ball || h.tunnel != null) return null;
     let nx = h.nx, ny = h.ny;
     if (h.bumper) { const d = Math.hypot(x - h.bumper.x, y - h.bumper.y) || 1; nx = (x - h.bumper.x) / d; ny = (y - h.bumper.y) / d; }
     if (nx == null || table.pk.some(p => Math.hypot(p.x - x, p.y - y) < p.cap + R * 2.5)) return null;   // a bar, or a pocket's jaws
-    // off the cushion as the physics does it: the speed into it drops to e of itself, the speed along it is kept
+    // off the cushion as the physics does it: the speed into it drops to e of itself, the speed along it is kept;
+    // off a bumper or the cat, the way a simulation at your pace says it goes (bumperBounce)
     const k = ux * nx + uy * ny, e = h.bumper ? (h.bumper.cat ? CAT_E : BUMPER_E) : CUSHION_E;
-    const rx = ux - (1 + e) * k * nx, ry = uy - (1 + e) * k * ny, rl = Math.hypot(rx, ry) || 1;
+    let rx = ux - (1 + e) * k * nx, ry = uy - (1 + e) * k * ny;
+    const bd = h.bumper && skip ? bumperBounce(skip, h.bumper) : null;
+    if (bd) [rx, ry] = bd;
+    const rl = Math.hypot(rx, ry) || 1;
     return objPath(x + nx * 0.5, y + ny * 0.5, rx / rl, ry / rl, skip, 0, depth, leg + 1, segs);
   };
+  guidePath = (px, py, ux, uy, skip, segs) => objPath(px, py, ux, uy, skip, 0, 0, 0, segs);
   const objLine = (px, py, ux, uy, skip, from) => {
     const segs = [], end = objPath(px, py, ux, uy, skip, from, 0, 0, segs);
     if (end != null && guideSim.potsInto.has(end)) { guideSim.pks = [end]; onTargetPath(segs); return; }
     // The line points into a pocket the ball doesn't actually drop into (it clips the jaws, or a bank comes off the
-    // cushion a little differently): fade it out short of the pocket, so it never looks like it goes in unlit.
+    // cushion a little differently): fade it out short of the pocket, so it never looks like it goes in unlit. If it's
+    // because the cue ball comes back into it (a kiss), show the cue ball's path to there and a small red cross.
+    if (end != null && segs.length && !guideSim.res?.todo.length) {
+      const kz = kissAt(skip);
+      if (kz && kz.pts.length > 1) {
+        ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(251,248,240,.5)'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); kz.pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+        const r = 7, X = () => { ctx.beginPath(); ctx.moveTo(kz.x - r, kz.y - r); ctx.lineTo(kz.x + r, kz.y + r); ctx.moveTo(kz.x + r, kz.y - r); ctx.lineTo(kz.x - r, kz.y + r); ctx.stroke(); };
+        ctx.strokeStyle = 'rgba(251,248,240,.85)'; ctx.lineWidth = 6; X();   // a light outline, so it reads on the felt
+        ctx.strokeStyle = '#e0573d'; ctx.lineWidth = 3.5; X();
+        ctx.restore();
+      }
+    }
     if (end != null && segs.length) {
       const [ax, ay, bx, by] = segs[segs.length - 1], L = Math.hypot(bx - ax, by - ay), k = Math.max(0, L - 2.5 * R) / (L || 1);
       segs[segs.length - 1] = [ax, ay, ax + (bx - ax) * k, ay + (by - ay) * k, segs[segs.length - 1][4], true];
@@ -839,6 +977,29 @@ function drawGuide(c, dx, dy, hit, t) {
     }
     guideSim.pks.forEach(ringPocket);
   };
+  const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}:${sd.toFixed(2)}`;
+  if (guideSim.key !== key) {
+    // (kept only while the table is the same one with every ball where it was)
+    const at = [table.cue, ...table.balls].map(b => b.potted ? '-' : `${b.x},${b.y}`).join(';') + `;${table.gp}`;
+    if (guideSim.memoOf !== table || guideSim.memoAt !== at) { guideSim.memoOf = table; guideSim.memoAt = at; guideSim.memo = new Map(); }
+    const mkey = `${aim.angle}:${sp}:${sd}`;   // the exact inputs the sims see
+    let res = guideSim.memo.get(mkey);
+    if (!res) {
+      // (23 Nov review: 9 sims every time the aim moved stuttered the guide to ~12 fps on a phone during fine aiming)
+      // The sims only run when the drawn object-ball path ends in, or passes close to, a pocket: most aims don't, and
+      // a pot the ring could light runs along the drawn path. The paces are tried nearest your pull first, a few each
+      // frame within GUIDE_BUDGET ms (stepGuide), so the ring lights as soon as one drops and the rest of the pace band
+      // fills in over the next frames.
+      const cands = guideCandidates(c, dx, dy, hit), pw0 = hold ? power : (lastPower || 0.4);
+      res = { pots: new Set(), paces: new Map(), cands, ends: cands.ends, todo: cands.size ? [...GUIDE_PACES].sort((x, y) => Math.abs(x - pw0) - Math.abs(y - pw0)) : [], mid: false };
+      if (guideSim.memo.size >= 400) guideSim.memo.delete(guideSim.memo.keys().next().value);
+      guideSim.memo.set(mkey, res);
+    }
+    guideSim.res = res;
+    guideSim.key = key;
+  }
+  stepGuide(sp, sd);
+  guideSim.potsInto = guideSim.res.pots; guideSim.paces = guideSim.res.paces;
   if (hit.tunnel != null) {
     // into a tunnel: the line stops at the mouth, the far end glows, and the line carries on out of it on the same
     // heading (the ball always leaves the far mouth heading the way it went in)
@@ -859,7 +1020,7 @@ function drawGimmes(t) {
     ctx.strokeStyle = `rgba(120,210,140,${0.9 * (1 - k)})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(b.x, b.y, R + 4 + k * 14, 0, TAU); ctx.stroke();
     ctx.font = "700 16px 'DM Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const txt = 'Tap in ⛳', tw = ctx.measureText(txt).width + 18, lx = clamp(b.x, tw / 2 + 4, W - tw / 2 - 4), ly = b.y - R - 22 < 16 ? b.y + R + 22 : b.y - R - 22;
+    const txt = 'Tap in', tw = ctx.measureText(txt).width + 18, lx = clamp(b.x, tw / 2 + 4, W - tw / 2 - 4), ly = b.y - R - 22 < 16 ? b.y + R + 22 : b.y - R - 22;
     ctx.fillStyle = 'rgba(47,107,79,.94)'; ctx.beginPath(); ctx.roundRect(lx - tw / 2, ly - 13, tw, 26, 13); ctx.fill();
     ctx.fillStyle = '#f4efe2'; ctx.fillText(txt, lx, ly + 0.5);
   }
@@ -1016,11 +1177,13 @@ function drawBanner(dt) {
   banner.life -= dt;
   const a = Math.min(1, banner.life * 2, (banner.max - banner.life) * 4);
   ctx.save(); ctx.globalAlpha = Math.max(0, a);
-  ctx.fillStyle = 'rgba(251,248,240,.93)'; ctx.strokeStyle = 'rgba(120,100,70,.35)'; ctx.lineWidth = 1.5;
+  const dark = night();   // (at night: an arcade panel, dark with a neon border and a hard shadow)
+  if (dark) { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.roundRect(W * 0.08 + 6, H * 0.42 - 48, W * 0.84, 108, 16); ctx.fill(); }
+  ctx.fillStyle = dark ? '#16122b' : 'rgba(251,248,240,.93)'; ctx.strokeStyle = dark ? '#35e0e8' : 'rgba(120,100,70,.35)'; ctx.lineWidth = dark ? 3 : 1.5;
   ctx.beginPath(); ctx.roundRect(W * 0.08, H * 0.42 - 54, W * 0.84, 108, 16); ctx.fill(); ctx.stroke();
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#2d3a30';
-  ctx.font = "800 40px 'DM Sans', sans-serif"; ctx.fillText(banner.title, W / 2, H * 0.42 - 12);
-  ctx.font = "500 14px 'DM Mono', monospace"; ctx.fillStyle = '#6d7568'; ctx.fillText(banner.sub.toUpperCase(), W / 2, H * 0.42 + 26);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = dark ? '#f6f1ff' : '#2d3a30';
+  ctx.font = round?.trick ? "400 36px Bungee, sans-serif" : "800 40px 'DM Sans', sans-serif"; ctx.fillText(banner.title, W / 2, H * 0.42 - 12);
+  ctx.font = round?.trick ? "700 15px 'Chakra Petch', monospace" : "500 14px 'DM Mono', monospace"; ctx.fillStyle = dark ? '#35e0e8' : '#6d7568'; ctx.fillText(banner.sub.toUpperCase(), W / 2, H * 0.42 + 26);
   ctx.restore();
   if (banner.life <= 0) banner = null;
 }
@@ -1044,16 +1207,33 @@ function paintLayer(c, paint) {
   ctx = c.getContext('2d');
   try { ctx.setTransform(s * dpr, 0, 0, s * dpr, ox * dpr + P, oy * dpr + P); paint(P); } finally { ctx = keep; }
 }
+// Night: the room is painted as by day, with a still sleeping cat and the turntable's top, then darkened, least
+// round the table (the spotlight's spill). All of it in the cache, so it costs nothing a frame.
+function drawNightRoom() {
+  const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.42, W / 2, H / 2, H * 1.05);
+  g.addColorStop(0, 'rgba(10,8,26,.86)'); g.addColorStop(1, 'rgba(8,6,20,.97)');
+  ctx.fillStyle = g; ctx.fillRect(-3000, -3000, W + 6000, H + 6000);
+}
+// at night the cat by the table is only a shape, but its eyes catch the light when it wakes
+function drawCatEyes() {
+  if (table?.cat || catAnim) return;
+  const busy = catStartle > 0.05 || !!table && table.live().some(b => Math.hypot(b.vx, b.vy) > 400);
+  if (!busy) return;
+  const { x, y } = DECOR.cat, a = -0.3, c = Math.cos(a), s = Math.sin(a);
+  ctx.fillStyle = '#c9ff5c';
+  for (const [ex, ey] of [[21, 9], [30, 9]]) { ctx.beginPath(); ctx.ellipse(x + ex * c - ey * s, y + ex * s + ey * c, 3, 2.4, a, 0, TAU); ctx.fill(); }
+}
 function sceneryReady() {
-  if (scenery.view !== view || scenery.w !== canvas.width || scenery.h !== canvas.height) {
+  if (scenery.view !== view || scenery.w !== canvas.width || scenery.h !== canvas.height || scenery.night !== night()) {
     const { s, dpr, cw, ch, ox, oy } = view;
     paintLayer(scenery.room, P => {
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, scenery.room.width, scenery.room.height); ctx.restore();
       const m = P / dpr;
       drawFloor(-(ox + m) / s - 20, -(oy + m) / s - 20, (cw + m - ox) / s + 20, (ch + m - oy) / s + 20);
       drawRug(); drawChair(); drawRecordBase();
+      if (night()) { drawRecordTop(0); drawCatBody(DECOR.cat.x, DECOR.cat.y, -0.3, 1, 0, false); drawNightRoom(); }
     });
-    Object.assign(scenery, { view, w: canvas.width, h: canvas.height, hole: null });
+    Object.assign(scenery, { view, w: canvas.width, h: canvas.height, hole: null, night: night() });
   }
   if (scenery.hole !== hole) { paintLayer(scenery.table, drawTableBase); scenery.hole = hole; }
 }
@@ -1070,9 +1250,8 @@ function draw(t, dt) {
     const P = Math.ceil(SHAKE_PAD * dpr), bx = Math.round(sx * dpr) - P, by = Math.round(sy * dpr) - P, world = () => ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(scenery.room, bx, by);
     world();
-    drawWindowLight(t);
-    drawRecordTop(dt);
-    drawCat(t);
+    if (night()) drawCatEyes();
+    else { drawWindowLight(t); drawRecordTop(dt); drawCat(t); }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(scenery.table, bx, by);
     world();
     drawTableLive(t, dt);
@@ -1081,14 +1260,15 @@ function draw(t, dt) {
     ctx.fillStyle = '#d8c29b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(S * dpr, 0, 0, S * dpr, (OX + sx) * dpr, (OY + sy) * dpr);
     drawFloor(x0, y0, x1, y1);
-    drawWindowLight(t);
+    if (!night()) drawWindowLight(t);
     drawRug();
     drawChair();
     drawRecord(dt);
-    drawCat(t);
+    if (night()) { drawCatBody(DECOR.cat.x, DECOR.cat.y, -0.3, 1, 0, false); drawNightRoom(); drawCatEyes(); } else drawCat(t);
     drawTable(t, dt);
   }
   drawTableCat(t, dt);
+  drawTargets(t);
 
   // (the dotted trail of where the cue ball has been is no longer drawn: it cluttered the table; `trails` still records it)
   for (const m of marks) {
@@ -1203,8 +1383,9 @@ function draw(t, dt) {
     ctx.globalAlpha = Math.min(1, k * 2.5);
     ctx.font = `700 ${f.size * pop}px 'DM Sans', sans-serif`;
     const tw = ctx.measureText(f.text).width;
-    ctx.fillStyle = 'rgba(251,248,240,.92)'; ctx.beginPath(); ctx.roundRect(f.x - tw / 2 - 10, f.y - f.size * 0.7, tw + 20, f.size * 1.4, f.size * 0.7); ctx.fill();
-    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y + 1);
+    ctx.fillStyle = night() ? 'rgba(22,18,43,.94)' : 'rgba(251,248,240,.92)'; ctx.beginPath(); ctx.roundRect(f.x - tw / 2 - 10, f.y - f.size * 0.7, tw + 20, f.size * 1.4, f.size * 0.7); ctx.fill();
+    if (night()) { ctx.strokeStyle = f.color; ctx.lineWidth = 2; ctx.stroke(); }
+    ctx.fillStyle = night() ? '#f6f1ff' : f.color; ctx.fillText(f.text, f.x, f.y + 1);
   }
   fx.floats = fx.floats.filter(f => f.life > 0);
   ctx.globalAlpha = 1;
@@ -1215,7 +1396,10 @@ function draw(t, dt) {
   // cloud shadows: three huge, very soft sprites, each stretched over most of the screen, which cost more than the
   // rest of the room put together. They're drawn into a canvas at a quarter of the resolution and that is stretched
   // over the screen once: the same soft shapes for a third of the work.
+  // (not under the timed trial: two full-screen layers a frame cost a phone too much for what fast play notices;
+  // the film grain goes too, below. 23 Nov)
   const cb = CLOUD_BUF, cq = 4;
+  if (!round?.trick) {
   if (cb.width !== Math.ceil(canvas.width / cq) || cb.height !== Math.ceil(canvas.height / cq)) { cb.width = Math.ceil(canvas.width / cq); cb.height = Math.ceil(canvas.height / cq); }
   const cg = cb.getContext('2d');
   cg.setTransform(1, 0, 0, 1, 0, 0); cg.clearRect(0, 0, cb.width, cb.height);
@@ -1225,14 +1409,16 @@ function draw(t, dt) {
     cg.drawImage(CLOUD, c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
   }
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(cb, 0, 0, cb.width * cq, cb.height * cq); ctx.restore();
+  }
   ctx.globalCompositeOperation = 'lighter';
   for (const m of motes) {
     const mx = m.x + Math.sin(t * 0.13 * m.s + m.p) * 40, my = m.y + Math.cos(t * 0.1 * m.s + m.p) * 30 - (t * 4 * m.s) % 60;
     ctx.globalAlpha = 0.25 + 0.35 * Math.sin(t * m.s + m.p) ** 2;
     ctx.drawImage(MOTE, mx - 4, my - 4, 8, 8);
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = night() ? 0.45 : 1;   // (the warm lamp washed the night table's blue felt out)
   ctx.drawImage(LAMP, W / 2 - H * 0.75, H / 2 - H * 0.75, H * 1.5, H * 1.5);
+  ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1249,10 +1435,11 @@ function draw(t, dt) {
   // the vignette: a full-screen radial gradient was being rasterised every frame, so it's painted once per size at a
   // quarter of the resolution (it's only a soft shade) and stretched over; its strength is the copy's alpha
   const vb = VIGNETTE_BUF;
-  if (vb.cw !== cw || vb.ch !== ch) {
-    vb.cw = cw; vb.ch = ch; vb.width = Math.ceil(cw / 4); vb.height = Math.ceil(ch / 4);
+  if (vb.cw !== cw || vb.ch !== ch || vb.night !== night()) {
+    vb.cw = cw; vb.ch = ch; vb.night = night(); vb.width = Math.ceil(cw / 4); vb.height = Math.ceil(ch / 4);
     const vc = vb.getContext('2d'), vg = vc.createRadialGradient(vb.width / 2, vb.height / 2, Math.min(vb.width, vb.height) * 0.35, vb.width / 2, vb.height / 2, Math.max(vb.width, vb.height) * 0.75);
-    vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, 'rgba(40,25,10,1)');
+    if (vb.night) { vg.addColorStop(0, 'rgba(10,8,30,0)'); vg.addColorStop(1, 'rgba(6,4,18,1)'); }
+    else { vg.addColorStop(0, 'rgba(60,40,20,0)'); vg.addColorStop(1, 'rgba(40,25,10,1)'); }
     vc.fillStyle = vg; vc.fillRect(0, 0, vb.width, vb.height);
   }
   ctx.globalAlpha = 0.28 + clamp((PLAY - timeScale) / PLAY, 0, 1) * 0.45;
@@ -1260,6 +1447,24 @@ function draw(t, dt) {
   // film grain: hop the noise tile to a new random offset ~12 times a second, so it shimmers in place
   // (sliding it steadily made it read as diagonal rain)
   const gf = Math.floor(t * 12), gx = hash01(gf) * 160, gy = hash01(gf + 0.5) * 160;
-  ctx.save(); ctx.translate(gx, gy); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore();
+  if (!round?.trick) { ctx.save(); ctx.translate(gx, gy); ctx.fillStyle = GRAIN; ctx.fillRect(-160, -160, cw + 320, ch + 320); ctx.restore(); }
+}
+
+
+// Trick scoring's moving targets: a track, and a sky-blue ring sliding along it.
+function drawTargets(t) {
+  if (!targets.length) return;
+  ctx.save();
+  for (const o of targets) {
+    if (o.hit) continue;
+    ctx.strokeStyle = `rgba(${tgtRGB()},.38)`; ctx.lineWidth = 2; ctx.setLineDash([3, 9]); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(o.ax, o.ay); ctx.lineTo(o.bx, o.by); ctx.stroke(); ctx.setLineDash([]);
+    const p = tgtPos(o, tgtClock), k = 0.75 + 0.25 * Math.sin(t * 4);
+    ctx.fillStyle = `rgba(${tgtRGB()},${0.12 + 0.08 * k})`; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(${tgtRGB()},${0.8 + 0.2 * k})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R * 0.45, 0, TAU); ctx.stroke();
+    ctx.fillStyle = `rgba(${tgtRGB()},.95)`; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
 }
 

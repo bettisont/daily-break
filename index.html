@@ -36,7 +36,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet">
 <style>
   :root{--paper:#ece5d3;--panel:#f5f0e4;--card:#fbf8f0;--ink:#2d3a30;--muted:#7d8577;--line:#d9d0bb;--green:#2f6b4f;--green-dark:#1f4a36;--hi:#dde7d0;--gold:#b88a2e;--red:#b8553f;--hatch:#e8bcb0}
   *{box-sizing:border-box}
@@ -60,6 +60,9 @@
   .card-par{border-collapse:collapse;margin:12px auto 2px;font-size:13px;font-variant-numeric:tabular-nums}
   .card-par th,.card-par td{padding:4px 8px;border:1px solid var(--line);text-align:center}
   .card-par th{font-weight:500;color:var(--muted)}
+  .card-trick{table-layout:fixed;width:100%;font-size:12px}
+  .card-trick th,.card-trick td{padding:4px 2px;letter-spacing:0}
+  .card-trick th:first-child{width:54px}
   #stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:crosshair}
   canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block}
   #info{display:grid;grid-template-columns:1.6fr 1fr 1fr;border-bottom:1px solid var(--line);background:var(--paper)}
@@ -69,6 +72,103 @@
   #info b.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   @keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.35)}100%{transform:scale(1)}}
   #info b{transform-origin:left center}
+  #info b.hot{color:#c4472f}
+  /* trick scoring: the streak meter along the bottom of its cell (absolute, so the info bar keeps its height) */
+  #iLie{position:relative}
+  /* the meter heats up gradually with the multiplier (--heat, 0 at x1 to 1 at x5, set by updateStreakMeter; 23 Nov
+     playtest): the cell fills with a warm tint, the number grows and turns from amber to red, the bar thickens. All
+     inside the cell: no glow on the table. */
+  #iLie{--heat:0;background-color:color-mix(in srgb,#f3c48a calc(var(--heat) * 60%),transparent);transition:background-color .6s}
+  #smX{display:inline-block;transform-origin:left 70%;scale:calc(1 + var(--heat) * .3);transition:scale .5s cubic-bezier(.2,1.4,.4,1),color .5s}
+  #info b.hot #smX{color:color-mix(in srgb,#c22e26 calc(var(--heat) * 100%),#d3862c)}
+  #iLie .smbar{position:absolute;left:12px;right:12px;bottom:3px;height:calc(4px + var(--heat) * 3px);border-radius:3px;background:#e0d6bf;overflow:hidden;transition:height .5s}
+  #iLie .smbar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#f0b43c,#e8742a 60%,#d8452a);transition:width .45s cubic-bezier(.2,1.4,.4,1)}
+  #iLie.crack{animation:crack .6s}
+  #iLie.crack .smbar{background:#e8a99a}
+  @keyframes crack{0%,100%{transform:none}15%{transform:translateX(-4px)}30%{transform:translateX(4px)}45%{transform:translateX(-3px)}60%{transform:translateX(2px)}}
+  /* trick scoring: the shot's tally over the table (numbers only), and the multipliers that drop onto it */
+  #tally{position:fixed;transform:translate(-50%,-50%);z-index:5;pointer-events:none;text-align:center;display:flex;flex-direction:column;align-items:center;animation:tallyIn .25s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes tallyIn{from{scale:.4;opacity:0}}
+  #tally .tn{font:800 clamp(28px,9.5vw,40px)/1 'DM Sans',sans-serif;color:#b88a2e;letter-spacing:-.02em;text-shadow:0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0,0 4px 14px rgba(60,45,25,.35);font-variant-numeric:tabular-nums;white-space:nowrap}
+  #tally .tn.hot{color:#d8552a}
+  #tally .tn.pop{animation:tallyPop .28s cubic-bezier(.2,1.8,.4,1)}
+  @keyframes tallyPop{30%{scale:1.18}}
+  #tally .tn.win{animation:tallyWin .7s cubic-bezier(.2,.8,.3,1)}
+  @keyframes tallyWin{0%{scale:1;filter:brightness(1)}30%{scale:1.16;filter:brightness(1.35);text-shadow:0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0,0 0 26px rgba(255,200,80,.95),0 0 60px rgba(255,170,60,.7)}100%{scale:1;filter:none}}
+  #tally .tn::before{content:'';position:absolute;inset:-30px -40px;z-index:-1;border-radius:50%;background:radial-gradient(closest-side,rgba(255,214,110,.55),rgba(255,214,110,0));opacity:0;pointer-events:none}
+  #tally .tn.win::before{animation:bloom .9s ease-out}
+  @keyframes bloom{0%{opacity:0;scale:.5}30%{opacity:1;scale:1.1}100%{opacity:0;scale:1.4}}
+  #tally .ti{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);white-space:nowrap;font:800 22px 'DM Sans',sans-serif;color:#3b5ea6;text-shadow:0 2px 0 #fbf8f0,0 -2px 0 #fbf8f0,2px 0 0 #fbf8f0,-2px 0 0 #fbf8f0;animation:tallyIn .18s cubic-bezier(.2,1.6,.4,1)}
+  #tally .ti small,#tally .tl{font:700 12px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase}
+  #tally .ti small{vertical-align:middle;margin-left:2px;font-size:11px}
+  #tally .tl{color:#4c574a;background:rgba(251,248,240,.9);padding:2px 8px;border-radius:8px;margin-top:6px;transition:opacity .2s}
+  #tally .tl.gone{opacity:0}
+  /* a multiplier beside the number, and the number's digits as slot-machine reels */
+  #tally .tn{position:relative;display:flex;align-items:center;gap:10px}
+  #tally .tn .tv{white-space:nowrap}
+  #tally .tx{position:relative;font:800 21px/1 'DM Sans',sans-serif;color:#fbf8f0;padding:4px 9px;border-radius:10px;text-shadow:none;letter-spacing:0;box-shadow:0 4px 12px rgba(60,45,25,.3);animation:slam .32s cubic-bezier(.2,1.6,.4,1);text-align:center;white-space:nowrap}
+  #tally .tx small{display:block;font:700 9px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+  #tally .tx.streak{background:#d8552a} #tally .tx.gold{background:#c99a3a}
+  #tally .tx.melt{transition:transform .28s ease-in,opacity .28s;transform:translateX(-60px) scale(.3);opacity:0}
+  @keyframes slam{from{scale:2.4;rotate:-8deg;opacity:0}}
+  #tally .reel{display:inline-block;min-width:.58em;text-align:center}
+  #tally .reel.land{animation:land .22s cubic-bezier(.2,1.8,.4,1)}
+  @keyframes land{from{translate:0 -10px}}
+  #iLie.flash{animation:meterFlash .8s ease-out}
+  /* why the multiplier grows: each cause flies from the tally into the meter, which pulses as it lands */
+  .mchip{position:fixed;z-index:6;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap;font:800 17px 'DM Sans',sans-serif;color:#fbf8f0;background:#d8552a;padding:3px 10px;border-radius:12px;box-shadow:0 5px 14px rgba(60,45,25,.3);animation:slam .28s cubic-bezier(.2,1.6,.4,1)}
+  .mchip small{font:700 10px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-left:3px}
+  .mchip.trick{background:#3b5ea6} .mchip.gold{background:#c99a3a}
+  .mchip.mdrop{font-size:21px;padding:4px 11px}
+  .mchip.fly{transition:transform .13s cubic-bezier(.55,0,.9,.45),opacity .13s;opacity:.8}   /* (fits TALLY_PACE) */
+  #iLie.gain #smX{display:inline-block;animation:meterGain .45s cubic-bezier(.2,1.8,.4,1)}
+  #iLie.gain{animation:meterFlash .6s ease-out}
+  @keyframes meterGain{30%{scale:1.45;filter:brightness(1.3)}}
+  /* why the multiplier just dropped: tags under the meter that fade in and out */
+  #info{position:relative;z-index:3} #info > #iLie{overflow:visible}
+  #iLie .mwhy{position:absolute;left:50%;top:calc(100% + 5px);translate:-50% 0;width:max-content;max-width:240px;z-index:4;display:flex;flex-wrap:wrap;justify-content:center;gap:3px;pointer-events:none;animation:mwhy 2.6s ease-in-out forwards}
+  #iLie .mwhy span{font:700 9.5px 'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#2f6b4f;background:rgba(251,248,240,.94);border:1px solid #b9c9a8;border-radius:8px;padding:2px 6px;white-space:nowrap}
+  #iLie .mwhy.down span{color:#b8553f;border-color:#e8a99a}
+  @keyframes mwhy{0%{opacity:0;transform:translateY(-4px)}12%,75%{opacity:1;transform:none}100%{opacity:0}}
+  @keyframes meterFlash{0%,30%{background:#f6c27a}100%{background:transparent}}
+  #tally .ti.in{transition:transform .18s cubic-bezier(.6,0,.9,.4),opacity .18s;transform:translateX(-50%) translateY(-70px) scale(.5);opacity:0}
+  /* the Points chip opens the breakdown */
+  #card9 button.c{cursor:pointer;font:500 11px 'DM Mono',monospace}
+  /* the timed trial's clock: a bigger chip, and a bar under the header that drains with it */
+  #card9 .clock{padding:3px 9px}
+  #card9 .clock b{font:800 15px 'DM Sans',sans-serif;font-variant-numeric:tabular-nums;min-width:3.4ch;text-align:center;display:inline-block;letter-spacing:0}
+  #clockBar{width:min(100%,640px);margin-inline:auto;height:4px;background:var(--line)}
+  #clockBar i{display:block;height:100%;width:100%;transform-origin:left;background:linear-gradient(90deg,#2f6b4f,#3d8758)}
+  #clockBar.urgent i{background:linear-gradient(90deg,#d8452a,#e8742a);animation:urgentBar .5s ease-in-out infinite alternate}
+  @keyframes urgentBar{to{opacity:.55}}
+  #card9 .clock.urgent{background:#f6d3c8;border-color:#d8552a;animation:urgent 1s ease-in-out infinite}
+  #card9 .clock.urgent b{color:#b8352a}
+  @keyframes urgent{50%{background:#fbe6df}}
+  /* The timed trial's arcade lettering (23 Nov playtest: the fonts should feel more exciting): Bungee for numbers and
+     big words, Chakra Petch for the small labels. Only under body.trial (newRound), so the par game keeps DM Sans/Mono.
+     Bungee has one weight: always 400, or the browser fakes a bold. */
+  body.trial{--disp:'Bungee',system-ui,sans-serif;--lab:'Chakra Petch',ui-monospace,monospace}
+  body.trial #card9 .clock b,body.trial #ptsVal,body.trial #info b,body.trial #tally .tn,body.trial #tally .ti,body.trial #tally .tx,body.trial .mchip,body.trial #timeCall,body.trial #card h2,body.trial #card .big,body.trial .stats b{font-family:var(--disp);font-weight:400;letter-spacing:.01em}
+  body.trial #card9 .clock b{font-size:16px}
+  body.trial #info b{font-size:16.5px}
+  body.trial #tally .tn{letter-spacing:0}
+  body.trial #timeCall{font-size:23px;letter-spacing:.03em}
+  body.trial #card9 .c,body.trial #card9 button.c,body.trial #info > div,body.trial #info b small,body.trial #tally .ti small,body.trial #tally .tl,body.trial #tally .tx small,body.trial .mchip small,body.trial #iLie .mwhy span,body.trial #card .mono,body.trial .stats span{font-family:var(--lab);font-weight:700}
+  /* time call-outs: a label that drops out of the clock, holds and fades (timeCall) */
+  #timeCall{position:fixed;left:50%;z-index:6;pointer-events:none;white-space:nowrap;font:800 26px 'DM Sans',sans-serif;color:#fbf8f0;background:#2f6b4f;padding:6px 18px;border-radius:16px;box-shadow:0 6px 16px rgba(60,45,25,.3);transform:translateX(-50%);animation:timeCall 2s cubic-bezier(.2,1.4,.4,1) forwards}
+  #timeCall.urgent{background:#d8452a}
+  @keyframes timeCall{0%{opacity:0;transform:translate(-50%,-30px) scale(.6)}12%{opacity:1;transform:translate(-50%,0) scale(1)}80%{opacity:1;transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-8px) scale(.96)}}
+  #ptsVal{display:inline-block;min-width:5.2ch;text-align:right;font-variant-numeric:tabular-nums}
+  @media (max-width:370px){ #card9 .c .lab{display:none} h1{font-size:13.5px} #ptsVal{min-width:4.6ch} }
+  #card9 .c i{font-style:normal;font-size:11px;color:var(--muted)}
+  #card9 .c.tip{animation:spinPulse 1.4s ease-out 4}
+  .shotlog{text-align:left;max-height:52vh;overflow:auto;margin:10px 0 4px;display:flex;flex-direction:column;gap:10px}
+  .sl{border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--panel)}
+  .sl.last{border-color:#b9c9a8;background:var(--hi)}
+  .slh{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:4px} .slh b{color:var(--ink);font:800 15px 'DM Sans',sans-serif;letter-spacing:0}
+  .sll{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:2px 0} .sll small{display:block;font-size:11.5px;color:var(--muted)} .sll b{white-space:nowrap}
+  .sle{font-size:10.5px;color:#4c574a;border-top:1px dashed var(--line);margin-top:4px;padding-top:4px;letter-spacing:.04em}
+  #card9 .c b.bump{display:inline-block;animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
   #info b small{font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5a6556;font-weight:400;margin-left:4px}
   .round{width:30px;height:30px;flex:none;border-radius:50%;background:var(--card);border:1px solid var(--line);box-shadow:0 2px 6px rgba(60,45,25,.16);font:600 15px 'DM Sans',sans-serif;display:grid;place-items:center;cursor:pointer;color:var(--ink);padding:0}
   .round.off{opacity:.45}
@@ -130,6 +230,13 @@
   .howto{text-align:left;font-size:14px;color:#4c574a}
   .howto p{margin:9px 0}
   .howto b{color:var(--ink)}
+  /* line icons in place of emoji (ICON, ic() in ui.js) */
+  .ic{width:1.15em;height:1.15em;vertical-align:-.22em;margin-right:5px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .howto .ic{color:#2f6b4f}
+  #snd .ic{width:18px;height:18px;margin:0;vertical-align:middle}
+  /* the demos' touch point (in place of a pointing-hand emoji): where a fingertip would be in the old 44px box */
+  .touch{position:absolute;left:17px;top:6px;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:rgba(251,248,240,.9);border:3px solid #2f3a31;box-sizing:border-box}
+  .touch::after{content:'';position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(251,248,240,.6)}   /* (still: a looping ring would keep the page busy) */
   .stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;margin:14px auto 0;max-width:340px;background:var(--panel)}
   .stats div{padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px}
   .stats div + div{border-left:1px solid var(--line)}
@@ -145,6 +252,68 @@
   .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;font:700 14px 'DM Sans',sans-serif;cursor:pointer}
   .btn.primary{background:var(--green);border-color:var(--green);color:#f4f6ef}
   @media (max-width:420px){ h1{font-size:15px} header{padding:6px 8px 6px 12px} #card9 .c{padding:3px 5px;font-size:10px} #info b{font-size:16px} #info > div{padding:5px 9px 6px} }
+  /* ---- the timed trial at night (23 Nov playtest: an arcade look to match its pace and lettering) ----
+     The same layout, re-coloured: a dark room, arcade panels (a 2px border and a hard offset shadow, no blur or glow)
+     and three neon accents. The par game keeps the daytime colours. The table and room are in render.js (night()). */
+  body.trial{--paper:#120f24;--panel:#1b1734;--card:#1f1a3c;--ink:#f4efff;--muted:#9d94c2;--line:#3b3266;--green:#ff3d8b;--green-dark:#a8165a;--hi:#2a2350;--gold:#ffc94a;--red:#ff5d73;--cyan:#35e0e8;--pink:#ff3d8b;--amber:#ffc94a;--hard:3px 3px 0 #05040c}
+  body.trial header{border-bottom:2px solid var(--line)}
+  body.trial h1{font:400 17px var(--disp);color:var(--pink);letter-spacing:.02em}
+  body.trial #card9 .c{background:var(--panel);border:2px solid var(--line);color:var(--muted);box-shadow:2px 2px 0 #05040c}
+  body.trial #card9 .clock{border-color:var(--cyan)} body.trial #card9 .clock b{color:var(--cyan)}
+  body.trial #card9 .clock.urgent{background:#3a0f22;border-color:var(--pink);animation:none} body.trial #card9 .clock.urgent b{color:var(--pink)}
+  body.trial #ptsVal{color:var(--amber)} body.trial #card9 .c i{color:var(--muted)}
+  body.trial .round{background:var(--panel);border:2px solid var(--line);color:var(--ink);box-shadow:2px 2px 0 #05040c}
+  body.trial #clockBar{background:var(--line)} body.trial #clockBar i{background:var(--cyan)} body.trial #clockBar.urgent i{background:var(--pink)}
+  body.trial #info{border-bottom:2px solid var(--line)} body.trial #info > div{color:var(--muted)} body.trial #info > div + div{border-left:2px solid var(--line)}
+  body.trial #info b small{color:var(--muted)}
+  body.trial #iLie{background-color:color-mix(in srgb,#ff3d8b calc(var(--heat) * 32%),transparent)}
+  body.trial #info b.hot #smX{color:color-mix(in srgb,#ff4f8f calc(var(--heat) * 100%),#ffc94a)}
+  body.trial #iLie .smbar{background:var(--line)} body.trial #iLie .smbar i{background:linear-gradient(90deg,var(--amber),var(--pink))}
+  body.trial #iLie.crack .smbar{background:#6b1c3b}
+  body.trial #iLie .mwhy span{color:var(--cyan);background:var(--panel);border:2px solid var(--cyan)} body.trial #iLie .mwhy.down span{color:var(--pink);border-color:var(--pink)}
+  body.trial #strip{background:var(--panel);border:2px solid var(--line);box-shadow:var(--hard)}
+  body.trial #stripFace{background:repeating-linear-gradient(90deg,#4a3f80 0 2px,transparent 2px 12px)}
+  body.trial #stripVal{background:var(--card);border:2px solid var(--cyan);color:var(--ink)}
+  body.trial #spinFace{background:#241d45;box-shadow:var(--hard)}
+  body.trial #spinBall.drag #spinFace{box-shadow:var(--hard),0 0 0 4px var(--amber)}
+  @keyframes spinPulseN{0%{box-shadow:var(--hard),0 0 0 0 rgba(255,201,74,.8)}100%{box-shadow:var(--hard),0 0 0 16px rgba(255,201,74,0)}}
+  body.trial #spinFace.pulse{animation:spinPulseN 1.4s ease-out infinite}
+  body.trial #pull{background:var(--panel);border:2px solid var(--pink);box-shadow:var(--hard)}
+  body.trial #pullFill{background:linear-gradient(180deg,var(--cyan),#7b5cff 60%,var(--pink))}
+  @keyframes pulseN{0%{box-shadow:var(--hard),0 0 0 0 rgba(255,61,139,.7)}100%{box-shadow:var(--hard),0 0 0 14px rgba(255,61,139,0)}}
+  body.trial #pull.pulse{animation:pulseN 1.4s ease-out infinite}
+  body.trial #demoTip{background:var(--pink)} body.trial #demoTip::after{border-left-color:var(--pink)}
+  body.trial #overlay{background:rgba(8,6,20,.78)}
+  body.trial .card{background:var(--card);border:2px solid var(--cyan);box-shadow:6px 6px 0 #05040c}
+  body.trial .card h2{color:var(--ink)} body.trial #card .big{color:var(--amber)}
+  body.trial .howto{color:#cfc8ea} body.trial .howto .ic{color:var(--cyan)}
+  body.trial .btn{background:var(--panel);border:2px solid var(--line);color:var(--ink);box-shadow:var(--hard)}
+  body.trial .btn.primary{background:var(--pink);border-color:var(--pink);color:#fff}
+  body.trial .btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #05040c}
+  body.trial #share,body.trial .stats{background:var(--panel);border:2px solid var(--line)}
+  body.trial .stats div + div{border-left:2px solid var(--line)}
+  /* the tally and its chips: dark outlines instead of cream, and the neon colours */
+  body.trial #tally .tn{color:var(--amber);text-shadow:0 2px 0 #120f24,0 -2px 0 #120f24,2px 0 0 #120f24,-2px 0 0 #120f24,3px 4px 0 #05040c}
+  body.trial #tally .tn.hot{color:#ff4f8f}
+  body.trial #tally .ti{color:var(--cyan);text-shadow:0 2px 0 #120f24,0 -2px 0 #120f24,2px 0 0 #120f24,-2px 0 0 #120f24}
+  body.trial #tally .tl{color:var(--ink);background:rgba(18,15,36,.9)}
+  body.trial #tally .tx,body.trial .mchip{box-shadow:var(--hard)}
+  body.trial #tally .tx.streak,body.trial .mchip{background:var(--pink)}
+  body.trial .mchip.trick{background:#7b5cff} body.trial #tally .tx.gold,body.trial .mchip.gold{background:var(--amber);color:#120f24}
+  body.trial #timeCall{background:var(--panel);color:var(--cyan);border:2px solid var(--cyan);box-shadow:4px 4px 0 #05040c}
+  body.trial #timeCall.urgent{background:#3a0f22;color:var(--pink);border-color:var(--pink)}
+  /* big moments: a frame of white on a big multiplier, and a word slammed in under the tally (bigMoment) */
+  #flash{position:fixed;inset:0;z-index:7;background:#fff;opacity:.45;pointer-events:none}
+  .bigword{position:fixed;z-index:6;pointer-events:none;white-space:nowrap;font:400 34px var(--disp,'DM Sans');letter-spacing:.04em;color:#fff;padding:2px 14px;transform:translate(-50%,-50%) rotate(-6deg);text-shadow:3px 3px 0 #05040c;animation:bigword 1.1s cubic-bezier(.2,1.6,.4,1) forwards}
+  .bigword.l1{color:var(--cyan,#35e0e8)} .bigword.l2{color:var(--amber,#ffc94a);font-size:42px} .bigword.l3{color:var(--pink,#ff3d8b);font-size:52px}
+  @keyframes bigword{0%{opacity:0;scale:2.6}14%{opacity:1;scale:1}75%{opacity:1;scale:1}100%{opacity:0;scale:1.08}}
+  /* the trial's result card: the score counts up, badges for the best multiplier, tables and best shot */
+  .badges{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:14px 0 4px}
+  .bdg{display:flex;flex-direction:column;align-items:center;min-width:78px;padding:6px 10px 7px;border-radius:12px;font:400 20px var(--disp,'DM Sans');line-height:1.05;color:#fff;box-shadow:var(--hard,0 3px 0 rgba(0,0,0,.25))}
+  .bdg small{font:700 9.5px var(--lab,'DM Mono');letter-spacing:.1em;text-transform:uppercase;opacity:.85;margin-bottom:3px}
+  .bdg.mult{background:var(--pink,#d8552a)} .bdg.tbl{background:#7b5cff} .bdg.shot{background:var(--amber,#c99a3a);color:#120f24}
+  .badges.pop .bdg{animation:slam .3s cubic-bezier(.2,1.6,.4,1) both} .badges.pop .bdg:nth-child(1){animation-delay:.9s} .badges.pop .bdg:nth-child(2){animation-delay:1.02s} .badges.pop .bdg:nth-child(3){animation-delay:1.14s}
+  body.trial #card .big{font-size:64px;margin:10px 0 0;text-shadow:4px 4px 0 #05040c}
 </style>
 </head>
 <body>
@@ -153,10 +322,11 @@
     <div class="titles"><h1>Daily Break</h1><span class="mono" id="course"></span></div>
     <div id="card9"></div>
     <div class="btns">
-      <button class="round" id="snd" title="Sound: all / effects only / off">🔊</button>
+      <button class="round" id="snd" title="Sound: all / effects only / off"></button>
       <button class="round" id="help" title="How to play">?</button>
     </div>
   </header>
+  <div id="clockBar" hidden><i></i></div>
   <div id="info"><div id="iHole"></div><div id="iLie"></div><div id="iTilt"></div></div>
   <div id="stage"><canvas id="c"></canvas></div>
   <div id="controls">

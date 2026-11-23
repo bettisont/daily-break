@@ -75,7 +75,7 @@ class Table {
               if (s.spin) { const k = s.spin * 0.7 * Math.max(0, cueVn), sx = cueA ? nx : -nx, sy = cueA ? ny : -ny; this.cue.vx += sx * k; this.cue.vy += sy * k; if (Math.abs(s.spin) > 0.15 && cueVn > 150) this.ev('spin', { spin: s.spin, x: this.cue.x, y: this.cue.y, speed: cueVn }); }
             }
           }
-          this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+          this.ev('hit', { speed: -vn, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, a, b });   // (a, b: which balls, for trick scoring's Cannon)
         }
         a.x += a.vx * back; a.y += a.vy * back; b.x += b.vx * back; b.y += b.vy * back;
       }
@@ -323,7 +323,17 @@ function trace(t, px, py, dx, dy, skip = null) {
   }); return bt; };
   for (const [ax, ay, bx, by, solid] of obstBars(t)) { const s = rayBar(px, py, dx, dy, ax, ay, bx, by, BAR_T, solid); if (s < best.t) best = { t: s, wall: true }; }
   if (t.hole.shape) {
-    for (const g of t.hole.shape.segs) { const s = rayCushion(px, py, dx, dy, g); if (s < best.t) best = { t: s, wall: true, nx: g.nx, ny: g.ny }; }
+    for (const g of t.hole.shape.segs) {
+      const s = rayCushion(px, py, dx, dy, g);
+      if (s >= best.t) continue;
+      // meeting the rounded end of a cushion (a corner of a shaped table), the ball comes off it radially, as the
+      // physics does: the segment's own normal there drew bank lines up to 99° out (23 Nov review). (trace is only
+      // used for drawing and reading the aim, never by the physics or the generator.)
+      let nx = g.nx, ny = g.ny;
+      const qx = px + dx * s, qy = py + dy * s, ex = g.bx - g.ax, ey = g.by - g.ay, u = ((qx - g.ax) * ex + (qy - g.ay) * ey) / (ex * ex + ey * ey || 1);
+      if (u < 0 || u > 1) { const cx = u < 0 ? g.ax : g.bx, cy = u < 0 ? g.ay : g.by, l = Math.hypot(qx - cx, qy - cy) || 1; nx = (qx - cx) / l; ny = (qy - cy) / l; }
+      best = { t: s, wall: true, nx, ny };
+    }
     return tun(best);
   }
   const tx = dx > 0 ? (W - R - px) / dx : dx < 0 ? (R - px) / dx : Infinity;
@@ -376,14 +386,16 @@ function simulate(t, angle, power, spin = 0, path = null, side = 0) {
 // a margin for the step-by-step physics).
 // The bound is only used on holes where it holds: no tunnels (they move balls; a gate or sand only takes pace out),
 // and a tilt weaker than the friction.
-function guidePotsAt(t, angle, power, spin, kick, cush, side = 0) {
+// (perfect: the shot as a Perfect strike, with its kinder pockets; the guide checks a lit pot both ways, 23 Nov)
+function guidePotsAt(t, angle, power, spin, kick, cush, side = 0, perfect = false) {
   const s = cloneTable(t), h = s.hole, tl = h.tilt;
   s.shoot(angle, power, spin, side);
+  if (perfect) s.shot.perfect = true;
   const a = ROLL_DECEL - Math.hypot(tl.x, tl.y), k = LIN_DAMP;   // sand only adds friction, so plain felt bounds it
   const bounded = !tunMouths(h).length && a > 20;
   const open = s.pk.filter((_, i) => s.openPocket(i));
   // how far a ball must still roll to drop into any open pocket (it drops once its centre is inside the mouth)
-  const gap = b => open.reduce((m, p) => Math.min(m, Math.hypot(b.x - p.x, b.y - p.y) - p.cap), Infinity);
+  const gap = b => open.reduce((m, p) => Math.min(m, Math.hypot(b.x - p.x, b.y - p.y) - p.cap * (perfect ? PERFECT_POCKET : 1)), Infinity);
   // Can ball x still drop? Only if the balls can still roll, between them, as far as it takes for something moving to
   // reach x (through any chain of resting balls: each gap between them has to be rolled across) and for x to reach a
   // pocket's mouth.

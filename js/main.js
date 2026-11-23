@@ -16,19 +16,39 @@ function busy(now) {
   return phase !== 'aim' && phase !== 'over' || hold || drag || demo || spinDemo || cine || lip || zoom
     || now - lastInput < 1500 || fx.shake > 0.05 || fx.glow > 0 || banner || (stamp && stamp.t < 0.5) || trayFly.length
     || fx.particles.length || fx.rings.length || fx.floats.length || fx.sinks.length || fx.confetti.length || fx.flashes.length
-    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
+    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points)
+    || (phase === 'aim' && guideSim.res?.todo.length);   // (the guide still working through its paces: stepGuide)
+}
+// The timed trial (23 Nov: phones got hot; you're touching the screen nearly all the time, so it was 60 fps for the
+// whole run): 60 only for real motion (balls rolling, the strike and its close-up, pulling the cue, the camera, bursts
+// and sparks), 40 while you just aim or something small animates, and the tally (a page overlay that animates by
+// itself) holds nothing up. Par keeps the old pacing.
+function trialFps(now) {
+  if (phase === 'moving' || phase === 'strike' || hold || zoom || cine || lip || banner || Math.abs(cam.k - 1) > 2e-4 || fx.shake > 0.05
+    || fx.particles.length || fx.rings.length || fx.sinks.length || fx.flashes.length || trayFly.length) return 60;
+  if (busy(now)) return 40;
+  return $('overlay').classList.contains('show') ? 15 : 30;
 }
 function frame(now) {
   requestAnimationFrame(frame);
-  const active = busy(now), fps = active ? 60 : $('overlay').classList.contains('show') ? 15 : 30;
-  // (4 ms of slack for rAF jitter: on a 120 Hz screen 60 fps is every other frame, at 60 Hz 30 fps is every other)
-  if (frame.drawn != null && now - frame.drawn < 1000 / fps - 4) return;
-  frame.drawn = now;
+  const fps = round?.trick ? trialFps(now) : busy(now) ? 60 : $('overlay').classList.contains('show') ? 15 : 30, active = fps > 30;
+  // Paced against a running deadline (23 Nov 2026). It used to draw when 1000/fps - 4 ms had passed since the last
+  // frame drawn, which on a 60 Hz screen (a frame every 16.7 ms) turned 40 fps into every other frame, so 30. Now each
+  // drawn frame moves the deadline on by exactly one interval, so a 60 Hz screen asked for 40 draws two frames in
+  // three (16.7 and 33 ms gaps) and averages 40; 60, 30 and 15 still land on every 1st, 2nd and 4th frame. The 2 ms
+  // of slack absorbs rAF jitter. When the target changes, the deadline is re-measured from the last frame drawn, so
+  // going from 15 to 60 doesn't wait out the old 67 ms. After a stall (a hidden tab, a slow frame) it restarts from
+  // now rather than drawing a burst of frames to catch up.
+  const step = 1000 / fps;
+  if (frame.fps !== fps && frame.drawn != null) { frame.fps = fps; frame.next = frame.drawn + step; }
+  if (frame.next != null && now < frame.next - 2) return;
+  frame.next = frame.next == null || now - frame.next > step ? now + step : frame.next + step;
+  frame.fps = fps; frame.drawn = now;
   const t = now / 1000, dt = Math.min(active ? 0.05 : 0.1, t - (frame.last ?? t));
   frame.last = t;
   if (hold) {
     const d = contactDiff(), was = tipOnSpot(d);
-    swayT += dt;
+    swayT += dt * swayRate(d);   // (a phase, not a clock: see swayRate)
     if (!was && tipOnSpot(d)) { tone(1046, 0.03, 0.02, 'sine', 1, 0, 0); buzz(3); }
     const inCore = tipInCore(d); if (inCore && !frame.core) { tone(1568, 0.03, 0.025, 'sine', 1, 0, 0); buzz(4); } frame.core = inCore;
   }
@@ -51,14 +71,14 @@ function frame(now) {
       if (q === 'perfect') {
         table.shot.perfect = true;
         [1318.5, 1568].forEach((f, k) => tone(f, 0.3, 0.03, 'sine', 1, k * 0.06, 0.6));   // a soft two-note lift
-        sparkle(c0.x, c0.y, '#ffd76a', 18, 130); ring(c0.x, c0.y, '255,215,106', 50, 0.6); float(c0.x, fy, 'Perfect strike!', '#b88a2e', 22); fx.glow = Math.max(fx.glow, 0.35); }
-      else if (q === 'clean') { sparkle(c0.x, c0.y, '#e2b13c', 8, 110); float(c0.x, fy, 'Clean strike', '#7a6a3a', 18); }
+        sparkle(c0.x, c0.y, '#ffd76a', 18, 130); ring(c0.x, c0.y, '255,215,106', 50, 0.6); if (!round.trick) float(c0.x, fy, 'Perfect strike!', '#b88a2e', 22); fx.glow = Math.max(fx.glow, 0.35); }
+      else if (q === 'clean') { sparkle(c0.x, c0.y, '#e2b13c', 8, 110); if (!round.trick) float(c0.x, fy, 'Clean strike', '#7a6a3a', 18); }
       else if (q === 'miscue') { fx.shake = 5; float(c0.x, fy, 'Miscue!', '#b8553f', 22); for (let k = 0; k < 14; k++) { const a = Math.random() * TAU, v = 40 + Math.random() * 90; fx.particles.push({ x: c0.x, y: c0.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 + Math.random() * 0.4, color: '#8fb4e8', r: 1.5 + Math.random() * 2.5 }); } }
       else if (q) float(c0.x, fy, zoom.ct.off ? `Off-centre: pushed ${zoom.ct.off < 0 ? 'left' : 'right'}` : 'Off-centre', q === 'near' ? '#7a6a3a' : '#b8553f', 18);
       sfx.clack(strike.power * 1600);
       const c = table.cue;
       for (let k = 0; k < 8; k++) fx.particles.push({ x: c.x - Math.cos(strike.angle) * R, y: c.y - Math.sin(strike.angle) * R, vx: (Math.random() - 0.5) * 80, vy: (Math.random() - 0.5) * 80, life: 0.5, color: '#7fa0d8', r: 1.5 });
-      acc = 0; movingT = 0; phase = 'moving'; updateUI();
+      acc = 0; movingT = 0; phase = 'moving'; shotClock0 = tgtClock; updateUI();
       shotRec = []; shotSteps = 0; replayed = false; lip = null; lipTried = new Set();
       follow = { x: c.x, y: c.y, angle: strike.angle, power: strike.power, t: 0 };
       cam.k += 0.03 + 0.04 * strike.power;   // a small push in on the strike, which eases back
@@ -97,8 +117,8 @@ function frame(now) {
       const done = b.potted || (!b.vx && !b.vy) || lip.t > 5;
       if (done) {
         const fy = clamp(p.y + (p.y < H / 2 ? 80 : -80), 60, H - 60), fxp = clamp(p.x, 100, W - 100);
-        if (b.potted) { float(fxp, fy, 'It dropped!', '#2f6b4f', 28, 2); confettiBurst(60); fx.glow = 1; buzz([20, 30, 40]); }
-        else { float(fxp, fy, 'So close!', '#b8553f', 26, 2); tone(330, 0.5, 0.06, 'triangle', 0.6, 0, 0.3); p.wobble = 1; fx.shake = 3; catStartle = 1; }
+        if (b.potted) { if (!round.trick) float(fxp, fy, 'It dropped!', '#2f6b4f', 28, 2); if (!round.trick) confettiBurst(60); fx.glow = 1; buzz([20, 30, 40]); }
+        else { if (!round.trick) float(fxp, fy, 'So close!', '#b8553f', 26, 2); tone(330, 0.5, 0.06, 'triangle', 0.6, 0, 0.3); p.wobble = 1; fx.shake = 3; catStartle = 1; }
         lip = null;
       } else { slow = true; tk = 1.5; tx = (b.x + clamp(p.x, 0, W)) / 2; ty = (b.y + clamp(p.y, 0, H)) / 2; }
     }
@@ -114,7 +134,7 @@ function frame(now) {
   cam.k = lerp(cam.k, tk, ck); cam.x = lerp(cam.x, tx, ck); cam.y = lerp(cam.y, ty, ck);
   if (phase === 'moving') {
     if (hitStop > 0) hitStop -= dt;   // a blink of freeze on big moments
-    else { acc += dt * timeScale; while (acc >= DT) { table.step(); acc -= DT; shotSteps++; } }
+    else { acc += dt * timeScale; while (acc >= DT) { table.step(); tgtStep(); acc -= DT; shotSteps++; } }
     const c = table.cue, last = curTrail?.pts[curTrail.pts.length - 1];
     if (curTrail && !c.potted && last && Math.hypot(c.x - last[0], c.y - last[1]) > 14) curTrail.pts.push([c.x, c.y]);
     if (shotRec && shotRec.length < 3000) shotRec.push([shotSteps * DT, c.uN ? NaN : c.x, c.y, c.potted ? 1 : 0, ...table.balls.flatMap(b => [b.uN ? NaN : b.x, b.y, b.potted ? 1 : 0])]);
@@ -129,7 +149,7 @@ function frame(now) {
     }
   }
   // the points total counts up rather than jumping
-  if (hs && shownPts !== hs.points) {
+  if (hs && shownPts !== hs.points && !ptsHold) {
     const d = hs.points - shownPts;
     shownPts = Math.abs(d) < 3 ? hs.points : shownPts + Math.ceil(Math.abs(d) * Math.min(1, dt * 8)) * Math.sign(d);
     const el = document.getElementById('ptsVal');
@@ -141,6 +161,18 @@ function frame(now) {
     replay.T += dt * replay.speed;
     if (replay.T >= replay.endT) { replay = null; replayed = true; phase = 'moving'; resolveShot(); }
   }
+  // trick scoring: targets slide at the table's pace between shots (tgtStep moves them on physics time while the balls
+  // roll), and the run's clock counts down only while you aim: not while the balls roll, the score tallies, the next
+  // table deals in (its banner) or a card is open. At zero you get one last shot (lastShot).
+  if (phase !== 'moving' && phase !== 'replay') tgtClock += dt * PLAY;
+  if (round?.trick && !round.done && !lastShot && phase === 'aim' && !banner && !tally && !$('overlay').classList.contains('show')) {
+    const was = trialLeft;
+    trialLeft = Math.max(0, trialLeft - dt);
+    if (trialLeft > 0 && trialLeft <= 10 && Math.ceil(was) !== Math.ceil(trialLeft)) sfx.clockTick(trialLeft);
+    for (const s of [90, 60, 30, 10]) if (was > s && trialLeft <= s) timeCall(s);
+    if (trialLeft <= 0) { lastShot = true; timeCall(0); buzz([30, 40, 30]); }
+  }
+  if (round?.trick) updateClock();
   if (follow) follow.t += dt;
   tickDemo(dt); tickSpinDemo(dt);
   // a drawing error must never stop the game: log it and carry on with the next frame
@@ -151,7 +183,9 @@ resize();
 // old ?seed= links open a practice run (counted), or today's game once practice is used up
 const seedParam = new URLSearchParams(location.search).get('seed');
 const firstVisit = !ls('dailybreak:seenHelp');
-if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
+// ?trick: try trick scoring on today's course (or ?seed=) as an unranked round that uses no practice and saves nothing
+if (trickFlag) newRound(seedParam || todayKey(), false);
+else if (seedParam && practiceLeft() > 0) { usePractice(); newRound(seedParam, false); } else { newRound(todayKey(), true); track('open'); track(firstVisit ? 'opennew' : 'openback'); }
 // the first time the page is hidden before today's first shot: how long they'd been here and on which screen
 // (some come back and play later; this is one event per device per day)
 document.addEventListener('visibilitychange', () => {

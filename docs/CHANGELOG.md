@@ -4,6 +4,225 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 23 Nov 2026 (afternoon): the timed run goes live as the daily game
+
+- `RULES.TRICK_SCORE_FROM` = 2026-11-23: from today the daily game is the timed run, for everyone, ranked
+  (`mode: 'trial'` results). Switched on mid-day on purpose (the owner's call: the new mode is the way forward and
+  the player count was small), against the usual day-ahead rule. Anyone who had played par today gets a fresh timed
+  run; a par round in progress restarts as a timed run; today's par results stay in today's par tally.
+- `RULES.NO_TILT_FROM` brought forward from 25 Nov to 23 Nov with it (the timed run's info bar doesn't show a tilt, so
+  tilted tables would have been hidden): the layouts of 23 and 24 Nov changed in the snapshot, nothing else.
+
+## 23 Nov 2026: the timed trial replaces the six holes (behind ?trick)
+
+Decided in a second grilling session (ADR 0002). Still nothing changes for players: `TRICK_SCORE_FROM` is `null`.
+- **A two-minute run** (`TRIAL_S`) of aiming time through an endless seeded sequence of tables, the same for everyone
+  each day (`makeHole(seed, n)`, so tables 1-6 are the old holes). The clock stops while the balls roll, the score
+  tallies and the next table deals in; at zero, one last shot. No shot limits, no skipping, and misses and fouls cost
+  no time.
+- **One multiplier meter, no cap** (`hs.mult`): each potting shot adds 0.5, each trick 0.1, the golden pocket 0.2; a
+  miss halves the part above x1, a foul resets it. It replaces the x1-x3 pot streak. (Later the same day, after a
+  playtest: a shot raises the multiplier first and is then multiplied by the new value, so the first pot of a run
+  scores x1.5; the tally shows the causes flying into the meter, then the new value slamming in.)
+- **Quick is gone** (the clock rewards speed), with its ring.
+- **Screen**: the clock in the header (red with ticks for the last 10 s, then "Last shot"), "Table 5 · 3 balls left",
+  the meter full at x5; "Time's up" card with points, tables cleared, best multiplier and best shot; share "Daily Break
+  23 Nov ⏱️ 38,470 points · 7 tables / Beat 73% of today's players" (no player count). Unlimited practice runs.
+- **Worker**: `mode: 'trial'` ({points, tables}), 100-point buckets under `r:<day>`; the six-hole `trick` mode is
+  gone (it was never live).
+- **Test**: `tests/run.js trial` plays a short real run and checks every shot against the rules.
+- Seen in bot runs: with no cap a near-perfect player reaches x15 and about 300,000 points; a sloppy one about 58,000.
+- Same day, after a playtest: the clock is bigger, with a bar under the header that drains with it (red and pulsing in
+  the last 10 s); "Streak" is now "Mult" on screen; and the trial has its own soundtrack (`arcadeTick`, `arcadeStep`):
+  an upbeat chiptune loop in A minor whose tempo rises with the multiplier (112 bpm at x1 to 132 at x5) and again in
+  the last 30 and 10 s, with layers coming in as the multiplier builds (hats, then 16ths, an arpeggio from x2, a snare
+  from x3). It replaces the electric-piano chords under the trial only, and stops when the run ends.
+- **Cooler phones** (playtest: the phone got hot). Measured on a fixed benchmark (5 s aiming with a finger moving, then
+  a 5 s tally, 390x844 at 2x): the page was over 100% busy (about 22 ms of work a frame at 44-50 fps), now about 40%
+  aiming and 45% in a tally. Under the trial only: 60 fps only for real motion (rolling, the strike, pulling the cue,
+  bursts), 40 while you aim, and the tally no longer holds the frame rate up (`trialFps`); no film grain or drifting
+  cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
+  sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
+  transform about 10 times a second instead of being restyled every frame.
+- **Long pots score +150** (playtest: a flat bonus for long shots): once a shot, when a potted ball started at least
+  600 (60% of the table's length) from the pocket it went into (`LONG_D`, `t.long`). Points only, like a flat trick
+  bonus under the shot's multiplier, but it doesn't raise the multiplier. In the tally as "+150 LONG"; the trial test
+  checks it.
+- **Big moments**: from x3 the multiplier landing shakes the screen and flashes white for a frame; a shot worth 1,000+
+  / 2,500+ / 6,000+ slams in NICE / HUGE / INSANE under the tally for about a second, with a hit sound.
+- **A punchier result card**: the score bigger (64px, counting up), and badges for the best multiplier, tables
+  cleared and best shot popping in after it.
+- **The trial plays at night** (playtest: make the look match the pace and the new lettering; options 1-3 of the
+  proposal). The room after dark: painted as by day, then darkened in the scenery cache, least round the table; the
+  cat and turntable are still shapes (the cat's eyes catch the light when it wakes); plants are silhouettes; no window
+  light; the warm lamp at 45%. The table in flat neon (`TABLE_NIGHT`): a dark rail with a pink line, cyan cushion line
+  and sights, blue felt, pink-ringed pockets; targets lime instead of sky blue. The HUD as arcade panels: dark
+  colours (the CSS variables redefined under `body.trial`), 2px borders and hard offset shadows, no blur or glow,
+  three accents (cyan, pink, amber); the banner, floats, tally, chips, call-outs and cards to match. Nothing a frame
+  more than by day: the darkening is cached, the neon is flat strokes. The par game keeps the daytime room.
+- **The tally quicker again and higher up**: `TALLY_PACE` 0.45 (about 1.9 s for a pot, a bank and the multiplier),
+  and it sits in the clearest band of the table's top quarter (`tallyBand`, 10-26% down) instead of anywhere to 62%.
+- **A snare that builds with the multiplier**: under the clap from x2.5, ghost notes from x3, a 16th-note roll into
+  every fourth bar from x3.5 and every second bar from x4.5 (`arcSnare`).
+- **No phone emoji where it can be helped**: line icons (`ICON`, `ic()` in ui.js) in the intro and help, and for the
+  sound button; a touch dot instead of the pointing hand in the demos; no ⏱️ in the trial's share text, no 🏆 on the
+  rank line, no ⛳ on "Tap in". The par game's share card keeps its ⛳ and coloured squares (they're the card).
+- **No fire emoji** anywhere (the Mult meter, the help, the par game's "N in a row"); the help uses 📈 and 🏅.
+- **Fix: the tip on the strike dial sped up or slowed down while the cue was pulled.** Its sway phase was time x rate,
+  and the rate rises with the pull (the pull is part of the shot's difficulty), so the whole phase jumped: up to 6x
+  its speed for a moment. The phase now moves on by rate x dt each frame (`swayRate`).
+- **A quicker, smaller tally** (playtest: it was in the way of the next shot): every step at 0.6 of its old timing
+  (`TALLY_PACE`; a pot with a bank and the multiplier about 2.5 s instead of 4.2), the number about 25% smaller, the
+  chips to match. **The Mult meter heats up gradually** (`--heat`, x1 to x5): a warm tint fills the cell, the number
+  grows up to 30% and goes from amber to red, the bar thickens, and the number counts to a new value in tenths.
+- **Arcade lettering** (playtest: the fonts should feel more exciting): under the trial only (`body.trial`), Bungee for
+  the clock, points, info values, tally, chips, call-outs, banner and result card, and Chakra Petch for the small
+  labels. The par game keeps DM Sans and DM Mono.
+- **Playtest follow-ups**: no warm lamp over the table or glow on the meter as the multiplier builds (the 🔥 stays);
+  the soundtrack follows only the multiplier, not the clock, and speeds up with it again (112 bpm at x1, +6 a step,
+  136 from x5; the open hat moved from the last 30 s to x4, and the last 10 s no longer open everything up); time
+  call-outs at 90, 60, 30 and 10 s and on the last shot; and in the tally the multiplier drops out of the meter into
+  the score before it's applied, the reverse of its causes flying up into the meter.
+- **The soundtrack reworked** (playtest: the chiptune was "a bit cringey"): a dark synthwave groove in A minor, after
+  the vertical layering in Tetris Effect, Lumines and Rez. A steady 120 bpm (no more tempo rises, key changes, swing
+  or square-wave hook); a rolling 16th bass and a wide pad that pump under the kick; a low-pass over the synths that
+  opens as the multiplier builds (the run gets brighter, not faster); an arpeggio from x1.5, a clap from x2, a sparse
+  lead from x3; the drums drop out for a bar when the multiplier falls and come back on the downbeat. Mixed about
+  1.5 dB above the old one (it is denser; the bus is at 0.55).
+- **The soundtrack got a tune** (playtest: "slightly boring"): an eight-bar song with a chiptune hook (A over
+  Am-F-C-G, an answering B over F-G-Em-Am; `ARC_HOOK`), a syncopated bass (`ARC_BASS`), swing on the off-beat 16ths,
+  off-beat chord stabs from x2, a drum fill into every fourth bar and a crash each phrase, the hook an octave up from x4
+  and in the last 10 s, and a rising sweep when the multiplier goes up (falling when it drops).
+- **No tilted tables from 25 Nov** (`RULES.NO_TILT_FROM`; asked for after the aim review): the guide draws straight
+  lines, and a tilt curved the balls up to 45° off them on thin cuts. The tilt's random numbers are still drawn, so
+  everything else on a table is dealt as before; 56 future courses (and two practice seeds) changed in the snapshot,
+  nothing on or before 24 Nov. The trial's third info cell shows tables cleared instead of the tilt.
+- **A kiss shows** (`kissAt`; playtest: a line into a pocket stayed dark because, with the spin set, the white came back
+  into the object ball, and nothing showed it while aiming): when a line into a pocket isn't lit, one sim at your pace
+  checks whether the cue ball meets that ball again; if so its path to there is drawn faintly with a small red cross.
+  (A version that labelled every reason a line wasn't lit was tried first and taken out the same day.)
+- **Aim guide review** (a subagent measured it: the object-ball line was already exact on flat tables, 0.000° over
+  13,685 samples). Fixed: the guide's cost while fine-aiming (sims only near a pocket, nearest pace first, spread
+  over frames: median 3.4 -> 0.5 ms a frame, p95 8.5 -> 4.5); the ring flickering across gaps between guide paces
+  (in-between paces); a pot lighting that a Perfect strike would miss (it must drop both ways now); jaw pots staying
+  dark; banks off shaped-table corners drawn up to 99° out; bumper and cat legs 2-3° out (now from a sim at your pace);
+  a lit ring not saying at what pace (green bands on the pull cue, taken out again after a playtest); side spin invisible in the half-second hint and
+  late scratches unmarked; a mis-hit giving more spin than the spin ball allows; the slow-motion finish mispredicting
+  Perfect strikes; the aim tick out of step with the readout; a cheaper lit line.
+- **A longer song** (playtest: the loop was repetitive): `ARC_SONG` is eight 4-bar sections (about a minute at
+  112 bpm), each with its own chords, hook, bass and drum feel (an intro groove, two hooks, a bouncing riff over
+  Dm-Am-E-Am, a half-time section with long notes, a breakdown with no kick and a soft pad, the hook an octave up), and
+  each time round it moves to a new key (`ARC_KEYS`), with small seeded variations in the hats.
+- **Why the multiplier moved**: the meter holds the old multiplier while a tally applies it (`meterShown`). Once the
+  shot's points have landed, each cause of the rise ("+0.5 POT", "+0.1 BANK", "+0.2 GOLDEN"; `multWhy`) pops up where the
+  tally was and flies into the Mult meter, which ticks up as each lands, with a climbing note and a pulse (`meterGain`).
+  A first version only faded small tags in under the meter; the playtest wanted it clearer and more satisfying. A
+  miss still shows a quiet "½ miss" tag ("foul: reset" for a foul; `showMultWhy`).
+- **Frame pacing against a running deadline** (`frame` in `js/main.js`; affects par too). The old rule (draw once
+  1000/fps - 4 ms had passed) made 40 fps every other frame on a 60 Hz screen, so 30. Now each drawn frame moves a
+  deadline (`frame.next`) on by one interval, with 2 ms of slack, re-measured from the last frame when the target
+  changes and restarted after a stall. Headless Chromium at 60 Hz, target 40: 30.0 draws/s before, 40.1 after (16.7
+  and 33 ms gaps); 60, 30 and 15 unchanged.
+- **Aim strip gestures** (`js/input.js`), at the 0.01°-0.05° scale long pots need. A deliberate 3 px drag was taken
+  for a tap and nudged on top (+0.01° or +0.05° instead of +0.03°): a tap is now only a press that didn't move (bar a
+  lift-off roll) and nudges exactly 0.02°. Lift-off undo took back fine nudges made after a pause (0.02° instead of
+  0.04°): it now only removes up to 3 px that start in the last 25 ms after the finger was still for 80 ms. Gearing
+  read one event's speed, so the same 100 px swipe at 250 px/s turned 2.13° or 1.99° with jittery events: it now reads
+  the speed over the last 50 ms of the path (2.03-2.04° whatever the timing).
+
+## 22 Nov 2026: trick scoring, on trial behind ?trick
+
+Nothing changes for players yet: `RULES.TRICK_SCORE_FROM` is `null`, so every daily round is still par. `?trick`
+plays today's course (or `?seed=`) as an unranked round with the new scoring. It uses no practice round and saves,
+sends and tracks nothing. Decided in a grilling session (ADR 0001). Why: flair went unrewarded, too many players tied
+on par, and the trick replays are the best moment of a round.
+- **Points replace par** (`scoreTrick`, `trickDrop`, `TRICK_PTS` in `js/state.js`). A pot is 100. Each trick element
+  adds 200, and they stack: an extra ball in one shot, a bank (per banked ball), a combination (a potted ball the cue
+  ball didn't hit first, once a shot) and a tunnel; a kick adds 100 (it was 200 until the second tidy-up below). The first pot into the golden pocket doubles the shot. The
+  whole shot is then multiplied by the streak: x1, x1.5, x2, x2.5, x3 for potting shots in a row, carried across holes.
+  A miss or a foul resets it. (Clearing a hole first added 300 per ball; dropped the same day, see below.)
+- **Strokes are only a budget.** You pick up at par + 3, as before. A foul still costs a stroke, and the balls it pots
+  stay down but score 0. There's no stroke back from the golden pocket (it doubles instead) and no tap-ins.
+- **At the pot, a bang, not words** (`trickBang`). The pocket (or the contact, for a cannon or a target) gets a
+  flash, rings, sparks, a shake, a freeze-frame and a boom that grow with how good the shot is so far (`shotQ`). No
+  text pops up on the table. A first version burst a label per trick ("Bank! +200"); the playtest found them too much.
+  The header shows points (counting up) and the info bar shows shots left and the streak.
+- **The tally** (`showTally`, after the replay). The base (100 a pot) comes up mid-table. Each trick element's flat
+  points then come in one by one, labelled ("+200 Bank"), and fly into it as the number rolls up, leaving a line
+  underneath of what was added. Each multiplier then drops onto the number and smashes into it: the golden pocket's
+  x2, then the streak, which pulls down out of the streak meter. Finally the shot's score flies into the header's
+  Points, which only then counts up (`ptsHold`). Asked for in the playtests: the multiplier was already working on
+  each shot, but you couldn't see it. A version that explained every step on the table ("Bank: the ball came off a
+  cushion", a running record, the whole sum) had too much text on screen, and numbers alone didn't say why. So each
+  number on the table gets one word ("100 POT", "+200 BANK", "x2.5 STREAK", "+900 CLEARED"), and tapping the Points chip (ⓘ) opens the breakdown of the round's shots, newest first (`logShot`,
+  `showShotLog`): each line with what it was for (`TRICK_WHY`) and the sum. After the first tally, a one-off tip
+  points to it.
+- **Multipliers land slot-machine style** (`spinTo`): "x2.5 STREAK" slams in beside the number (the streak meter
+  flashes, to show where it comes from), the digits spin like reels and stop left to right on the new total with a
+  clunk, and the chip melts in. Golden x2 first, then the streak, always after the tricks. It replaced a chip that
+  pulled down out of the streak meter and smashed into the number, which wasn't liked.
+- **Tidied after a playtest**: the slot machine takes ~1.1 s a multiplier (was ~2.2 s). Cannon only counts contacts
+  before anything drops (the white wandering into a ball after the pot had counted). One sound per moment: at a pot,
+  the drop and its note, plus `sfx.bang` on a trick shot (no per-kind sound, boom or golden chime); in the tally, a tick
+  as each trick lands, quiet reel ticks and a clunk per multiplier, no chime at the end. No confetti under trick
+  scoring.
+- **Second tidy-up**: no "Perfect strike!", "Clean strike", "Miss", "Streak over", "It dropped!", "So close!" or
+  target and foul notes on the table under trick scoring; only text that explains something going wrong stays
+  (scratch, miscue, pushed off line, rattled out, out of shots). Targets, like Cannon, only count when crossed
+  before anything drops. Kick halved to +100 (`partPts`). The multiplier lands with a bright rising chime
+  (`sfx.ding`, higher for a bigger multiplier) and a golden bloom behind the number; the thud and the shake went.
+  The intro and help describe trick scoring when it's on (`TRICK_INTRO`, `TRICK_HELP`).
+- **Fixes from a full UX sweep (23 Nov)**, after a subagent played 9 bot rounds and checked every shot against the
+  formula (all matched):
+  - The tally sits in the clearest band of the table (`tallyBand`), scales down on small phones, and puts the number
+    and its multiplier chip in one centred row. It's quicker: about 2 s for a plain pot, 4 to 5 s for a big shot. A
+    tap on the table or a pull of the cue finishes it at once (`finishTally`): shooting through it used to show the
+    old streak landing while the new miss cracked the meter.
+  - The Quick clock waits for the tally (it had been eating the 5 s), and the hole-2 spin demo no longer blocks it.
+  - Frame pacing is back to 30 fps idle and 15 behind a card: unhit targets and the x3 lamp flicker had held it at
+    about 55.
+  - Bugs: the rolling number dipped below its start on its first frame (`rollNum` clamps now); the 320 px header
+    overlapped (Points label hidden below 370 px, steady chip width); the trick result card showed par stats (now
+    points); a resumed round lost its breakdown (`shotLog` is saved); under `?trick` the card offers "New course",
+    which spends no practice round.
+  - Rules made consistent: the cue ball through a tunnel only counts before anything drops; crossing a target is a
+    quiet tick (the reward comes at the pot); no bang when the cue ball is already down.
+  - Off the table under trick scoring: the cat's lines, the tunnel labels after the first time, and "+1 stroke" (a
+    foul "costs a shot"). The info bar reads "4 shots left · 3 balls". Targets are sky blue, kept off sand,
+    bumpers and the cat.
+  - Sound: the bang has no low boom of its own (three thumps at once before); the hole jingle waits for the tally;
+    the tally's steps climb the pot notes' scale; the multiplier dings use tuned roots, so golden x2 then streak
+    x2.5 no longer clash. `P` opens the breakdown.
+- **No aim or spin lessons** under trick scoring (playtest: annoying): the first shot no longer starts off target with
+  "This line misses" and the aim-strip hand, and hole 2 has no looping spin demo. Par keeps both for new players.
+- **No replays** under trick scoring: they held up the tally, which already shows what the shot did (playtest: "annoying").
+  The live slow-motion push-in on a trick or the last ball stays. Par days keep their replays.
+- **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the
+  tally. A picked-up hole just says "Out of shots". The next hole waits for the tally to land.
+- **No points for clearing the table** (it was 300 a ball, shown as a flat step after the multipliers). Playtest: a
+  clear isn't a trick, and a multiplier should always come last. Now it does: base, then tricks, then multipliers.
+- **The streak shows** as a meter under the multiplier in the info bar (`updateStreakMeter`). It fills and heats up,
+  shows a flame from x2, pulses at x3, and shakes red as it drains on a reset. The lamp over the table also warms
+  (`drawLampWarmth`: one extra light sprite) and flickers at x3. An edge glow round the screen was tried first and
+  dropped the same day as ugly.
+- **More to score** (second grilling round):
+  - **Cannon** (+200): the cue ball touches two or more object balls (the `hit` event now says which balls).
+  - **Moving targets** (+200 each): gold rings sliding to and fro on straight tracks (`makeTargets`, `tgtStep`,
+    `drawTargets`), one from hole 2 and two from hole 4. Any rolling ball crossing one on a shot that pots scores it
+    and it vanishes. They're placed from their own seeded numbers (`<seed>:targets:<i>`), so courses don't change,
+    and move on physics time while the balls roll. A crossing on a foul doesn't count, and the target comes back.
+  - **Quick** (+100): the shot is released within 5 s of the aim starting (`aimClock`, `QUICK_S`) and pots. A gold
+    ring round the cue ball drains as the time runs out and flashes for the last 1.5 s (`drawQuickRing`; a bar across
+    the top of the pull cue went unnoticed). It's off while a lesson shows. Players asked for a timed element; a
+    shot clock with a penalty was turned down.
+- **Result and share**: the result card shows the points, the number of tricks, shots and best streak, each hole's
+  points, and the rank line. The share text is just the points and "Beat 73% of 412 players today" (`trickRankLine`;
+  the share box fills it in when the tally comes back). A trick-emoji line per hole was tried and dropped as too busy.
+- **Worker**: `mode: 'trick'` results (`points` 0-100,000, `strokes` 0-200) are written as blob2 `'trick'` and
+  counted in 50-point buckets under `t:<day>`; `/api/day?mode=trick` returns them. `tools/results.py` reports them and
+  keeps them out of the old lives table.
+- No change to physics, generation or RNG: all course snapshots are unchanged.
+
 ## 16 Nov 2026 (late): battery and heat
 
 - **Frame pacing** (`busy` in `js/main.js`). Phones got hot and drained: the loop repainted the whole screen
