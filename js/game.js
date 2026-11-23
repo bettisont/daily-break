@@ -981,14 +981,14 @@ function endRound() {
 }
 // Trick scoring's share text: the points and the rank line.
 // (22 Nov playtest: a line of emoji per hole was too much; now just the points and how you did against everyone)
-// The timed run's share (23 Nov, after going live): short and plain, because the picture does the rest: the image
+// The timed run's share (23 Nov, after going live): the day, the points, the rank and the link; the picture does the rest: the image
 // card goes with it on phones, and the link (dailybreak.app/r/<id>) previews the same card in chat apps. The
 // multiplier strip is only drawn on the cards: as block characters in the text it wrapped and looked messy in
 // WhatsApp (playtest).
 function trickShareText(r) {
   const rank = trickRankLine(r);
   return [`Daily Break · ${isDailySeed(r.seed) && r.ranked ? dayLabel(r.seed) : 'practice run'}`,
-    `${fmtPts(r.points || 0)} points · best ${fmtMult(r.bestMult || 1)}`,
+    `${fmtPts(r.points || 0)} points`,
     ...(rank ? [rank] : []), r.shareId ? `${SITE_URL.replace(/\/$/, '')}/r/${r.shareId}` : gameUrl()].join('\n');
 }
 // each shot's multiplier as a bar, x1 lowest up to the run's own peak (at least x3, so a short run doesn't look

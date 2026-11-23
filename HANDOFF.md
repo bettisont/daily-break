@@ -102,7 +102,7 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     real site; the id (`round.shareId`, kept in today's result) makes the share link dailybreak.app/r/<id>. The
     worker's `ShareCards` Durable Object (binding CARDS) keeps each card 30 days; GET /r/<id> is an og:image page that
     sends people on to the game, GET /r/<id>.png the image.
-  - **Share**: `trickShareText` (the day, points and best multiplier, the rank, the link; `multStrip` of
+  - **Share**: `trickShareText` (the day, the points, the rank, the link; `multStrip` of
     `round.multLog` is drawn only on the cards) and an image card (`prepShareCard` draws it with `drawShareCard` when the result shows and when
     the rank arrives; `shareResult` attaches it via `navigator.share({ files })` on phones; "Save image" elsewhere).
   - **Time call-outs** (`timeCall`, `TIME_CALLS`): "90 seconds", "1 minute left", "30 seconds", "10 seconds!" (red)
