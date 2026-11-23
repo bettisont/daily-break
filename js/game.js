@@ -120,8 +120,10 @@ function trickDrop(b, pocket, tx, ty) {
   // targets crossed before anything dropped count now that something has
   for (const o of t.tgt) if (!o.hit) { o.hit = true; o.hitClock = o.pendClock; got.push('Target'); }
   got.forEach(trickPart);
-  // Catapult: this potted ball rolled under the hopping cat on the way (once a shot; flat points only, 23 Nov)
-  if (!t.catapult && table.shot?.catUnder?.has(b)) t.catapult = true;
+  // Catapult: this potted ball, or the cue ball, rolled under the hopping cat on the way (once a shot; flat points
+  // only, 23 Nov; the cue ball too since the same evening's playtest)
+  const under = table.shot?.catUnder;
+  if (!t.catapult && under && (under.has(b) || under.has(table.cue))) t.catapult = true;
   // a long pot: the ball started at least LONG_D from the pocket it dropped into (once a shot; flat points only)
   const f = t.from?.get(b), pk = table.pk[pocket];
   if (!t.long && f && pk && Math.hypot(f.x - pk.x, f.y - pk.y) >= LONG_D) t.long = true;
@@ -684,6 +686,8 @@ function breakStreak(foul) {
 // dropped (trickDrop), doubled by the golden pocket, times the streak. The tally then shows it (showTally).
 function scoreTrick() {
   const t = tshot || { parts: [], gold: false };
+  // (the cue ball can roll under the cat after the pot: that's a catapult too, said now)
+  if (tshot && !t.catapult && table.shot?.catUnder?.has(table.cue)) { t.catapult = true; meow(); setTimeout(() => slamWord('CATAPULT!', 2, null), 60); }
   hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
   // The shot raises the multiplier first, then is multiplied by the new value (23 Nov playtest: a good shot should
   // benefit straight away from what it builds; it used to raise it only for the next shot)
@@ -700,7 +704,7 @@ function scoreTrick() {
   if (t.gold) goldUsed = true;
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
   if (t.rocket) items.push(['Rocket', TRICK_PTS.rocket, 'a full-power shot that potted']);
-  if (t.catapult) items.push(['Catapult', TRICK_PTS.catapult, 'the ball you potted rolled under the cat as it jumped']);
+  if (t.catapult) items.push(['Catapult', TRICK_PTS.catapult, 'the cue ball or the ball you potted rolled under the cat as it jumped']);
   if (t.long) items.push(['Long', TRICK_PTS.long, 'a long pot: the ball started over 60% of the table from its pocket']);
   if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
@@ -908,7 +912,7 @@ function bigMoment(m, gain, box) {
 function slamWord(word, lvl, box = document.querySelector('#tally .tn')) {
   const el = document.createElement('div'), cr = canvas.getBoundingClientRect(), r = box?.getBoundingClientRect();
   el.className = `bigword l${lvl}`; el.textContent = word;
-  el.style.left = `${r ? r.left + r.width / 2 : cr.left + cr.width / 2}px`; el.style.top = `${r ? r.bottom + 46 : cr.top + cr.height * 0.3}px`;
+  el.style.left = `${r ? r.left + r.width / 2 : cr.left + cr.width / 2}px`; el.style.top = `${r ? r.bottom + 46 : cr.top + cr.height * 0.55}px`;   // (no anchor: below the tally, which is in the top quarter)
   document.body.appendChild(el);
   setTimeout(() => { sfx.slam(lvl); buzz(lvl >= 2 ? [25, 30, 40] : 20); }, 40);
   setTimeout(() => el.remove(), 1100);

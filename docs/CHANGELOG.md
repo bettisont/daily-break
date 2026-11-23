@@ -11,6 +11,8 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **Catapult counts the cue ball too** (playtest, same evening): a pot where the cue ball rolled under the jumping
+  cat scores it as well, even if the cue ball goes under after the pot (then the word comes as the tally starts).
 - **Catapult: +100 when a ball you pot rolled under the jumping cat** (playtest). The physics notes each ball that
   passes under the hopping cat once a shot (`shot.catUnder`, only when the cat is out of the bumps, so course
   generation never sees it); a pot by one of those scores +100 (`TRICK_PTS.catapult`), points only, once a shot.
