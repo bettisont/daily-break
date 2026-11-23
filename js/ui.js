@@ -87,6 +87,7 @@ function aimLesson(was, now) {
 // while a hand drags the gold spot down (draw: the path comes back) and up (follow: it rolls on), on a loop.
 let spinDemo = null;
 function spinDemoWanted() {
+  if (round?.trick) return false;   // no spin demo under trick scoring (23 Nov playtest: annoying)
   return phase === 'aim' && !hold && !spinDrag && round?.level === 1 && strokes === 0 && !ls('dailybreak:spinDemo') && !$('overlay').classList.contains('show') && !banner;
 }
 function startSpinDemo() {

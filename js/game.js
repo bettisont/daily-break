@@ -218,7 +218,8 @@ function startHole(i) {
 function lineUp() {
   aim.spotY = 0; aim.spin = 0; aim.spotX = 0; aim.side = 0;
   phase = 'aim'; gimmes = findGimmes(); focusBall(bestBall(), true); aimClock = 0;
-  if (firstShotEver() && strokes === 0) startOffTarget();
+  // (not under trick scoring: the "This line misses" lesson was annoying, 23 Nov playtest)
+  if (firstShotEver() && strokes === 0 && !round.trick) startOffTarget();
   startUnpotted();
   updateUI();
 }
@@ -537,7 +538,7 @@ function release() {
     $('spinFace').insertAdjacentHTML('beforeend', '<div id="spinHand">👆</div>');
   }
   // first shot, and their line wouldn't have potted it: show the aim strip putting it right before the strike
-  if (first && Math.abs(Math.atan2(Math.sin(angle - own), Math.cos(angle - own))) > 0.2 * Math.PI / 180) {
+  if (first && !round.trick && Math.abs(Math.atan2(Math.sin(angle - own), Math.cos(angle - own))) > 0.2 * Math.PI / 180) {
     strike.lesson = { from: own, to: angle, strip: stripOff };
     strike.t = zoom.t = -AIM_T;
     aim.angle = own;

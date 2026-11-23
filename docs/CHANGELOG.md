@@ -67,6 +67,8 @@ on par, and the trick replays are the best moment of a round.
   - Sound: the bang has no low boom of its own (three thumps at once before); the hole jingle waits for the tally;
     the tally's steps climb the pot notes' scale; the multiplier dings use tuned roots, so golden x2 then streak
     x2.5 no longer clash. `P` opens the breakdown.
+- **No aim or spin lessons** under trick scoring (playtest: annoying): the first shot no longer starts off target with
+  "This line misses" and the aim-strip hand, and hole 2 has no looping spin demo. Par keeps both for new players.
 - **No replays** under trick scoring: they held up the tally, which already shows what the shot did (playtest: "annoying").
   The live slow-motion push-in on a trick or the last ball stays. Par days keep their replays.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the
