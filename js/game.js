@@ -1004,16 +1004,17 @@ function multStrip(log, max = 24) {
 }
 const tablesCleared = r => (r.cards || []).length;
 // how you did against today's players, from the server's tally (null until it has come back)
+// A practice run is compared with today's ranked runs too ("Would beat"; 23 Nov playtest: the share should always say
+// how you did); it isn't in the tally, so everyone in it counts. The lowest score says "Beat 0%" rather than nothing.
 function trickRankLine(r) {
   const t = r.tally;
-  if (!t || !t.players || !t.scores) return null;
-  const me = Math.floor((r.points || 0) / TRICK_BUCKET) * TRICK_BUCKET, others = t.players - 1;
-  const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc < me ? n : 0), 0), same = (t.scores[me] || 0) - 1;
-  if (others <= 0) return 'First to finish today';
+  if (!t || !t.scores) return null;
+  const practice = !r.ranked, me = Math.floor((r.points || 0) / TRICK_BUCKET) * TRICK_BUCKET, others = (t.players || 0) - (practice ? 0 : 1);
+  const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc < me ? n : 0), 0), same = (t.scores[me] || 0) - (practice ? 0 : 1);
+  if (others <= 0) return practice ? null : 'First to finish today';
   // (no player count: 23 Nov)
-  if (worse === others) return `${same > 0 ? 'Joint best' : 'Best'} score today so far`;
-  if (!worse) return null;   // (not "Beat 0%")
-  return `Beat ${Math.round(100 * worse / others)}% of today's players`;
+  if (worse === others) return practice ? 'Would beat everyone today' : `${same > 0 ? 'Joint best' : 'Best'} score today so far`;
+  return `${practice ? 'Would beat' : 'Beat'} ${Math.round(100 * worse / others)}% of today's players`;
 }
 function shareText(r = round) {
   if (r.trick) return trickShareText(r);
@@ -1042,9 +1043,7 @@ function showFinal(already) {
     <div id="rank" hidden></div>
     <div id="share" hidden>${shareText()}</div>
     <div class="row">
-      <button class="btn primary" data-copy>${canNativeShare() ? 'Share' : 'Copy'} result</button>
-      ${canCopyImage() ? '<button class="btn" data-copyimg>Copy image</button>' : ''}
-      ${canNativeShare() ? '' : '<button class="btn" data-saveimg>Save image</button>'}
+      <button class="btn primary" data-copy>Copy result</button>
       <button class="btn" data-trynew>${trickFlag ? 'New run' : 'Practice run'}</button>
       ${!round.ranked && !trickFlag ? `<button class="btn" data-daily>Today's run</button>` : ''}
     </div>
@@ -1052,7 +1051,8 @@ function showFinal(already) {
     <div class="k mono" id="nextIn" style="margin-top:10px"></div>
     ${feedbackLink()}`;
     tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
-    if (round.ranked) loadRank();
+    if (round.ranked) loadRank(); else loadPracticeRank();
+    holdCopyForRank();
     $('overlay').classList.add('show');
     // the score counts up as the card arrives, the badges pop in after it (not when coming back to it)
     if (!already) { rollNum($('finalPts'), 0, round.points || 0, 900); $('card').querySelector('.badges')?.classList.add('pop'); }
@@ -1164,13 +1164,28 @@ function fillRank() {
   const others = t.players - 1, me = round.trick ? Math.floor((round.points || 0) / TRICK_BUCKET) * TRICK_BUCKET : parTotal();
   const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + ((round.trick ? +sc < me : +sc > me) ? n : 0), 0), same = (t.scores[me] || 0) - 1;
   if (round.trick) {   // the rank line, with the player count, and the share text picks it up too
-    el.innerHTML = `<b>${trickRankLine(round)}</b>`; el.hidden = false;
+    const line = trickRankLine(round), cb = document.querySelector('#card [data-copy]');
+    if (cb) cb.disabled = false;   // (Copy result was waiting for this)
+    if (line) { el.innerHTML = `<b>${line}</b>`; el.hidden = false; }
     if ($('share')) $('share').textContent = shareText();
     prepShareCard();   // (the image card shows the rank too)
     return;
   }
   const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far' : 'Best round today so far') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
   el.innerHTML = `<b>${line}</b>`; el.hidden = false;   // no player count shown (Tim, 11 Nov)
+}
+// a practice run of the timed game: today's ranked tally, to say where it would have come
+function loadPracticeRank() {
+  if (location.hostname !== 'dailybreak.app' || !round.trick || round.ranked || round.tally) return;
+  const r = round;
+  fetch('/api/day?day=' + todayKey() + '&mode=trial').then(res => res.ok ? res.json() : null).then(t => { if (t && round === r) { r.tally = t; fillRank(); } }).catch(() => {});
+}
+// Copy result waits for the rank (so the copied text has it), up to 3 s, then works without it
+function holdCopyForRank() {
+  const b = document.querySelector('#card [data-copy]');
+  if (!b || round.tally || location.hostname !== 'dailybreak.app') return;
+  b.disabled = true;
+  setTimeout(() => { b.disabled = false; }, 3000);
 }
 function loadRank() {
   if (!tallyOn()) return;

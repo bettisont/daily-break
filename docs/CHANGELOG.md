@@ -11,6 +11,11 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **The share always says how you did** (playtest): a practice run is compared with today's ranked runs ("Would beat
+  80% of today's players", `loadPracticeRank`); the day's lowest score says "Beat 0%" instead of nothing; and Copy
+  result waits for the rank to come in, up to 3 s (`holdCopyForRank`), so the copied text has it.
+- **One share button: Copy result** (playtest): the timed run's result card copies the text and its link (whose
+  preview is the card) on every device; the share sheet with the image, Copy image and Save image are off the card.
 - **No share-text box on the timed run's result card** (playtest: "why does it show that little link?"): the score
   and badges say it all; the text is still what Share/Copy sends, and the box only appears if copying fails.
 - **A shorter share text** (playtest: it looked messy in WhatsApp, where the block-character strip wrapped onto two
