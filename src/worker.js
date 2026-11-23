@@ -2,8 +2,8 @@
 // www.dailybreak.app) gets a permanent redirect to the same path on dailybreak.app.
 //
 // POST /api/result  one anonymous ranked result: {day, level, potted, points} for a lives day, or
-//                   {day, mode: 'par', score, strokes, points} for a par (golf) day, or {day, mode: 'trick', points,
-//                   strokes} for a trick-scoring day (points 0..100000, counted in buckets of 50). It goes to Workers
+//                   {day, mode: 'par', score, strokes, points} for a par (golf) day, or {day, mode: 'trial', points,
+//                   tables} for a timed-trial day (points 0..2000000, counted in buckets of 100). It goes to Workers
 //                   Analytics Engine (dataset daily_break_results, read by .github/workflows/results.yml)
 //                   and is counted in the DayCounts Durable Object. Replies with that day's tally.
 // POST /api/event   one anonymous funnel step {day, step} (open, opennew/openback, intro, pull, shot, clear1, level3,
@@ -11,8 +11,8 @@
 //                   'left' (page hidden before the first shot) adds {secs, where: intro|table|pulled}.
 // GET  /api/day?day=YYYY-MM-DD   that day's tally: { players, levels: { "<level>": count } },
 //                   so the result card can say "better than X% of today's players". With &mode=par:
-//                   { players, scores: { "<score to par>": count } }. With &mode=trick: { players, scores:
-//                   { "<points, rounded down to 50>": count } }.
+//                   { players, scores: { "<score to par>": count } }. With &mode=trial: { players, scores:
+//                   { "<points, rounded down to 100>": count } }.
 // Rate limits (Workers Rate Limiting, keyed on the client IP, which is never logged or stored here):
 //                   /api/result 5 per minute (else 429 {error: 'slow down'}), /api/event 30 per minute (else
 //                   429, no body). A real player sends one result and ~10 events a day. If the binding is
@@ -24,9 +24,9 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 // the day a player's local calendar can be on right now (time zones straddle UTC)
 const dayIsCurrent = d => { const ms = Date.parse(d + 'T12:00:00Z') - Date.now(); return ms > -2.5 * 864e5 && ms < 1.5 * 864e5; };
-// trick scoring (22 Nov 2026): points are counted in buckets so a day's tally stays small (keep in step with js/game.js)
-// a perfect bot round scored ~22k; the cap only stops nonsense
-const TRICK_BUCKET = 50, TRICK_MAX = 100_000;
+// the timed trial (22-23 Nov 2026): points are counted in buckets so a day's tally stays small (keep in step with
+// js/game.js). The multiplier has no cap, so the points limit is generous; it only stops nonsense.
+const TRIAL_BUCKET = 100, TRIAL_MAX = 2_000_000;
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
 // One object for the whole game holds a count of players per level for each day (no IDs, nothing else).
@@ -52,13 +52,13 @@ export class DayCounts extends DurableObject {
     await this.ctx.storage.put(key, scores);
     return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
   }
-  // trick-scoring days: a count of players per bucket of TRICK_BUCKET points, under its own key
-  async tallyTrick(day) {
-    const scores = (await this.ctx.storage.get('t:' + day)) || {};
+  // timed-trial days: a count of players per bucket of TRIAL_BUCKET points, under its own key
+  async tallyTrial(day) {
+    const scores = (await this.ctx.storage.get('r:' + day)) || {};
     return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
   }
-  async addTrick(day, bucket) {
-    const key = 't:' + day, scores = (await this.ctx.storage.get(key)) || {};
+  async addTrial(day, bucket) {
+    const key = 'r:' + day, scores = (await this.ctx.storage.get(key)) || {};
     scores[bucket] = (scores[bucket] || 0) + 1;
     await this.ctx.storage.put(key, scores);
     return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
@@ -89,11 +89,11 @@ const counter = env => env.DAYS.get(env.DAYS.idFromName('all'));
 async function recordResult(request, env) {
   let r;
   try { r = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
-  if (r && r.mode === 'trick') {
-    if (!DAY.test(r.day) || !int(r.points, 0, TRICK_MAX) || !int(r.strokes, 0, 200)) return json({ error: 'bad result' }, 400);
+  if (r && r.mode === 'trial') {
+    if (!DAY.test(r.day) || !int(r.points, 0, TRIAL_MAX) || !int(r.tables, 0, 1000)) return json({ error: 'bad result' }, 400);
     if (!dayIsCurrent(r.day)) return json({ error: 'wrong day' }, 400);
-    env.RESULTS?.writeDataPoint({ indexes: [r.day], blobs: [r.day, 'trick'], doubles: [r.points, r.strokes] });
-    return json(await counter(env).addTrick(r.day, Math.floor(r.points / TRICK_BUCKET) * TRICK_BUCKET));
+    env.RESULTS?.writeDataPoint({ indexes: [r.day], blobs: [r.day, 'trial'], doubles: [r.points, r.tables] });
+    return json(await counter(env).addTrial(r.day, Math.floor(r.points / TRIAL_BUCKET) * TRIAL_BUCKET));
   }
   if (r && r.mode === 'par') {
     if (!DAY.test(r.day) || !int(r.score, -30, 60) || !int(r.strokes, 0, 200) || !int(r.points, 0, 10_000_000)) return json({ error: 'bad result' }, 400);
@@ -128,7 +128,7 @@ export default {
       const day = url.searchParams.get('day') || '';
       if (!DAY.test(day) || !dayIsCurrent(day)) return json({ error: 'bad day' }, 400);
       const mode = url.searchParams.get('mode');
-      return json(mode === 'par' ? await counter(env).tallyPar(day) : mode === 'trick' ? await counter(env).tallyTrick(day) : await counter(env).tally(day));
+      return json(mode === 'par' ? await counter(env).tallyPar(day) : mode === 'trial' ? await counter(env).tallyTrial(day) : await counter(env).tally(day));
     }
     return env.ASSETS.fetch(request);
   },

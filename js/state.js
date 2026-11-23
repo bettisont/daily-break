@@ -39,21 +39,30 @@ const holeColor = d => d < 0 ? '#3b5ea6' : d === 0 ? '#2f6b4f' : d === 1 ? '#9a7
 const parTotal = () => (round.cards || []).reduce((a, c) => a + c.strokes - c.par, 0);
 let gimmes = [];
 const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
-// ---- trick scoring (being tried, 22 Nov 2026) ----
-// Points replace par: a pot is 100, each trick element on the shot adds 200 (an extra ball in one shot, a bank, a kick,
-// a combination, a tunnel), the first pot into the golden pocket doubles the shot, and the whole shot is multiplied
-// by the streak (potting shots in a row, carried across holes, x1 up to x3). Clearing a hole scores nothing extra.
-// Strokes are only the hole's budget (par + 3, as before). Tap-ins are off. Why: flair went unrewarded, too many
-// players tied on par, and the trick replays are the best part. It's tried behind ?trick first (an unranked round
-// that sends and saves nothing); RULES.TRICK_SCORE_FROM switches the daily round over once that date is set.
+// ---- the timed trial (being tried, 22-23 Nov 2026) ----
+// Points replace par, and the daily game becomes a 2-minute run (TRIAL_S of aiming time: the clock stops while the
+// balls roll, the score tallies or the next table deals in) through an endless seeded sequence of tables, the same for
+// everyone that day: table n is built exactly like hole n was (1 ball, 2, then 3 with shapes, features, the golden
+// pocket and moving targets), so tables 1-6 are the old six holes. Clear a table and the next one comes; there's no
+// shot limit and no way to skip. At zero you get one last shot. Scoring: a pot is 100, each trick element on the shot
+// adds 200 (an extra ball in one shot, a bank, a combination, a tunnel, a cannon, a target crossed before anything
+// drops) or 100 (a kick), the first pot into a table's golden pocket doubles the shot, and the shot is multiplied by
+// the multiplier (hs.mult). That starts at x1 and has no cap: each potting shot then adds 0.5 to it, each trick in it
+// 0.1 more and the golden pocket 0.2 (for the shots after it); a miss halves the part above x1, a foul resets it.
+// Why: flair went unrewarded under par, too many players tied, and a run against the clock suits trick shots better
+// than a stroke budget did. Tried behind ?trick first (unranked; sends and saves nothing); RULES.TRICK_SCORE_FROM
+// switches the daily game over once that date is set. (A six-hole version with stroke budgets came first, 22 Nov.)
 const TRICK_PTS = { pot: 100, part: 200 };
+const TRIAL_S = 120;
+const MULT = { pot: 0.5, trick: 0.1, gold: 0.2 };
+const roundMult = m => Math.round(m * 100) / 100;
+const fmtMult = m => `×${roundMult(m)}`;
 const trickFlag = new URLSearchParams(location.search).has('trick');
 // a daily seed from the switch date on, a practice course once today is past it, or anything under ?trick
 const trickOn = seed => trickFlag || (!!RULES.TRICK_SCORE_FROM && (isDailySeed(seed) ? seed : todayKey()) >= RULES.TRICK_SCORE_FROM);
-// what each element adds: 200, except Quick (a shot taken within QUICK_S seconds of the aim starting) and Kick, 100
-// (a kick came up more than anything in every playtest, often by accident: halved on 22 Nov)
-const partPts = k => k === 'Quick' || k === 'Kick' ? 100 : TRICK_PTS.part;
-const QUICK_S = 5;
+// what each element adds: 200, except a kick, 100 (it came up more than anything in every playtest, often by
+// accident: halved on 22 Nov)
+const partPts = k => k === 'Kick' ? 100 : TRICK_PTS.part;
 const fmtPts = n => Math.round(n).toLocaleString('en-US');
 
 let round = null, hole = null, table = null, phase = 'lining', strokes = 0, acc = 0;
@@ -63,9 +72,9 @@ let hs = null, shotLog = [];
 let holeBonus = 0, goldUsed = false;
 // trick scoring: this shot's trick elements as they drop (tshot), this hole's points and tricks (thole)
 let tshot = null, thole = { pts: 0, tricks: [] };
-// trick scoring: this hole's moving targets, their clock (physics time while the balls roll), and how long this aim
-// has run (for Quick)
-let targets = [], tgtClock = 0, shotClock0 = 0, aimClock = 0, ptsHold = false;
+// trick scoring: this table's moving targets and their clock (physics time while the balls roll), the run's clock
+// (seconds of aiming time left; lastShot once it has hit zero), and whether the header's count-up is held for a tally
+let targets = [], tgtClock = 0, shotClock0 = 0, ptsHold = false, trialLeft = TRIAL_S, lastShot = false;
 let marks = [], trails = [], curTrail = null, stamp = null, banner = null;
 let ffwd = false, movingT = 0, cine = null, cam = { k: 1, x: W / 2, y: H / 2 }, timeScale = 1;
 // Animation: a ball on the lip gets slow motion and a heartbeat (lip),

@@ -30,8 +30,8 @@ function fakeEnv({ limiters = true } = {}) {
     async add(d, lv) { const l = (levels[d] ||= {}); l[lv] = (l[lv] || 0) + 1; return { players: sum(l), levels: l }; },
     async tallyPar(d) { const s = scores[d] || {}; return { players: sum(s), scores: s }; },
     async addPar(d, sc) { const s = (scores[d] ||= {}); s[sc] = (s[sc] || 0) + 1; return { players: sum(s), scores: s }; },
-    async tallyTrick(d) { const s = tricks[d] || {}; return { players: sum(s), scores: s }; },
-    async addTrick(d, b) { const s = (tricks[d] ||= {}); s[b] = (s[b] || 0) + 1; return { players: sum(s), scores: s }; },
+    async tallyTrial(d) { const s = tricks[d] || {}; return { players: sum(s), scores: s }; },
+    async addTrial(d, b) { const s = (tricks[d] ||= {}); s[b] = (s[b] || 0) + 1; return { players: sum(s), scores: s }; },
   };
   const points = { RESULTS: [], EVENTS: [] };
   const env = {
@@ -66,23 +66,23 @@ await check('valid par result -> 200 with tally', async () => {
   eq(await r.json(), { players: 1, scores: { '-2': 1 } }, 'body');
   eq(env.points.RESULTS.length, 1, 'data points');
 });
-await check('valid trick result -> 200, counted in its 50-point bucket', async () => {
+await check('valid trial result -> 200, counted in its 100-point bucket', async () => {
   const env = fakeEnv();
-  let r = await worker.fetch(post('/api/result', { day: today, mode: 'trick', points: 4870, strokes: 24 }), env);
-  eq([r.status, await r.json()], [200, { players: 1, scores: { 4850: 1 } }], 'first');
-  r = await worker.fetch(post('/api/result', { day: today, mode: 'trick', points: 4850, strokes: 20 }), env);
-  eq(await r.json(), { players: 2, scores: { 4850: 2 } }, 'same bucket');
-  eq(env.points.RESULTS[0].blobs, [today, 'trick'], 'blobs');
-  eq(env.points.RESULTS[0].doubles, [4870, 24], 'doubles');
-  r = await worker.fetch(new Request(`https://dailybreak.app/api/day?day=${today}&mode=trick`), env);
-  eq(await r.json(), { players: 2, scores: { 4850: 2 } }, 'tally');
+  let r = await worker.fetch(post('/api/result', { day: today, mode: 'trial', points: 38470, tables: 7 }), env);
+  eq([r.status, await r.json()], [200, { players: 1, scores: { 38400: 1 } }], 'first');
+  r = await worker.fetch(post('/api/result', { day: today, mode: 'trial', points: 38400, tables: 6 }), env);
+  eq(await r.json(), { players: 2, scores: { 38400: 2 } }, 'same bucket');
+  eq(env.points.RESULTS[0].blobs, [today, 'trial'], 'blobs');
+  eq(env.points.RESULTS[0].doubles, [38470, 7], 'doubles');
+  r = await worker.fetch(new Request(`https://dailybreak.app/api/day?day=${today}&mode=trial`), env);
+  eq(await r.json(), { players: 2, scores: { 38400: 2 } }, 'tally');
   r = await worker.fetch(new Request(`https://dailybreak.app/api/day?day=${today}&mode=par`), env);
   eq(await r.json(), { players: 0, scores: {} }, 'par tally untouched');
 });
-await check('trick result out of range -> 400', async () => {
+await check('trial result out of range -> 400', async () => {
   const env = fakeEnv({ limiters: false });
-  for (const bad of [{ points: 100001, strokes: 10 }, { points: -1, strokes: 10 }, { points: 1.5, strokes: 10 }, { points: 100, strokes: 201 }, { points: 100 }]) {
-    const r = await worker.fetch(post('/api/result', { day: today, mode: 'trick', ...bad }), env);
+  for (const bad of [{ points: 2000001, tables: 10 }, { points: -1, tables: 1 }, { points: 1.5, tables: 1 }, { points: 100, tables: 1001 }, { points: 100 }]) {
+    const r = await worker.fetch(post('/api/result', { day: today, mode: 'trial', ...bad }), env);
     eq([r.status, await r.json()], [400, { error: 'bad result' }], JSON.stringify(bad));
   }
   eq(env.points.RESULTS.length, 0, 'nothing written');

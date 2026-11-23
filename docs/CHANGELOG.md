@@ -4,6 +4,24 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 23 Nov 2026: the timed trial replaces the six holes (behind ?trick)
+
+Decided in a second grilling session (ADR 0002). Still nothing changes for players: `TRICK_SCORE_FROM` is `null`.
+- **A two-minute run** (`TRIAL_S`) of aiming time through an endless seeded sequence of tables, the same for everyone
+  each day (`makeHole(seed, n)`, so tables 1-6 are the old holes). The clock stops while the balls roll, the score
+  tallies and the next table deals in; at zero, one last shot. No shot limits, no skipping, and misses and fouls cost
+  no time.
+- **One multiplier meter, no cap** (`hs.mult`): each potting shot adds 0.5, each trick 0.1, the golden pocket 0.2, for
+  the shots after it; a miss halves the part above x1, a foul resets it. It replaces the x1-x3 pot streak.
+- **Quick is gone** (the clock rewards speed), with its ring.
+- **Screen**: the clock in the header (red with ticks for the last 10 s, then "Last shot"), "Table 5 · 3 balls left",
+  the meter full at x5; "Time's up" card with points, tables cleared, best multiplier and best shot; share "Daily Break
+  23 Nov ⏱️ 38,470 points · 7 tables / Beat 73% of today's players" (no player count). Unlimited practice runs.
+- **Worker**: `mode: 'trial'` ({points, tables}), 100-point buckets under `r:<day>`; the six-hole `trick` mode is
+  gone (it was never live).
+- **Test**: `tests/run.js trial` plays a short real run and checks every shot against the rules.
+- Seen in bot runs: with no cap a near-perfect player reaches x15 and about 300,000 points; a sloppy one about 58,000.
+
 ## 22 Nov 2026: trick scoring, on trial behind ?trick
 
 Nothing changes for players yet: `RULES.TRICK_SCORE_FROM` is `null`, so every daily round is still par. `?trick`

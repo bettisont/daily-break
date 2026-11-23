@@ -163,7 +163,6 @@ const sfx = {
     else if (kind === 'Combo') [587.33, 739.99, 880, 1174.66].forEach((f, k) => tone(f, 0.18, 0.06, 'triangle', 1, k * 0.055, 0.5));
     else if (kind === 'Cannon') { tone(70, 0.35, 0.35, 'sine', 0.5, 0, 0.3); noise(0.25, 0.3, 600, 'lowpass', 0, 1); tone(880, 0.2, 0.05, 'square', 0.5, 0.05, 0.4); }
     else if (kind === 'Target') { [1046.5, 1318.5, 1568, 2093].forEach((f, k) => tone(f, 0.22, 0.045, 'sine', 1, k * 0.04, 0.6)); }
-    else if (kind === 'Quick') { tone(1200, 0.12, 0.06, 'square', 2, 0, 0.2); tone(2400, 0.1, 0.03, 'sine', 1, 0.06, 0.3); }
     else if (kind === 'Tunnel') { tone(160, 0.5, 0.18, 'sine', 3, 0, 0.5); noise(0.4, 0.15, 900, 'bandpass', 0, 2); tone(1046.5, 0.3, 0.05, 'sine', 1, 0.3, 0.6); }
     noise(0.05, 0.18, 4000, 'highpass', 0, 0.7);
   },
@@ -172,8 +171,11 @@ const sfx = {
   bang(k) { const v = k / 6; noise(0.12 + 0.05 * k, 0.25 + 0.35 * v, 2600, 'bandpass', 0, 0.8); noise(0.3 + 0.08 * k, 0.06 + 0.12 * v, 900, 'bandpass', 0.02, 0.7); tone(392 * (1 + 0.25 * Math.min(k, 4) / 4), 0.25, 0.03 + 0.03 * v, 'triangle', 1.5, 0, 0.4); if (k >= 3) tone(1568, 0.3, 0.04, 'sine', 1, 0.05, 0.6); },
   // a multiplier landing: a bright major arpeggio with a bell on top and a shimmer, on a tuned root that climbs with
   // the multiplier (x1.5 E5, x2 G5, x2.5 A5, x3 C6: golden x2 then streak x2.5 no longer clash)
+  // the timed trial's last ten seconds: a soft tick each second, higher as it runs out; and the "last shot" call
+  clockTick(left) { tone(1318.5 + (10 - Math.ceil(left)) * 40, 0.05, 0.035, 'triangle', 1, 0, 0.1); },
+  lastShot() { tone(659.25, 0.18, 0.06, 'triangle', 1, 0, 0.3); tone(523.25, 0.3, 0.06, 'triangle', 1, 0.16, 0.4); },
   ding(m = 2) {
-    const base = m >= 3 ? 1046.5 : m >= 2.5 ? 880 : m >= 2 ? 783.99 : 659.25;
+    const base = m >= 3 ? 1046.5 : m >= 2.5 ? 880 : m >= 2 ? 783.99 : 659.25;   // (x3 and over: C6)
     [1, 1.25, 1.5, 2].forEach((r, i) => { tone(base * r, 0.55 + 0.12 * i, 0.045, 'triangle', 1, i * 0.05, 0.6); tone(base * r * 2, 0.4, 0.014, 'sine', 1, i * 0.05 + 0.012, 0.7); });
     noise(0.45, 0.03, 7000, 'highpass', 0.08, 0.5);
   },

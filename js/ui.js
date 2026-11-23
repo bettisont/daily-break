@@ -8,8 +8,9 @@
 function renderCard9() {
   if (round.trick) {
     // built once and updated in place, so the Points chip keeps its tip pulse and doesn't jump about (23 Nov sweep)
-    if (!$('ptsChip')) $('card9').innerHTML = `<div class="c cur lvl"><b id="holeVal"></b></div><button class="c score" id="ptsChip" title="How your points added up (P)"><span class="lab">Points</span> <b id="ptsVal"></b><i>ⓘ</i></button>`;
-    $('holeVal').textContent = `Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}`;
+    // the timed trial: the clock where the hole was, and Points
+    if (!$('ptsChip')) $('card9').innerHTML = `<div class="c cur clock" id="clockChip"><b id="clockVal"></b></div><button class="c score" id="ptsChip" title="How your points added up (P)"><span class="lab">Points</span> <b id="ptsVal"></b><i>ⓘ</i></button>`;
+    updateClock();
     if (!ptsHold || !$('ptsVal').textContent) $('ptsVal').textContent = fmtPts(shownPts);
     return;
   }
@@ -20,9 +21,8 @@ function updateUI() {
   const left = table.remaining(), n = Math.max(0, Math.min(strokes, capOf(round.level)) - holeBonus);
   $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
   if (round.trick) {
-    const cap = capOf(round.level), shots = Math.max(0, cap - strokes), m = streakMult(hs.streak);
-    $('iHole').innerHTML = `Hole ${round.level + 1} · ${hole.balls.length} ball${hole.balls.length === 1 ? '' : 's'}<b>${shots} shot${shots === 1 ? '' : 's'} left<small>${left} ball${left === 1 ? '' : 's'}</small></b>`;
-    updateStreakMeter(m);
+    $('iHole').innerHTML = `Table ${round.level + 1}<b>${left} ball${left === 1 ? '' : 's'} left</b>`;
+    updateStreakMeter(roundMult(hs.mult));
   } else { $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`; $('iLie').classList.remove('max'); }
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
@@ -30,17 +30,25 @@ function updateUI() {
   const aiming = phase === 'aim';
   $('strip').classList.toggle('off', !aiming); $('rowB').classList.toggle('off', !aiming); $('pull').classList.toggle('off', !aiming && !hold);
   $('hint').innerHTML = phase === 'moving' ? 'Tap the table to speed up' : !aiming ? '' : hold ? (power < MIN_PULL ? 'Pull down · let go here to cancel' : 'Let go on the gold spot') :
-    gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : round.trick ? `Shot<b>${strokes + 1}</b><small>of ${capOf(round.level)}</small>` : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`;
+    gimmes.length ? 'Tap the glowing ball<b>Tap in</b>' : round.trick ? `Shot<b>${strokes + 1}</b>` : `Stroke<b>${strokes + 1}</b><small>pick up after ${capOf(round.level)}</small>`;
   updateMeter(); updateAimUI(); updateSpinBall();
+}
+// The timed trial's clock: m:ss of aiming time left, red for the last ten seconds, "Last shot" once it's out.
+function updateClock() {
+  const el = $('clockVal');
+  if (!el) return;
+  const txt = lastShot ? 'Last shot' : `${Math.floor(Math.ceil(trialLeft) / 60)}:${String(Math.ceil(trialLeft) % 60).padStart(2, '0')}`;
+  if (el.textContent !== txt) el.textContent = txt;
+  $('clockChip').classList.toggle('urgent', lastShot || trialLeft <= 10);
 }
 // Trick scoring's streak meter (22 Nov): the multiplier, and a bar under it that fills and heats up from x1 to x3,
 // with a flame from x2, pulsing at x3. Built once and updated, so its animations aren't restarted every update.
 function updateStreakMeter(m) {
   const el = $('iLie');
   if (!$('smX')) el.innerHTML = 'Streak<b><span id="smX"></span></b><span class="smbar"><i id="smFill"></i></span>';
-  $('smX').textContent = `×${m}${m >= 2 ? ' 🔥' : ''}`;
+  $('smX').textContent = `${fmtMult(m)}${m >= 2 ? ' 🔥' : ''}`;
   $('smX').parentElement.classList.toggle('hot', m > 1);
-  $('smFill').style.width = `${(m - 1) / 2 * 100}%`;
+  $('smFill').style.width = `${Math.min(1, (m - 1) / 4) * 100}%`;   // (no cap on the multiplier; the bar is full at x5)
   el.classList.toggle('max', m >= 3);
 }
 // a reset: the meter shakes and flashes red as it drains
@@ -209,19 +217,19 @@ async function shareResult(b) {
 // trick scoring's intro and the scoring part of its help (22 Nov: the par wording was wrong for it)
 const TRICK_INTRO = `
     <div class="k mono">Daily Break · daily pool</div>
-    <h2>Six holes. Pot with style.</h2>
+    <h2>Two minutes. Pot with style.</h2>
     <div class="howto">
-      <p>🎱 Clear each hole within the shots you have. Every pot is 100 points.</p>
-      <p>✨ Tricks add more: a bank, a combination, two in one, a moving target… The better the shot, the bigger the bang.</p>
-      <p>🔥 Pot on shot after shot to build a streak up to ×3. It multiplies every shot; a miss resets it.</p>
+      <p>⏱️ You have <b>2 minutes</b> of aiming time: the clock stops while the balls roll. Clear a table and the next one deals in.</p>
+      <p>🎱 Every pot is 100 points. Tricks add more: a bank, a combination, two in one, a moving target…</p>
+      <p>🔥 Each pot raises your <b>multiplier</b>, and tricks raise it faster. A miss halves it; a foul resets it.</p>
       <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
 const TRICK_HELP = `
-      <p>🎱 <b>Six holes, scored in points.</b> Each hole gives you a few shots (shown above the table): clear its balls before they run out. Every pot is <b>100</b>. A foul (a scratch, or hitting nothing) costs a shot and resets your streak, and anything it pots scores nothing.</p>
-      <p>✨ <b>Tricks</b> add to a shot that pots. <b>+200</b> each: a <b>bank</b> (the ball comes off a cushion), a <b>combination</b> (potted by another ball), a <b>cannon</b> (the cue ball hits two balls before one drops), <b>two or three in one</b>, a pot through a <b>tunnel</b>, or a ball rolling through a moving <b>target</b> ring before anything drops. <b>+100</b>: a <b>kick</b> (the cue ball hits a cushion first) or a <b>quick</b> shot (taken while the gold ring round the cue ball is still running).</p>
-      <p>🔥 <b>Streak:</b> every shot that pots raises it, ×1, ×1.5, ×2, ×2.5, up to ×3, from hole to hole, and it multiplies the whole shot. A miss or a foul resets it. From hole 2 the <b>golden pocket</b> doubles the first shot into it.</p>
-      <p>ⓘ Tap <b>Points</b> at the top to see how each shot added up.</p>`;
+      <p>⏱️ <b>A two-minute run.</b> The clock (top left) counts only while you're aiming: it stops while the balls roll, the score adds up and the next table deals in. Clear a table and the next one comes: one ball, then two, then three, with new shapes and things in the way. When the clock runs out you get <b>one last shot</b>. Everyone plays the same tables each day.</p>
+      <p>🎱 <b>Points:</b> every pot is <b>100</b>. <b>Tricks</b> add to a shot that pots: <b>+200</b> each for a <b>bank</b> (the ball comes off a cushion), a <b>combination</b> (potted by another ball), a <b>cannon</b> (the cue ball hits two balls before one drops), <b>two or three in one</b>, a pot through a <b>tunnel</b>, or a ball rolling through a moving <b>target</b> ring before anything drops; <b>+100</b> for a <b>kick</b> (the cue ball hits a cushion first). The first pot into a table's <b>golden pocket</b> doubles the shot.</p>
+      <p>🔥 <b>Multiplier:</b> each shot is multiplied by it. Every shot that pots raises it by 0.5, each trick by 0.1 more and the golden pocket by 0.2, with no limit. A <b>miss halves</b> what you've built above ×1; a <b>foul</b> (a scratch, or hitting nothing) resets it to ×1 and scores nothing.</p>
+      <p>ⓘ Tap <b>Points</b> at the top (or press P) to see how each shot added up.</p>`;
 function showIntro() {
   if (round?.trick) { $('card').innerHTML = TRICK_INTRO; $('overlay').classList.add('show'); return; }
   $('card').innerHTML = `
@@ -238,7 +246,7 @@ function showIntro() {
 function showHelp() {
   $('card').innerHTML = `
     <div class="k mono">How to play</div>
-    <h2>${round?.trick ? 'Six holes. Pot with style.' : 'Six holes. Fewest shots wins.'}</h2>
+    <h2>${round?.trick ? 'Two minutes. Pot with style.' : 'Six holes. Fewest shots wins.'}</h2>
     <div class="howto">
       ${round?.trick ? TRICK_HELP : ''}<p ${round?.trick ? 'hidden' : ''}>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3 (at most three balls a hole). Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>
       <p>Each shot runs top to bottom through the controls:</p>
@@ -255,6 +263,12 @@ function showHelp() {
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>
     ${feedbackLink()}`;
+  // the timed trial talks about tables and runs, not holes and rounds
+  if (round?.trick) {
+    const howto = $('card').querySelector('.howto');
+    howto.innerHTML = howto.innerHTML.replace(/From hole 3 every hole/g, 'From table 3 every table').replace(/From hole 3/g, 'From table 3').replace(/from hole to hole/g, 'from table to table')
+      .replace(/<p>📅[^<]*<\/p>/, '<p>📅 Everyone plays the same tables each day. One ranked run a day, plus as many practice runs as you like.</p>');
+  }
   $('overlay').classList.add('show');
 }
 // trick scoring: the Points chip opens the breakdown of your shots

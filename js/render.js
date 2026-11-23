@@ -1090,7 +1090,6 @@ function draw(t, dt) {
   }
   drawTableCat(t, dt);
   drawTargets(t);
-  drawQuickRing(t);
 
   // (the dotted trail of where the cue ball has been is no longer drawn: it cluttered the table; `trails` still records it)
   for (const m of marks) {
@@ -1272,7 +1271,7 @@ function draw(t, dt) {
 // a flame. A miss or foul drops it back quickly. One extra sprite drawn as light: no new gradients per frame.
 const WARM_LAMP = glowSprite(256, [[0, 'rgba(255,170,70,.34)'], [0.5, 'rgba(255,150,60,.14)'], [1, 'rgba(255,140,50,0)']]);
 let streakLvl = 0;
-const streakTarget = () => round?.trick && hs ? (streakMult(hs.streak) - 1) * 2 : 0;   // 0 at x1 ... 4 at x3
+const streakTarget = () => round?.trick && hs ? (Math.min(hs.mult, 3) - 1) * 2 : 0;   // 0 at x1 ... 4 at x3 and over
 // (only while it's changing: the x3 flicker and the targets no longer hold the frame rate at 60, 23 Nov sweep)
 const streakGlowBusy = () => Math.abs(streakLvl - streakTarget()) > 0.01;
 function drawLampWarmth(t, dt) {
@@ -1303,17 +1302,3 @@ function drawTargets(t) {
   ctx.restore();
 }
 
-// Quick (trick scoring): a gold ring round the cue ball that drains over QUICK_S seconds while you aim, with a little
-// bolt; it flashes for the last 1.5 s. (22 Nov: it replaced a bar across the top of the pull cue nobody noticed.)
-function drawQuickRing(t) {
-  if (!round?.trick || phase !== 'aim' || aimClock > QUICK_S || table.cue.potted || tally) return;
-  const c = table.cue, f = clamp(1 - aimClock / QUICK_S, 0, 1), last = QUICK_S - aimClock < 1.5, r = R + 9;
-  const a = last ? 0.55 + 0.45 * Math.abs(Math.sin(t * 9)) : 0.95;
-  ctx.save(); ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(251,248,240,.25)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = `rgba(${last ? '255,170,60' : '255,214,90'},${a})`; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.arc(c.x, c.y, r, -Math.PI / 2, -Math.PI / 2 + f * TAU); ctx.stroke();
-  ctx.font = "700 13px 'DM Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = a;
-  ctx.fillStyle = '#ffd65a'; ctx.fillText('⚡', c.x + r * 0.8, c.y - r * 0.8);
-  ctx.restore();
-}

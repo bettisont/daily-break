@@ -8,7 +8,10 @@
 //            follows really drops into it (a perfect strike at some guide pace).
 //   fastsim  the guide's early-exit simulation (guidePotsAt) finds exactly the pots a full simulation does.
 //   smoke    a first visit: the intro card, "Let's play", one real shot through the pull cue, no errors.
-// Usage: node tests/run.js [--update] [--only layouts,guide,fastsim,smoke]
+//   trial    the timed trial (?trick): a short run of real shots (perfect strikes at potting aims), each shot's points
+//            and multiplier checked against the rules from the table's own record of the shot, the clock only
+//            running while aiming, and the run ending with a last shot and points that add up.
+// Usage: node tests/run.js [--update] [--only layouts,guide,fastsim,smoke,trial]
 const { execFileSync } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
@@ -17,7 +20,7 @@ const ROOT = path.join(__dirname, '..'), DIST = path.join(ROOT, 'dist'), SNAP = 
 const LAYOUT_FROM = '2026-11-12', LAYOUT_TO = '2027-01-31', PRACTICE = ['practice-a', 'k3v9q', 'Zz1'];
 const GUIDE_DAYS = ['2026-11-15', '2026-11-17', '2026-11-24'];
 const args = process.argv.slice(2), update = args.includes('--update');
-const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : ['layouts', 'guide', 'fastsim', 'smoke'];
+const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : ['layouts', 'guide', 'fastsim', 'smoke', 'trial'];
 const SEEN = { 'dailybreak:seenHelp': '1', 'dailybreak:tappedBall': '1', 'dailybreak:spinDemo': '1' };
 
 const days = (from, to) => { const out = []; for (let d = new Date(from + 'T12:00:00Z'); d <= new Date(to + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10)); return out; };
@@ -32,14 +35,14 @@ function serve() {
     }).listen(0, '127.0.0.1', () => res(srv));
   });
 }
-async function page(browser, base, storage) {
+async function page(browser, base, storage, query = '') {
   const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
   p.errors = [];
   p.on('pageerror', e => p.errors.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|\/api\//.test(m.text())) p.errors.push(m.text()); });
   await p.route(/cloudflareinsights|fonts\.(googleapis|gstatic)/, r => r.abort());   // keep the tests offline and fast
   if (storage) await p.addInitScript(s => { for (const k in s) localStorage.setItem(k, s[k]); }, storage);
-  await p.goto(base + '/index.html');
+  await p.goto(base + '/index.html' + query);
   return p;
 }
 
@@ -144,6 +147,56 @@ const tests = {
     await p.waitForTimeout(1500);
     if (p.errors.length) throw new Error('page errors: ' + p.errors.join(' | '));
     return 'intro, first shot and its result played with no errors';
+  },
+
+  async trial(browser, base) {
+    const p = await page(browser, base, { ...SEEN, 'dailybreak:firstShot': '1', 'dailybreak:pulled': '1', 'dailybreak:scratchSaved': '1', 'dailybreak:shotLogTip': '1' }, '?trick');
+    await p.waitForFunction(() => typeof round !== 'undefined' && round?.trick && phase === 'aim');
+    // every strike is perfect, so the shot goes where the test aims; each resolved shot is checked against the rules
+    await p.evaluate(() => {
+      contact = () => ({ tip: { x: aim.spotX, y: aim.spotY }, quality: 'perfect', off: 0, spin: aim.spin, side: aim.side, power });
+      window.__bad = []; window.__shots = 0; window.__movingClock = [];
+      const r0 = resolveShot;
+      resolveShot = () => {
+        const s = table.shot, t = tshot, pts = hs.points, m = hs.mult;
+        if (!s || !t) return r0();
+        const foul = !s.firstHit || s.scratch, pots = s.pots.filter(q => !q.ball.isCue).length;
+        r0();
+        window.__shots++;
+        const gain = hs.points - pts, round2 = v => Math.round(v * 100) / 100;
+        const want = foul || !pots ? 0 : Math.round((100 * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * (t.gold ? 2 : 1) * m);
+        const wantM = foul ? 1 : !pots ? round2(1 + (m - 1) / 2) : round2(m + 0.5 + 0.1 * t.parts.length + (t.gold ? 0.2 : 0));
+        if (gain !== want || Math.abs(hs.mult - wantM) > 1e-9) window.__bad.push(`shot ${window.__shots}: +${gain} (want +${want}), x${hs.mult} (want x${wantM}), parts ${t.parts}, gold ${t.gold}, foul ${foul}`);
+      };
+      trialLeft = 5;
+    });
+    for (let n = 0; n < 40; n++) {
+      if (await p.evaluate(() => round.done)) break;
+      await p.waitForFunction(() => round.done || (phase === 'aim' && !banner && !tally), null, { timeout: 30000 });
+      if (await p.evaluate(() => round.done)) break;
+      await p.waitForTimeout(500);   // some aiming time off the clock
+      await p.evaluate(() => {
+        const lines = allLines(table).filter(l => !l.blocked);
+        let pick = null;
+        for (const l of lines) { for (const pw of [0.35, 0.5, 0.25, 0.65]) { const sim = simulate(table, l.angle, pw, 0, null, 0); if (!sim.shot.scratch && sim.shot.pots.length) { pick = { a: l.angle, pw }; break; } } if (pick) break; }
+        if (!pick) pick = { a: aim.angle, pw: 0.5 };
+        aim.angle = pick.a; power = pick.pw; release();
+      });
+      // while the balls roll the clock must not move
+      const c0 = await p.evaluate(() => trialLeft); await p.waitForTimeout(900);
+      const c1 = await p.evaluate(() => [trialLeft, phase]);
+      if (c1[1] === 'moving' && c1[0] !== c0) await p.evaluate(([a, b]) => window.__movingClock.push(`${a} -> ${b}`), [c0, c1[0]]);
+    }
+    await p.waitForFunction(() => round.done, null, { timeout: 30000 });
+    const r = await p.evaluate(() => ({ bad: window.__bad, moving: window.__movingClock, shots: window.__shots, last: lastShot, points: round.points, hs: hs.points, logSum: (round.shotLog || []).reduce((a, x) => a + x.total, 0), tables: round.cards.length, share: shareText() }));
+    if (p.errors.length) throw new Error('page errors: ' + p.errors.join(' | '));
+    if (!r.shots) throw new Error('no shots were played');
+    if (r.bad.length) throw new Error(`${r.bad.length} shot(s) scored against the rules:\n  ` + r.bad.join('\n  '));
+    if (r.moving.length) throw new Error('the clock ran while the balls rolled: ' + r.moving.join(', '));
+    if (!r.last) throw new Error('the run ended without its last shot');
+    if (r.points !== r.hs || (r.shots <= 30 && r.logSum !== r.points)) throw new Error(`points don't add up: round ${r.points}, total ${r.hs}, shots ${r.logSum}`);
+    if (!/points · \d+ table/.test(r.share)) throw new Error('share text: ' + r.share);
+    return `${r.shots} shots, ${r.tables} table(s) cleared, ${r.points.toLocaleString('en-US')} points: every shot scored by the rules, clock stopped while rolling`;
   },
 };
 
