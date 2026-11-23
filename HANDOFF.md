@@ -286,6 +286,9 @@ cue down the right.
     turns its head (`catLook`). After a shot that hit it (`catAfterShot`), it meows and hops to a new seeded spot
     that blocks your best pot if it can (never all of them); a second hit, or one over 900, and it leaves for the rest
     of the hole. Not saved mid-hole: a reload puts it back.
+    Since 23 Nov it hops over the balls in play: `startHole` takes it out of `table.bumps` (so the moves above never
+    happen now), `cloneTable` keeps it out, and `drawTableCat`/`drawCatHop` lift it over a ball rolling by. Course
+    generation still places it with it solid, so courses are as before.
   - **Tunnel** (from 17 Nov; `h.tunnel = { a, b }`, each the middle of an opening on a cushion line with its normal).
     Two openings in facing straight outer cushions (`tunRails`, normals opposite), joined under the table: a ball that
     rolls into one (`tunLocal`, within `tunReach`: `TUN_HALF` 2.4 R, plus up to R more for an angled approach, the

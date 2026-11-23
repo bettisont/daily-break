@@ -198,6 +198,10 @@ function startHole(i) {
   if (i === 2) track('level3');
   hole = makeHole(round.seed, i);
   table = new Table(hole, onEvent);
+  // The cat hops over the balls (23 Nov playtest: it got in the way and was annoying): in play it is out of the
+  // physics (bumps), so nothing hits it, and it springs up as a ball comes by (drawTableCat). Course generation builds
+  // its own tables with the cat solid, so where it sits, and every course, is unchanged.
+  if (table.cat) table.bumps = hole.bumpers;
   trayFly = []; trayDone = [];
   strokes = 0; holeBonus = 0; goldUsed = false; tshot = null; thole = { pts: 0, tricks: [] };
   targets = round.trick ? makeTargets(round.seed, i, hole, table.pk, table.cat) : []; tgtClock = 0;

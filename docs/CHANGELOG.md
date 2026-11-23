@@ -11,6 +11,11 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **The cat hops over the balls** (playtest: it got in the way and was annoying). In play it is out of the physics
+  (`table.bumps`), so nothing hits it (no more "Only hit the cat" fouls or cat moves), and it springs up and is drawn
+  over a ball rolling by (`drawCatHop`, with a little "mrrp"). `cloneTable` keeps it out, so the aim guide's lines
+  pass through it too. Course generation builds its own tables with the cat solid, so where it sits and every
+  course are unchanged (layouts test). The help says so.
 - **A Perfect strike never rattles an object ball out for pace** (playtest: a perfect hit shouldn't be punished for
   power). Before, it allowed 15% more pace than an ordinary strike (`PERFECT_POCKET_PACE`, gone). The cue ball still
   rattles, since that saves a scratch. On 12 tables at full power: 73 shots rattled an object ball out; struck

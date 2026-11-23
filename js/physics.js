@@ -236,7 +236,7 @@ function cloneTable(t) {
   c.ev = () => {};
   c.cue = { ...t.cue };
   c.cat = t.cat ? { ...t.cat } : null;
-  c.bumps = c.cat ? [...t.hole.bumpers, c.cat] : t.hole.bumpers;
+  c.bumps = c.cat && t.bumps.includes(t.cat) ? [...t.hole.bumpers, c.cat] : t.hole.bumpers;   // (the cat stays out if it was: a hopping cat)
   c.balls = t.balls.map(b => ({ ...b }));
   c.shot = t.shot ? { ...t.shot, pots: [...t.shot.pots] } : null;
   return c;
