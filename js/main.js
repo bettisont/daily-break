@@ -31,9 +31,18 @@ function trialFps(now) {
 function frame(now) {
   requestAnimationFrame(frame);
   const fps = round?.trick ? trialFps(now) : busy(now) ? 60 : $('overlay').classList.contains('show') ? 15 : 30, active = fps > 30;
-  // (4 ms of slack for rAF jitter: on a 120 Hz screen 60 fps is every other frame, at 60 Hz 30 fps is every other)
-  if (frame.drawn != null && now - frame.drawn < 1000 / fps - 4) return;
-  frame.drawn = now;
+  // Paced against a running deadline (23 Nov 2026). It used to draw when 1000/fps - 4 ms had passed since the last
+  // frame drawn, which on a 60 Hz screen (a frame every 16.7 ms) turned 40 fps into every other frame, so 30. Now each
+  // drawn frame moves the deadline on by exactly one interval, so a 60 Hz screen asked for 40 draws two frames in
+  // three (16.7 and 33 ms gaps) and averages 40; 60, 30 and 15 still land on every 1st, 2nd and 4th frame. The 2 ms
+  // of slack absorbs rAF jitter. When the target changes, the deadline is re-measured from the last frame drawn, so
+  // going from 15 to 60 doesn't wait out the old 67 ms. After a stall (a hidden tab, a slow frame) it restarts from
+  // now rather than drawing a burst of frames to catch up.
+  const step = 1000 / fps;
+  if (frame.fps !== fps && frame.drawn != null) { frame.fps = fps; frame.next = frame.drawn + step; }
+  if (frame.next != null && now < frame.next - 2) return;
+  frame.next = frame.next == null || now - frame.next > step ? now + step : frame.next + step;
+  frame.fps = fps; frame.drawn = now;
   const t = now / 1000, dt = Math.min(active ? 0.05 : 0.1, t - (frame.last ?? t));
   frame.last = t;
   if (hold) {

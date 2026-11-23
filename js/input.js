@@ -49,40 +49,70 @@ stage.addEventListener('pointercancel', () => { drag = null; });
 
 // The aim strip: swipe left or right like a scroll wheel. Slow swipes are very fine (AIM_FINE, 0.01° a pixel, so
 // a thumb can place a long pot exactly); faster swipes gear up smoothly to AIM_GEAR_MAX× for big turns. A tap near
-// either end nudges AIM_NUDGE. When the thumb lifts, the last few pixels of drift (a finger rolls as it comes off the
-// glass) are undone, so the aim stays where it was set. (Was 0.04° a pixel and 0.1° a tap until 15 Nov 2026: too
-// coarse for long pots.)
-const AIM_FINE = 0.01, AIM_GEAR_MAX = 24, AIM_NUDGE = 0.02, LIFT_MS = 60, LIFT_PX = 3;
+// either end nudges AIM_NUDGE. When the thumb lifts, the pixel or two a finger rolls as it comes off the glass is
+// undone, so the aim stays where it was set. (Was 0.04° a pixel and 0.1° a tap until 15 Nov 2026: too coarse for
+// long pots.)
+// 23 Nov 2026, three fixes at the 0.01°-0.05° scale long pots need (a lit window can be 0.03° wide):
+// - Gearing reads the speed over the last GEAR_MS (50 ms) of the drag, from the path between events, not one event's
+//   pixels over its gap (with an 8 ms floor). The same 100 px swipe at 250 px/s turned 2.13° with events every 8 ms
+//   but 1.99° with 2/14 ms jitter; now the same physical swipe turns the same however the events come.
+// - A tap is a press that didn't move, except perhaps in the lift-off moment. It used to be anything under 4 px and
+//   350 ms, with the nudge added on top of what the drag had already turned, so a deliberate 3 px drag (+0.03°) came
+//   out +0.01° or +0.05° depending on the half of the strip. A tap now takes back anything it turned and nudges
+//   exactly AIM_NUDGE; a drag turns exactly by its gearing and never also nudges.
+// - Lift-off undo only takes back movement that starts in the last LIFT_MS (25 ms) before lift-off, at most LIFT_PX in
+//   all, and only when the finger had been still for LIFT_STILL_MS (80 ms) before it. That is what rolling off looks
+//   like: you settle on the line, hold, lift, and a pixel or two arrives in the same instant. A fine nudge made after a
+//   pause takes longer than 25 ms, so it now stays (it was undone: two 2 px nudges gave 0.02°, not 0.04°); and
+//   movement still going when you lift is part of the drag, so it stays too.
+const AIM_FINE = 0.01, AIM_GEAR_MAX = 24, AIM_NUDGE = 0.02, GEAR_MS = 50, LIFT_MS = 25, LIFT_STILL_MS = 80, LIFT_PX = 3;
 const aimGear = speed => AIM_FINE * Math.min(AIM_GEAR_MAX, 1 + (Math.max(0, speed - 120) / 120) ** 1.5);
 const stripEl = $('strip');
 let stripDrag = null;
+// how far along its path (total pixels moved) the drag was at time t: straight lines between events, still before
+// the first one kept
+function stripPathAt(h, t) {
+  for (let i = h.length - 1; i > 0; i--) {
+    const a = h[i - 1], b = h[i];
+    if (t >= a.t) return t >= b.t ? b.path : a.path + (b.path - a.path) * (t - a.t) / (b.t - a.t);
+  }
+  return h[0].path;
+}
 stripEl.addEventListener('pointerdown', e => {
   e.preventDefault(); ensureAudio();
   if (phase !== 'aim') return;
-  stripDrag = { id: e.pointerId, x: e.clientX, t: e.timeStamp, t0: e.timeStamp, moved: 0, recent: [] };
+  // hist: the press and the moves since (trimmed to the last 200 ms and the one before); turned: everything this
+  // press has turned the aim, so a tap can take it back
+  stripDrag = { id: e.pointerId, x: e.clientX, x0: e.clientX, t0: e.timeStamp, moved: 0, turned: 0, hist: [{ t: e.timeStamp, path: 0, dx: 0, da: 0 }] };
   try { stripEl.setPointerCapture(e.pointerId); } catch {}
 });
 stripEl.addEventListener('pointermove', e => {
   const d = stripDrag;
   if (!d || e.pointerId !== d.id) return;
-  const dx = e.clientX - d.x, speed = Math.abs(dx) / Math.max(0.008, (e.timeStamp - d.t) / 1000);
-  const da = dx * aimGear(speed) * Math.PI / 180;
-  d.x = e.clientX; d.t = e.timeStamp; d.moved += Math.abs(dx);
-  d.recent.push({ t: e.timeStamp, dx, da }); while (d.recent.length && e.timeStamp - d.recent[0].t > LIFT_MS) d.recent.shift();
-  stripOff += dx; turnAim(da);
+  const dx = e.clientX - d.x, h = d.hist, now = Math.max(e.timeStamp, h[h.length - 1].t);
+  if (!dx) return;
+  d.x = e.clientX; d.moved += Math.abs(dx);
+  const m = { t: now, path: d.moved, dx, da: 0 };
+  h.push(m);
+  m.da = dx * aimGear((d.moved - stripPathAt(h, now - GEAR_MS)) * 1000 / GEAR_MS) * Math.PI / 180;
+  while (h.length > 2 && now - h[1].t > 200) h.shift();
+  d.turned += m.da; stripOff += dx; turnAim(m.da);
 });
 const endStrip = e => {
   const d = stripDrag;
   if (!d || e.pointerId !== d.id) return;
   stripDrag = null;
-  if (e.type === 'pointerup' && d.moved < 4 && e.timeStamp - d.t0 < 350) {
+  if (e.type !== 'pointerup') return;
+  // the lift-off tail: the moves in the last LIFT_MS (hist[0] is the press, or a move over 200 ms old: never in it)
+  const h = d.hist, tail = h.filter(m => m.dx && e.timeStamp - m.t <= LIFT_MS), px = tail.reduce((a, m) => a + Math.abs(m.dx), 0);
+  if (d.moved === px && px <= LIFT_PX && e.timeStamp - d.t0 < 350) {   // a tap: take back any roll, nudge exactly AIM_NUDGE
     const r = stripEl.getBoundingClientRect(), side = e.clientX - (r.left + r.width / 2);
+    if (d.turned) { stripOff -= d.x - d.x0; turnAim(-d.turned); }
     if (Math.abs(side) > r.width * 0.2) { stripOff += Math.sign(side) * 6; turnAim(Math.sign(side) * AIM_NUDGE * Math.PI / 180); }
     return;
   }
-  // lift-off drift: a few pixels in the moment before the thumb came up are the finger rolling off, not a turn
-  const tail = d.recent.filter(m => e.timeStamp - m.t <= LIFT_MS), px = tail.reduce((a, m) => a + Math.abs(m.dx), 0);
-  if (e.type === 'pointerup' && tail.length && px <= LIFT_PX && d.moved > px) {
+  const before = h[h.length - 1 - tail.length];
+  if (tail.length && px <= LIFT_PX && tail[0].t - before.t >= LIFT_STILL_MS) {
     stripOff -= tail.reduce((a, m) => a + m.dx, 0); turnAim(-tail.reduce((a, m) => a + m.da, 0));
   }
 };

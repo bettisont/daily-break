@@ -42,6 +42,17 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   tally was and flies into the Mult meter, which ticks up as each lands, with a climbing note and a pulse (`meterGain`).
   A first version only faded small tags in under the meter; the playtest wanted it clearer and more satisfying. A
   miss still shows a quiet "½ miss" tag ("foul: reset" for a foul; `showMultWhy`).
+- **Frame pacing against a running deadline** (`frame` in `js/main.js`; affects par too). The old rule (draw once
+  1000/fps - 4 ms had passed) made 40 fps every other frame on a 60 Hz screen, so 30. Now each drawn frame moves a
+  deadline (`frame.next`) on by one interval, with 2 ms of slack, re-measured from the last frame when the target
+  changes and restarted after a stall. Headless Chromium at 60 Hz, target 40: 30.0 draws/s before, 40.1 after (16.7
+  and 33 ms gaps); 60, 30 and 15 unchanged.
+- **Aim strip gestures** (`js/input.js`), at the 0.01°-0.05° scale long pots need. A deliberate 3 px drag was taken
+  for a tap and nudged on top (+0.01° or +0.05° instead of +0.03°): a tap is now only a press that didn't move (bar a
+  lift-off roll) and nudges exactly 0.02°. Lift-off undo took back fine nudges made after a pause (0.02° instead of
+  0.04°): it now only removes up to 3 px that start in the last 25 ms after the finger was still for 80 ms. Gearing
+  read one event's speed, so the same 100 px swipe at 250 px/s turned 2.13° or 1.99° with jittery events: it now reads
+  the speed over the last 50 ms of the path (2.03-2.04° whatever the timing).
 
 ## 22 Nov 2026: trick scoring, on trial behind ?trick
 
