@@ -11,6 +11,10 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **Practice runs are counted** (owner asked how many were played): the timed game's practice runs send two
+  anonymous events, 'pstart' at the first shot and 'pfinish' with the points (`trackPractice`; live site only, not
+  ?trick or local files; once each a run, no IDs). The Results report has a "Practice runs" table (started, finished,
+  average, median and best points). Before today they weren't recorded at all.
 - **Catapult counts the cue ball too** (playtest, same evening): a pot where the cue ball rolled under the jumping
   cat scores it as well, even if the cue ball goes under after the pot (then the word comes as the tally starts).
 - **Catapult: +100 when a ball you pot rolled under the jumping cat** (playtest). The physics notes each ball that
