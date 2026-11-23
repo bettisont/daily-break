@@ -873,14 +873,11 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
   });
 }
 // Big moments (23 Nov playtest: more punch, arcade style). As the multiplier lands on a shot: from x3 the screen
-// shakes and flashes white for a frame or two; and a big shot gets a word slammed in under the tally: NICE from
+// shakes; and a big shot gets a word slammed in under the tally: NICE from
 // 1,000 points, HUGE from 2,500, INSANE from 6,000. Short and out of the way: gone in about a second.
 const BIG_WORDS = [[6000, 'INSANE', 3], [2500, 'HUGE', 2], [1000, 'NICE', 1]];
 function bigMoment(m, gain, box) {
-  if (m >= 3) {
-    fx.shake = Math.max(fx.shake, Math.min(9, 2 + m * 1.2));
-    const f = document.createElement('div'); f.id = 'flash'; document.body.appendChild(f); setTimeout(() => f.remove(), 70);
-  }
+  if (m >= 3) fx.shake = Math.max(fx.shake, Math.min(9, 2 + m * 1.2));   // (the white flash with it went: 23 Nov playtest)
   const big = BIG_WORDS.find(([at]) => gain >= at);
   if (!big) return;
   const [, word, lvl] = big, r = box.getBoundingClientRect(), el = document.createElement('div');

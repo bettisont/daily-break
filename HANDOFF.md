@@ -90,8 +90,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     `drawCatEyes`. The table's colours come from `tpal()` (`TABLE_DAY` / `TABLE_NIGHT`); `drawPlant`, `drawBanner`,
     the floats, the vignette and `tgtRGB()` switch too. The HUD's night colours are a block at the end of the CSS
     under `body.trial` (variables redefined, `--hard` for the offset shadow).
-  - **Big moments** (`bigMoment`, from the tally's multiplier landing): from x3 a screen shake and a 70 ms white
-    `#flash`; a shot of 1,000+ / 2,500+ / 6,000+ gets NICE / HUGE / INSANE slammed in under the tally (`BIG_WORDS`,
+  - **Big moments** (`bigMoment`, from the tally's multiplier landing): from x3 a screen shake (no flash since
+    23 Nov); a shot of 1,000+ / 2,500+ / 6,000+ gets NICE / HUGE / INSANE slammed in under the tally (`BIG_WORDS`,
     `.bigword`, `sfx.slam`). **Result card** (`trickFinalHtml`): the score counts up, then badges pop in (best
     multiplier, tables, best shot).
   - **Lettering**: `newRound` puts `trial` on the body; under it (index.html) numbers and big words are Bungee (one
