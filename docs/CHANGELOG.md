@@ -35,6 +35,10 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **No fire emoji** anywhere (the Mult meter, the help, the par game's "N in a row"); the help uses 📈 and 🏅.
+- **Fix: the tip on the strike dial sped up or slowed down while the cue was pulled.** Its sway phase was time x rate,
+  and the rate rises with the pull (the pull is part of the shot's difficulty), so the whole phase jumped: up to 6x
+  its speed for a moment. The phase now moves on by rate x dt each frame (`swayRate`).
 - **A quicker, smaller tally** (playtest: it was in the way of the next shot): every step at 0.6 of its old timing
   (`TALLY_PACE`; a pot with a bank and the multiplier about 2.5 s instead of 4.2), the number about 25% smaller, the
   chips to match. **The Mult meter heats up gradually** (`--heat`, x1 to x5): a warm tint fills the cell, the number

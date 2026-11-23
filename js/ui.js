@@ -63,8 +63,8 @@ function timeCall(s) {
   sfx.timeCall(s); buzz(s <= 10 ? [20, 40, 20] : 15);
   setTimeout(() => el.remove(), 2000);
 }
-// Trick scoring's multiplier meter (22 Nov): the multiplier, and a bar under it that fills from x1 to x5, with a flame
-// from x2; the whole cell heats up gradually on the way (--heat, index.html). Built once and updated, so its
+// Trick scoring's multiplier meter (22 Nov): the multiplier, and a bar under it that fills from x1 to x5; the whole
+// cell heats up gradually on the way (--heat, index.html). Built once and updated, so its
 // animations aren't restarted every update.
 function updateStreakMeter(m) {
   const el = $('iLie');
@@ -74,7 +74,7 @@ function updateStreakMeter(m) {
   if (sx.to !== m) {
     const from = sx.val ?? m, t0 = performance.now(), ms = Math.min(500, 120 + Math.abs(m - from) * 250);
     sx.to = m;
-    const show = v => { sx.val = v; sx.textContent = `${fmtMult(v)}${v >= 2 ? ' 🔥' : ''}`; };
+    const show = v => { sx.val = v; sx.textContent = fmtMult(v); };
     const step = now => {
       if (sx.to !== m) return;   // a newer value took over
       const k = clamp((now - t0) / ms, 0, 1), e = 1 - (1 - k) ** 3;
@@ -274,14 +274,14 @@ const TRICK_INTRO = `
     <div class="howto">
       <p>⏱️ You have <b>2 minutes</b> of aiming time: the clock stops while the balls roll. Clear a table and the next one deals in.</p>
       <p>🎱 Every pot is 100 points. Tricks add more: a bank, a combination, two in one, a moving target…</p>
-      <p>🔥 Each pot raises your <b>multiplier</b>, and tricks raise it faster. A miss halves it; a foul resets it.</p>
+      <p>📈 Each pot raises your <b>multiplier</b>, and tricks raise it faster. A miss halves it; a foul resets it.</p>
       <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
 const TRICK_HELP = `
       <p>⏱️ <b>A two-minute run.</b> The clock (top left) counts only while you're aiming: it stops while the balls roll, the score adds up and the next table deals in. Clear a table and the next one comes: one ball, then two, then three, with new shapes and things in the way. When the clock runs out you get <b>one last shot</b>. Everyone plays the same tables each day.</p>
       <p>🎱 <b>Points:</b> every pot is <b>100</b>. <b>Tricks</b> add to a shot that pots: <b>+200</b> each for a <b>bank</b> (the ball comes off a cushion), a <b>combination</b> (potted by another ball), a <b>cannon</b> (the cue ball hits two balls before one drops), <b>two or three in one</b>, a pot through a <b>tunnel</b>, or a ball rolling through a moving <b>target</b> ring before anything drops; <b>+100</b> for a <b>kick</b> (the cue ball hits a cushion first). The first pot into a table's <b>golden pocket</b> doubles the shot.</p>
-      <p>🔥 <b>Multiplier:</b> every shot that pots raises it, by 0.5, plus 0.1 for each trick and 0.2 for the golden pocket, with no limit, and the shot is then multiplied by the new value. A <b>miss halves</b> what you've built above ×1; a <b>foul</b> (a scratch, or hitting nothing) resets it to ×1 and scores nothing.</p>
+      <p>📈 <b>Multiplier:</b> every shot that pots raises it, by 0.5, plus 0.1 for each trick and 0.2 for the golden pocket, with no limit, and the shot is then multiplied by the new value. A <b>miss halves</b> what you've built above ×1; a <b>foul</b> (a scratch, or hitting nothing) resets it to ×1 and scores nothing.</p>
       <p>ⓘ Tap <b>Points</b> at the top (or press P) to see how each shot added up.</p>`;
 function showIntro() {
   if (round?.trick) { $('card').innerHTML = TRICK_INTRO; $('overlay').classList.add('show'); return; }
@@ -307,7 +307,7 @@ function showHelp() {
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dashed line shows where the cue ball goes and the solid line where the object ball goes; it lights up when the shot really goes in.</p>
       <p>3 · <b>Spin:</b> <b>drag the gold spot</b> on the little cue ball: up for <b>follow</b> (rolls on), middle for <b>stun</b> (stops), down for <b>draw</b> (comes back). It's the same spot you aim for when you shoot.</p>
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
-      ${round?.trick ? '' : '<p>🔥 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>'}
+      ${round?.trick ? '' : '<p>🏅 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>'}
       <p>⛰️ From hole 3 the table can <b>tilt</b>, and brass <b>bumpers</b> or a closed pocket can appear.</p>
       <p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${featureKeys(round?.seed).includes('tunnel') ? '<p>🕳️ Some holes have a <b>tunnel</b> instead: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}${round?.trick ? '' : '<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. Trick shots (two in one, a bank, a combination or a kick) get an instant replay.</p>'}
       <p>🔷 From hole 3 the <b>table changes shape</b> from hole to hole: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>

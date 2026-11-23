@@ -48,7 +48,7 @@ function frame(now) {
   frame.last = t;
   if (hold) {
     const d = contactDiff(), was = tipOnSpot(d);
-    swayT += dt;
+    swayT += dt * swayRate(d);   // (a phase, not a clock: see swayRate)
     if (!was && tipOnSpot(d)) { tone(1046, 0.03, 0.02, 'sine', 1, 0, 0); buzz(3); }
     const inCore = tipInCore(d); if (inCore && !frame.core) { tone(1568, 0.03, 0.025, 'sine', 1, 0, 0); buzz(4); } frame.core = inCore;
   }

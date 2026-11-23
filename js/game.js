@@ -434,8 +434,12 @@ function shotWord(d) {
 const strikeK = () => round ? clamp((round.level - 1) / 3, 0, 1) : 0;
 const spotR = d => lerp(0.22, 0.09, d) * (1 - SPOT_SHRINK * strikeK());
 const SPOT_SHRINK = 0.15, WOBBLE_GROW = 0.12, WOBBLE_FAST = 0.15, PUSH_MAX = 3, PUSH_EXTRA = 2;
+// How fast the tip sways for a shot of difficulty d. The sway's phase (swayT) moves on by this times dt each frame
+// (main.js). Until 23 Nov the phase was time x rate, so when the rate moved as the cue was pulled (d includes the
+// pull) the whole phase jumped and the tip briefly sped up or slowed down.
+const swayRate = d => lerp(1.0, 2.5, d) * (1 + WOBBLE_FAST * strikeK());
 function tipPos(d) {
-  const k = strikeK(), A = lerp(0.16, 0.55, d) * (1 + WOBBLE_GROW * k), w = lerp(1.0, 2.5, d) * (1 + WOBBLE_FAST * k), t = swayT * w;
+  const k = strikeK(), A = lerp(0.16, 0.55, d) * (1 + WOBBLE_GROW * k), t = swayT;
   let x = aim.spotX + A * (0.65 * Math.sin(t) + 0.35 * Math.sin(2.3 * t + 1.1));
   let y = aim.spotY + A * (0.6 * Math.sin(0.83 * t + 2) + 0.4 * Math.sin(1.9 * t + 0.4));
   const m = Math.hypot(x, y);
@@ -641,7 +645,7 @@ function scorePots() {
   const mult = streakMult(hs.streak), gain = Math.round(base * mult);
   hs.points += gain;
   float(W / 2, H * 0.3, `+${gain}${mult > 1 ? `  ×${mult}` : ''}`, '#b88a2e', 24 + Math.min(14, hs.streak * 3), 1.6);
-  if (hs.streak >= 2) float(W / 2, H * 0.3 + 46, `${hs.streak} in a row 🔥`, '#c4472f', 18, 1.6);
+  if (hs.streak >= 2) float(W / 2, H * 0.3 + 46, `${hs.streak} in a row!`, '#c4472f', 18, 1.6);
 }
 // A miss or a foul ends the streak. In the timed trial a miss halves the multiplier's part above x1 (x5 -> x3) and a
 // foul resets it to x1 (23 Nov: losing a whole long run to one miss felt too harsh); the meter cracks as it drains.
