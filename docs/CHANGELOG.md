@@ -11,6 +11,13 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **A new share** (`trickShareText`, `multStrip`; the image card `shareCard` / `drawShareCard` in ui.js): the text
+  is "DAILY BREAK · 23 NOV / 48,210 points · 7 tables / best ×6.3 · best shot 9,400 / a multiplier strip / rank /
+  link", the strip a bar per shot (block characters, not emoji, scaled to the run's own peak, at least x3; squeezed
+  to 24 bars). Every shot's multiplier is kept (`round.multLog`, saved with the run and the result). On phones a
+  1080x1350 image card in the night look goes with the text in the share sheet (made when the card shows and again
+  when the rank comes in, so the share starts inside the tap, which iOS needs); elsewhere a "Save image" button
+  downloads it. The trial test checks the strip is in the share.
 - **The clock starts with the run's first shot** (`round.started`, saved with the run), not when the first table
   appears: it used to run while you were still reading the table.
 - `RULES.TRICK_SCORE_FROM` = 2026-11-23: from today the daily game is the timed run, for everyone, ranked

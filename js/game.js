@@ -176,7 +176,7 @@ function tgtStep() {
 
 function newRound(seed, ranked) {
   if (trickFlag) ranked = false;   // the ?trick trial never counts as anyone's daily round
-  round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
+  round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [], multLog: [] };
   document.body.classList.toggle('trial', round.trick);   // the trial's arcade lettering (index.html)
   hs = { points: 0, streak: 0, mult: 1 }; shownPts = 0; trialLeft = TRIAL_S; lastShot = false; meterShown = 1; multWhy = null;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
@@ -659,6 +659,7 @@ function breakStreak(foul) {
   if (!round.trick) return;
   const was = hs.mult;
   hs.mult = foul ? 1 : roundMult(1 + (hs.mult - 1) / 2);
+  (round.multLog ||= []).push(hs.mult);   // (the share's multiplier strip: every shot's multiplier after it)
   if (was - hs.mult >= 0.25) { if (foul || was >= 2) sfx.fizzle(); crackStreakMeter(); showMultWhy([foul ? 'foul: reset' : '½ miss'], true); }
 }
 // Trick scoring: a shot that potted something, with no foul. 100 a pot, 200 for each trick element seen as the balls
@@ -676,6 +677,7 @@ function scoreTrick() {
   const kinds = [...new Set(t.parts)], word = k => k === 'Extra' ? (t.balls >= 3 ? 'triple' : 'double') : k.toLowerCase();
   multWhy = [{ inc: MULT.pot, label: 'pot' }, ...kinds.map(k => { const c = t.parts.filter(p => p === k).length; return { inc: roundMult(MULT.trick * c), label: `${word(k)}${c > 1 && k !== 'Extra' ? 's' : ''}` }; }), ...(t.gold ? [{ inc: MULT.gold, label: 'golden' }] : [])];
   round.bestMult = Math.max(round.bestMult || 1, hs.mult);
+  (round.multLog ||= []).push(hs.mult);
   if (!round.bestShot || gain > round.bestShot.pts) round.bestShot = { pts: gain, table: round.level + 1 };
   if (t.gold) goldUsed = true;
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
@@ -970,7 +972,7 @@ function endRound() {
   track('finish');
   try { localStorage.removeItem(runKey()); } catch {}
   round.done = true; round.points = hs.points; phase = 'over';
-  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak, ...(round.trick ? { trick: true, shotLog: round.shotLog || [], bestMult: round.bestMult || 1, bestShot: round.bestShot || null } : {}) })); sendResult(); }
+  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak, ...(round.trick ? { trick: true, shotLog: round.shotLog || [], multLog: round.multLog || [], bestMult: round.bestMult || 1, bestShot: round.bestShot || null } : {}) })); sendResult(); }
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
   if (round.trick) { setTimeout(() => { if (phase === 'over') showFinal(false); }, 600); return; }   // straight to the card
   stamp = { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
@@ -979,9 +981,26 @@ function endRound() {
 }
 // Trick scoring's share text: the points and the rank line.
 // (22 Nov playtest: a line of emoji per hole was too much; now just the points and how you did against everyone)
+// The timed run's share (23 Nov, revamped after going live): the score, tables, best multiplier and best shot, and a
+// multiplier strip, the run's shape at a glance (multStrip). Block characters, not emoji, so it reads the same in
+// every chat app. On phones an image card goes with it (shareCard in ui.js).
 function trickShareText(r) {
-  const rank = trickRankLine(r), n = tablesCleared(r);
-  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} · ${fmtPts(r.points || 0)} points · ${n} table${n === 1 ? '' : 's'}${rank ? `\n${rank}` : ''}\n${gameUrl()}`;
+  const rank = trickRankLine(r), n = tablesCleared(r), best = r.bestShot, strip = multStrip(r.multLog);
+  return [`DAILY BREAK · ${isDailySeed(r.seed) ? dayLabel(r.seed).toUpperCase() : 'PRACTICE'}`,
+    `${fmtPts(r.points || 0)} points · ${n} table${n === 1 ? '' : 's'}`,
+    `best ${fmtMult(r.bestMult || 1)}${best ? ` · best shot ${fmtPts(best.pts)}` : ''}`,
+    ...(strip ? [strip] : []), ...(rank ? [rank] : []), gameUrl()].join('\n');
+}
+// each shot's multiplier as a bar, x1 lowest up to the run's own peak (at least x3, so a short run doesn't look
+// huge): runs reach x15, so a fixed scale would show most of a good run as full bars. A long run is squeezed to 24
+// bars, each the highest of its stretch.
+const STRIP_BARS = '▁▂▃▄▅▆▇█';
+function multStrip(log, max = 24) {
+  if (!Array.isArray(log) || !log.length) return '';
+  let v = log;
+  if (v.length > max) v = Array.from({ length: max }, (_, k) => Math.max(...log.slice(Math.floor(k * log.length / max), Math.floor((k + 1) * log.length / max))));
+  const top = Math.max(3, ...v);
+  return v.map(m => STRIP_BARS[clamp(Math.round((m - 1) / (top - 1) * 7), 0, 7)]).join('');
 }
 const tablesCleared = r => (r.cards || []).length;
 // how you did against today's players, from the server's tally (null until it has come back)
@@ -1024,6 +1043,7 @@ function showFinal(already) {
     <div id="share">${shareText()}</div>
     <div class="row">
       <button class="btn primary" data-copy>${canNativeShare() ? 'Share' : 'Copy'} result</button>
+      ${canNativeShare() ? '' : '<button class="btn" data-saveimg>Save image</button>'}
       <button class="btn" data-trynew>${trickFlag ? 'New run' : 'Practice run'}</button>
       ${!round.ranked && !trickFlag ? `<button class="btn" data-daily>Today's run</button>` : ''}
     </div>
@@ -1035,6 +1055,7 @@ function showFinal(already) {
     $('overlay').classList.add('show');
     // the score counts up as the card arrives, the badges pop in after it (not when coming back to it)
     if (!already) { rollNum($('finalPts'), 0, round.points || 0, 900); $('card').querySelector('.badges')?.classList.add('pop'); }
+    prepShareCard();
     phase = 'over'; updateUI();
     return;
   }
@@ -1075,7 +1096,7 @@ function saveRun(nextLevel) {
   if (!round.ranked || !isDailySeed(round.seed) || round.done || ls(parKey(round.seed))) return;
   const fresh = nextLevel != null;
   ls(runKey(), JSON.stringify({
-    par: true, trick: round.trick, started: !!round.started, log: round.shotLog || [], hole: fresh ? { pts: 0, tricks: [] } : thole,
+    par: true, trick: round.trick, started: !!round.started, log: round.shotLog || [], ml: round.multLog || [], hole: fresh ? { pts: 0, tricks: [] } : thole,
     left: trialLeft, last: lastShot, mult: hs.mult, bestMult: round.bestMult || 1, bestShot: round.bestShot || null, tg: fresh ? null : targets.map(o => o.hit ? 1 : 0), level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
     points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes, bonus: fresh ? 0 : holeBonus, gold: !fresh && goldUsed,
     cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
@@ -1086,7 +1107,7 @@ function resumeRun() {
   let r; try { r = JSON.parse(ls(runKey())); } catch {}
   if (!r || !Number.isInteger(r.level) || !r.par) return false;   // (a lives-ladder run from before 12 Nov has no par flag)
   if (!!r.trick !== round.trick) return false;   // scored the other way (the switch came mid-round): start afresh
-  Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0, shotLog: Array.isArray(r.log) ? r.log : [] });
+  Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0, shotLog: Array.isArray(r.log) ? r.log : [], multLog: Array.isArray(r.ml) ? r.ml : [] });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
   if (round.trick) { round.started = !!r.started || r.left < TRIAL_S; trialLeft = Number.isFinite(r.left) ? r.left : TRIAL_S; lastShot = !!r.last; hs.mult = r.mult || 1; round.bestMult = r.bestMult || 1; round.bestShot = r.bestShot || null; }
   startHole(r.level);
@@ -1144,6 +1165,7 @@ function fillRank() {
   if (round.trick) {   // the rank line, with the player count, and the share text picks it up too
     el.innerHTML = `<b>${trickRankLine(round)}</b>`; el.hidden = false;
     if ($('share')) $('share').textContent = shareText();
+    prepShareCard();   // (the image card shows the rank too)
     return;
   }
   const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far' : 'Best round today so far') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
