@@ -6,6 +6,11 @@ history under the commit named).
 
 ## 23 Nov 2026 (afternoon): the timed run goes live as the daily game
 
+- **No golden flashes in the timed run** (playtest, after going live: annoying): the tally's landing is just a punch
+  (no gold glow, bloom or sparkles), the Mult meter pulses a soft pink instead of gold, and the golden glow round the
+  screen's edges on pots is off.
+- **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
+  shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
 - `RULES.TRICK_SCORE_FROM` = 2026-11-23: from today the daily game is the timed run, for everyone, ranked
   (`mode: 'trial'` results). Switched on mid-day on purpose (the owner's call: the new mode is the way forward and
   the player count was small), against the usual day-ahead rule. Anyone who had played par today gets a fresh timed
