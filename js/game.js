@@ -1040,7 +1040,7 @@ function showFinal(already) {
   if (round.trick) {
     $('card').innerHTML = `${trickFinalHtml(already)}
     <div id="rank" hidden></div>
-    <div id="share">${shareText()}</div>
+    <div id="share" hidden>${shareText()}</div>
     <div class="row">
       <button class="btn primary" data-copy>${canNativeShare() ? 'Share' : 'Copy'} result</button>
       ${canCopyImage() ? '<button class="btn" data-copyimg>Copy image</button>' : ''}

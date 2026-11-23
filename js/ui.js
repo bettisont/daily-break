@@ -433,7 +433,7 @@ async function shareResult(b) {
     return;
   }
   try { await navigator.clipboard.writeText(text); b.textContent = 'Copied!'; }
-  catch { b.textContent = 'Select the text to copy'; }
+  catch { b.textContent = 'Select the text to copy'; $('share')?.removeAttribute('hidden'); }   // (the timed run's text is hidden until then)
 }
 // trick scoring's intro and the scoring part of its help (22 Nov: the par wording was wrong for it)
 const TRICK_INTRO = `

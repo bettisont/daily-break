@@ -11,6 +11,8 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **No share-text box on the timed run's result card** (playtest: "why does it show that little link?"): the score
+  and badges say it all; the text is still what Share/Copy sends, and the box only appears if copying fails.
 - **A shorter share text** (playtest: it looked messy in WhatsApp, where the block-character strip wrapped onto two
   lines): "Daily Break · 23 Nov / 29,485 points · best ×7.3 / rank / link". The strip, tables and best shot are on
   the image card and the link preview, which do the rest.
