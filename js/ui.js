@@ -6,7 +6,13 @@
 
 // The header: the hole you're on, its par and your score (trick scoring: the hole and your points, which count up).
 function renderCard9() {
-  if (round.trick) { $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><button class="c score" id="ptsChip" title="How your points added up">Points <b id="ptsVal">${fmtPts(shownPts)}</b><i>ⓘ</i></button>`; return; }
+  if (round.trick) {
+    // built once and updated in place, so the Points chip keeps its tip pulse and doesn't jump about (23 Nov sweep)
+    if (!$('ptsChip')) $('card9').innerHTML = `<div class="c cur lvl"><b id="holeVal"></b></div><button class="c score" id="ptsChip" title="How your points added up (P)"><span class="lab">Points</span> <b id="ptsVal"></b><i>ⓘ</i></button>`;
+    $('holeVal').textContent = `Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}`;
+    if (!ptsHold || !$('ptsVal').textContent) $('ptsVal').textContent = fmtPts(shownPts);
+    return;
+  }
   $('card9').innerHTML = `<div class="c cur lvl"><b>Hole ${Math.min(round.level + 1, HOLES)}/${HOLES}</b></div><div class="c">Par <b>${parOf(round.level)}</b></div><div class="c score">Score <b>${toPar(parTotal())}</b></div>`;
 }
 function updateUI() {
@@ -15,7 +21,7 @@ function updateUI() {
   $('iHole').innerHTML = `Hole ${round.level + 1} · par ${parOf(round.level)}<b>${n} stroke${n === 1 ? '' : 's'}<small>${left} left</small></b>`;
   if (round.trick) {
     const cap = capOf(round.level), shots = Math.max(0, cap - strokes), m = streakMult(hs.streak);
-    $('iHole').innerHTML = `Hole ${round.level + 1} · ${hole.balls.length} ball${hole.balls.length === 1 ? '' : 's'}<b>${shots} shot${shots === 1 ? '' : 's'} left<small>${left} left</small></b>`;
+    $('iHole').innerHTML = `Hole ${round.level + 1} · ${hole.balls.length} ball${hole.balls.length === 1 ? '' : 's'}<b>${shots} shot${shots === 1 ? '' : 's'} left<small>${left} ball${left === 1 ? '' : 's'}</small></b>`;
     updateStreakMeter(m);
   } else { $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`; $('iLie').classList.remove('max'); }
   $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
@@ -261,6 +267,7 @@ $('card').addEventListener('click', e => {
   ensureAudio(); sfx.click();
   if ('close' in b.dataset) { if (!ls('dailybreak:seenHelp')) track('intro'); ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
   else if ('copy' in b.dataset) shareResult(b);
+  else if ('trynew' in b.dataset) { $('overlay').classList.remove('show'); newRound(Math.random().toString(36).slice(2, 8), false); }   // ?trick: another course, no practice used
   else if ('random' in b.dataset) startPractice(Math.random().toString(36).slice(2, 8));   // a fresh random course
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
 });
@@ -277,7 +284,7 @@ function startPractice(seed) {
 // Your ranked days, all kept on this device: how many and the day streak (counting the lives-ladder days saved
 // under dailybreak:ladder:<date> before 12 Nov as well as par rounds), and the best and average par score.
 function dayStats() {
-  const days = new Set(), scores = [];
+  const days = new Set(), scores = [], pts = [];
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i), m = k && /^dailybreak:(ladder|par):(.+)$/.exec(k);
@@ -286,17 +293,22 @@ function dayStats() {
       if (!r || typeof r !== 'object') continue;
       days.add(m[2]);
       if (m[1] === 'par' && Array.isArray(r.cards) && !r.trick) scores.push(r.cards.reduce((a, c) => a + c.strokes - c.par, 0));
+      if (m[1] === 'par' && r.trick && Number.isFinite(r.points)) pts.push(r.points);   // trick-scoring days: points
     }
   } catch {}
   let streak = 0; const d = new Date();
   if (!days.has(keyOf(d))) d.setDate(d.getDate() - 1);   // today not played yet: the streak runs to yesterday
   while (days.has(keyOf(d))) { streak++; d.setDate(d.getDate() - 1); }
-  return { played: days.size, streak, best: scores.length ? Math.min(...scores) : null, avg: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null };
+  return { played: days.size, streak, best: scores.length ? Math.min(...scores) : null, avg: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
+    bestPts: pts.length ? Math.max(...pts) : null, avgPts: pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : null };
 }
-function statsHtml() {
+function statsHtml(trick = false) {
   const st = dayStats();
   if (!st.played) return '';
-  const cell = (v, k) => `<div><b>${v}</b><span>${k}</span></div>`, avg = st.avg == null ? '–' : (Math.abs(st.avg) < 0.05 ? 'E' : `${st.avg > 0 ? '+' : '−'}${Math.abs(st.avg).toFixed(1)}`);
+  const cell = (v, k) => `<div><b>${v}</b><span>${k}</span></div>`;
+  // trick scoring: best and average points, never par numbers under a points total (23 Nov sweep)
+  if (trick) return `<div class="stats">${cell(st.played, 'Played')}${cell(st.streak, 'Day streak')}${cell(st.bestPts == null ? '–' : shortPts(st.bestPts), 'Best')}${cell(st.avgPts == null ? '–' : shortPts(st.avgPts), 'Average')}</div>`;
+  const avg = st.avg == null ? '–' : (Math.abs(st.avg) < 0.05 ? 'E' : `${st.avg > 0 ? '+' : '−'}${Math.abs(st.avg).toFixed(1)}`);
   return `<div class="stats">${cell(st.played, 'Played')}${cell(st.streak, 'Day streak')}${cell(st.best == null ? '–' : toPar(st.best), 'Best')}${cell(avg, 'Average')}</div>`;
 }
 // Countdown to the next daily game (local midnight).

@@ -11,7 +11,7 @@ stroke back, and a playtest round went -9, so that was dropped.
 ## Decision
 
 The ranked score becomes points, and strokes are only the hole's budget (par + 3).
-- A pot is 100. Each trick element adds +200 and they stack: an extra ball in one shot, a bank, a kick, a combination,
+- A pot is 100. Each trick element adds +200 and they stack: an extra ball in one shot, a bank, a combination,
   a tunnel, a cannon (the cue ball touches two object balls before anything drops) or a moving target crossed
   before anything drops. A kick and a Quick shot (released within 5 s) add +100. All of them only count on a shot
   that pots.
@@ -29,6 +29,6 @@ The ranked score becomes points, and strokes are only the hole's budget (par + 3
 
 ## Consequences
 
-- Scores no longer read as golf. The share card shows points and trick emoji instead of coloured squares.
+- Scores no longer read as golf. The share text is the points and how you did against the day's players.
 - Days before the switch keep par, including their `?seed=` links. A run saved under the other scoring is not resumed.
 - The point values are a first guess. Tune them in the `?trick` trial before choosing a date.

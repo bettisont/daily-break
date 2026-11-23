@@ -167,17 +167,16 @@ const sfx = {
     else if (kind === 'Tunnel') { tone(160, 0.5, 0.18, 'sine', 3, 0, 0.5); noise(0.4, 0.15, 900, 'bandpass', 0, 2); tone(1046.5, 0.3, 0.05, 'sine', 1, 0.3, 0.6); }
     noise(0.05, 0.18, 4000, 'highpass', 0, 0.7);
   },
-  // a pot or a contact on a good shot: a deep boom and a bright crack, bigger with the shot's quality (1-6)
-  bang(k) { const v = k / 6; tone(60, 0.35 + 0.1 * k, 0.25 + 0.25 * v, 'sine', 0.5, 0, 0.3); noise(0.12 + 0.05 * k, 0.25 + 0.35 * v, 2600, 'bandpass', 0, 0.8); noise(0.3 + 0.08 * k, 0.08 + 0.15 * v, 500, 'lowpass', 0.02); if (k >= 3) tone(1568, 0.3, 0.04, 'sine', 1, 0.05, 0.6); },
-  // the reels landing on a multiplied score: a heavy mechanical clunk
-  // a multiplier landing: a bright rising arpeggio with a bell on top and a shimmer, higher for a bigger multiplier
+  // a pot or a contact on a good shot: a bright crack and a burst of air, bigger with the shot's quality (1-6). No low
+  // boom of its own (23 Nov sweep: with the drop and the pot's thump it made three low thumps at once)
+  bang(k) { const v = k / 6; noise(0.12 + 0.05 * k, 0.25 + 0.35 * v, 2600, 'bandpass', 0, 0.8); noise(0.3 + 0.08 * k, 0.06 + 0.12 * v, 900, 'bandpass', 0.02, 0.7); tone(392 * (1 + 0.25 * Math.min(k, 4) / 4), 0.25, 0.03 + 0.03 * v, 'triangle', 1.5, 0, 0.4); if (k >= 3) tone(1568, 0.3, 0.04, 'sine', 1, 0.05, 0.6); },
+  // a multiplier landing: a bright major arpeggio with a bell on top and a shimmer, on a tuned root that climbs with
+  // the multiplier (x1.5 E5, x2 G5, x2.5 A5, x3 C6: golden x2 then streak x2.5 no longer clash)
   ding(m = 2) {
-    const k = clamp((m - 1) / 2, 0, 1), base = 659.25 * (1 + 0.26 * k);
-    [1, 1.26, 1.5, 2].forEach((r, i) => { tone(base * r, 0.55 + 0.12 * i, 0.05, 'triangle', 1, i * 0.05, 0.6); tone(base * r * 2, 0.4, 0.016, 'sine', 1, i * 0.05 + 0.012, 0.7); });
-    noise(0.45, 0.035, 7000, 'highpass', 0.08, 0.5);
+    const base = m >= 3 ? 1046.5 : m >= 2.5 ? 880 : m >= 2 ? 783.99 : 659.25;
+    [1, 1.25, 1.5, 2].forEach((r, i) => { tone(base * r, 0.55 + 0.12 * i, 0.045, 'triangle', 1, i * 0.05, 0.6); tone(base * r * 2, 0.4, 0.014, 'sine', 1, i * 0.05 + 0.012, 0.7); });
+    noise(0.45, 0.03, 7000, 'highpass', 0.08, 0.5);
   },
-  clunk() { tone(90, 0.25, 0.35, 'square', 0.5, 0, 0.1); noise(0.08, 0.4, 900, 'bandpass', 0, 1.5); tone(180, 0.12, 0.12, 'triangle', 0.7, 0.03, 0.2); },
-  streakUp(n) { const f = 523.25 * Math.pow(2, Math.min(4, n - 1) / 6); tone(f, 0.25, 0.04, 'sine', 1.5, 0, 0.5); },
   fizzle() { noise(0.45, 0.16, 2500, 'highpass', 0, 0.5); tone(700, 0.4, 0.05, 'triangle', 0.4, 0, 0.3); },
   chime() { tone(1318.5, 0.25, 0.07, 'sine', 1, 0, 0.5); tone(1975.5, 0.35, 0.05, 'sine', 1, 0.06, 0.5); },
 };

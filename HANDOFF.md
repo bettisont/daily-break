@@ -55,7 +55,7 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     stops checking once `tshot.balls > 0`), and it scores at the first drop. With no pot it stays, and on a foul it comes back. Saved runs keep
     which ones are hit (`tg`).
     There are no replays under trick scoring (`resolveShot` skips `startReplay`). No text is shown as they happen: `trickBang` gives the pocket or contact a flash, rings, sparks, shake, hit-stop
-    and `sfx.bang`, all scaled by `shotQ` (elements so far, +2 for the golden pocket). After the replay, `scoreTrick`
+    and `sfx.bang`, all scaled by `shotQ` (elements so far, +2 for the golden pocket). When the balls stop, `scoreTrick`
     runs the tally (`showTally`, a fixed overlay over the stage: numbers, each with a one-word label). The base comes
     first ("100 POT"), then each element's "+200 BANK" flies into the number one by one. Then each multiplier
     ("x2 GOLDEN", then "x2.5 STREAK", with `#iLie` flashing) slams in beside the number, and `spinTo` spins its digits
@@ -63,7 +63,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     step's from/to is worked out when the tally starts, never inside its timer.
     `logShot` keeps the breakdown, with what each line was for (`TRICK_WHY`) and the sum, in `round.shotLog`
     (newest first, at most 30). Tapping the Points chip (`#ptsChip`) shows it (`showShotLog`), and the
-    `dailybreak:shotLogTip` flag shows a one-off tip. There are no hole or round stamps under trick scoring:
+    `dailybreak:shotLogTip` flag shows a one-off tip. `P` opens it too. The tally goes in the clearest band of the
+    table (`tallyBand`). A tap on the table or a pull finishes it (`finishTally`), and `aimClock` waits for it. There are no hole or round stamps under trick scoring:
     `finishHole` waits for `tally` to finish before the next hole or the card. `ptsHold` holds the header's count-up until it lands, and `endTally` cuts it short (a new
     shot, a new round).
   - The header shows Hole and Points (`#ptsVal`, counting up). The info bar shows shots left, the streak meter

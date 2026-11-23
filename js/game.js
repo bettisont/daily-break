@@ -40,7 +40,8 @@ function onEvent(type, e) {
     // it drops into the pipe: shrinks and swirls into the mouth, and a rumble travels underneath to the far end
     const m = tunMouths(hole).find(q => Math.hypot(q.x - e.x, q.y - e.y) < 1), b = e.ball;
     if (m) m.flash = 1;
-    tshot?.tun.add(b);   // trick scoring: this ball (or the cue ball) went through, so a pot can be a Tunnel
+    // trick scoring: this ball went through, so its pot is a Tunnel; the cue ball only counts before anything drops
+    if (tshot && (b !== table.cue || tshot.balls === 0)) tshot.tun.add(b);
     ensureSpin(b);
     fx.sinks.push({ x: e.fromX, y: e.fromY, tx: e.x, ty: e.y, b: { n: b.n, spot: b.spot, pole: b.pole }, t: 0 });
     atX(e.x, () => sfx.tunnel(e.speed)); sfx.tunnelRoll(e.x, e.toX, e.dur / Math.max(0.3, timeScale)); buzz(12);
@@ -85,15 +86,15 @@ function onEvent(type, e) {
 }
 
 // Trick scoring: the moment a ball drops, work out which trick elements it adds and burst them out of the pocket,
-// so a bank feels like a bank while the balls are still rolling. Every element shown here is what the shot scores
-// (scoreTrick), unless the shot turns out to be a foul. Returns how many bursts it showed.
+// so a bank feels like a bank while the balls are still rolling. Every element counted here is what the shot scores
+// (scoreTrick), unless the shot turns out to be a foul.
 // One trick element: counted for the shot (scoreTrick adds them up and the tally shows each one). Nothing is written
 // on the table as it happens (22 Nov playtest: the little pop-ups were too much); instead the pot or contact gets a
 // bang that grows with how good the shot is so far (trickBang).
 function trickPart(kind) { tshot.parts.push(kind); tshot.has[kind] = true; }
 // how good is this shot so far: one for each trick element and each ball after the first, two for the golden pocket
 const shotQ = t => t.parts.length + (t.gold ? 2 : 0);
-function trickBang(x, y, q, kind) {
+function trickBang(x, y, q) {
   const k = Math.min(q, 6);
   if (k <= 0) return;
   hitStop = Math.max(hitStop, 0.05 + 0.02 * k);
@@ -122,8 +123,7 @@ function trickDrop(b, pocket, tx, ty) {
   got.forEach(trickPart);
   const gold = pocket === hole.gold && !goldUsed && !t.gold;
   if (gold) t.gold = true;   // (its +2 makes the bang bigger; no chime of its own)
-  trickBang(tx, ty, shotQ(t), got.find(k => k !== 'Quick'));
-  return got.length + (gold ? 1 : 0);
+  if (!table.cue.potted) trickBang(tx, ty, shotQ(t));   // (the cue ball already down means a foul: no bang)
 }
 // Cannon: the cue ball touches two object balls before anything drops (trickDrop checks at each pot). Contacts after
 // a pot don't count (22 Nov playtest: the white wandering into a ball after the pot was scored as a cannon).
@@ -136,10 +136,13 @@ function trickCueHit(o) {
 // element) and it's gone. They come from their own seeded random numbers, never the hole's, so courses don't change
 // and everyone gets the same targets. They move on tgtClock: physics time while the balls roll (so slow motion and
 // fast-forward stay in step), the table's PLAY pace otherwise.
-const TGT_R = 2 * R;
-function makeTargets(seed, i, h, pk) {
+// (their own sky blue since the 23 Nov sweep: in gold they read as the golden pocket or the Quick ring)
+const TGT_R = 2 * R, TGT_RGB = '110,190,230';
+function makeTargets(seed, i, h, pk, cat) {
   const n = i >= 3 ? 2 : i >= 1 ? 1 : 0, rnd = rngFor(`${seed}:targets:${i}`), out = [], m = TGT_R + 10;
-  const onFelt = (x, y) => (h.shape ? freeIn(h.shape, x, y, m) : x > m && x < W - m && y > m && y < H - m) && pk.every(p => Math.hypot(p.x - x, p.y - y) > 100);
+  // on open felt: away from the pockets, sand and rough, bumpers and the cat (only the targets' own numbers are used)
+  const onFelt = (x, y) => (h.shape ? freeIn(h.shape, x, y, m) : x > m && x < W - m && y > m && y < H - m) && pk.every(p => Math.hypot(p.x - x, p.y - y) > 100)
+    && !h.patches.some(p => inPatch(p, x, y)) && h.bumpers.every(o => Math.hypot(o.x - x, o.y - y) > o.r + TGT_R + 6) && (!cat || Math.hypot(cat.x - x, cat.y - y) > CAT_R + TGT_R + 10);
   for (let k = 0; k < n; k++) for (let tries = 0; tries < 300; tries++) {
     const ax = rnd() * W, ay = rnd() * H, a = rnd() * TAU, len = 150 + rnd() * 170, bx = ax + Math.cos(a) * len, by = ay + Math.sin(a) * len;
     let ok = true;
@@ -162,7 +165,7 @@ function tgtStep() {
     const b = [table.cue, ...table.balls].find(b => !b.potted && !b.uN && (b.vx || b.vy) && Math.hypot(b.x - p.x, b.y - p.y) < TGT_R);
     if (!b) continue;
     tshot.tgt.push(o); o.pendClock = tgtClock;
-    sfx.trick('Target'); ring(p.x, p.y, '255,215,106', 60, 0.6, TGT_R); sparkle(p.x, p.y, '#ffe08a', 12, 120);   // it counts once something drops
+    tone(1568, 0.06, 0.025, 'sine', 1, 0, 0.3); ring(p.x, p.y, TGT_RGB, 40, 0.5, TGT_R);   // a quiet tick: the bang at the pot is the reward
   }
 }
 
@@ -173,7 +176,7 @@ function newRound(seed, ranked) {
   round = { seed, ranked, trick: trickOn(seed), level: 0, potted: 0, bestStreak: 0, done: false, cards: [] };
   hs = { points: 0, streak: 0 }; shownPts = 0;
   $('course').textContent = `${courseName(seed)} · ${isDailySeed(seed) && ranked ? dayLabel(seed) : 'practice'}`;
-  tshot = null; thole = { pts: 0, tricks: [] }; endTally(); round.shotLog = [];
+  tshot = null; thole = { pts: 0, tricks: [] }; endTally(); round.shotLog = []; $('card9').innerHTML = '';
   const saved = ranked ? ls(parKey(seed)) : null;
   if (!saved && resumeRun()) return;
   startHole(0);
@@ -193,7 +196,7 @@ function startHole(i) {
   table = new Table(hole, onEvent);
   trayFly = []; trayDone = [];
   strokes = 0; holeBonus = 0; goldUsed = false; tshot = null; thole = { pts: 0, tricks: [] };
-  targets = round.trick ? makeTargets(round.seed, i, hole, table.pk) : []; tgtClock = 0;
+  targets = round.trick ? makeTargets(round.seed, i, hole, table.pk, table.cat) : []; tgtClock = 0;
   // a cat hole: the cat hops up from its cushion onto the felt as the hole starts
   catAnim = table.cat ? { from: { x: DECOR.cat.x, y: DECOR.cat.y, rot: -0.3, sc: 1 }, to: { x: table.cat.x, y: table.cat.y, rot: table.cat.rot, sc: CAT_SC }, t: -0.9 } : null;
   marks = []; trails = []; curTrail = null; stamp = null; strike = null; cine = null; timeScale = 1;
@@ -203,7 +206,7 @@ function startHole(i) {
   const n = hole.balls.length, life = featureName(hole) ? 2.3 : hole.shape ? 1.9 : 1.5;
   banner = { title: `Hole ${i + 1}`, sub: `${hole.shape ? `${hole.shape.name} table · ` : ''}${featureName(hole) ? `${featureName(hole)} · ` : ''}${hole.gold != null ? 'golden pocket · ' : ''}${n} ball${n === 1 ? '' : 's'} · ${round.trick ? `${capOf(i)} shots` : `par ${parOf(i)}`}`, life, max: life };
   // a tunnel hole: point out the two openings, once the hole has had a moment on screen
-  if (hole.tunnel) { const h = hole, { a, b } = h.tunnel; setTimeout(() => { if (hole !== h || phase !== 'aim') return; for (const m of [a, b]) { const e = tunExit(m); float(clamp(e.x + m.nx * 50, 70, W - 70), clamp(e.y + m.ny * 50, 30, H - 30), 'Tunnel', '#2f6b4f', 17, 2.6); } }, 1900); }
+  if (hole.tunnel && !(round.trick && ls('dailybreak:tunnelSeen'))) { if (round.trick) ls('dailybreak:tunnelSeen', '1'); const h = hole, { a, b } = h.tunnel; setTimeout(() => { if (hole !== h || phase !== 'aim') return; for (const m of [a, b]) { const e = tunExit(m); float(clamp(e.x + m.nx * 50, 70, W - 70), clamp(e.y + m.ny * 50, 30, H - 30), 'Tunnel', '#2f6b4f', 17, 2.6); } }, 1900); }
   saveRun();
   // hole 3 tip, until the player has tapped a ball once
   if (i === 2 && !ls('dailybreak:tappedBall')) { const h = hole; setTimeout(() => { if (hole === h && phase === 'aim') float(W / 2, H * 0.62, 'Tap a ball to target it', '#2f6b4f', 20, 2.6); }, 1700); }
@@ -604,7 +607,7 @@ function resolveShot() {
   if (foul) {
     strokes++;   // the penalty stroke
     if (s.scratch) table.respot(table.cue, strokeStart.x, strokeStart.y);
-    say(`${foul} · +1 stroke`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
+    say(`${foul} · ${round.trick ? 'costs a shot' : '+1 stroke'}`, table.cue.y + 44); sfx.penalty(); buzz([30, 60, 30]); fx.shake = 5;
     if (tshot) for (const o of tshot.tgt) o.hit = false;   // a target crossed on a foul comes back
     breakStreak();
   } else if (!shotLog.length) { if (!round.trick) say(hs.streak >= 2 ? 'Streak over' : 'Miss', table.cue.y + 44, '#7a6a3a'); sfx.click(); breakStreak(); }   // (trick scoring: the streak meter cracks instead)
@@ -638,7 +641,7 @@ function breakStreak() {
   hs.streak = 0;
 }
 // Trick scoring: a shot that potted something, with no foul. 100 a pot, 200 for each trick element seen as the balls
-// dropped (trickDrop), doubled by the golden pocket, times the streak. The breakdown floats up once the replay is done.
+// dropped (trickDrop), doubled by the golden pocket, times the streak. The tally then shows it (showTally).
 function scoreTrick() {
   const t = tshot || { parts: [], gold: false };
   hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
@@ -655,28 +658,28 @@ function scoreTrick() {
 // what each element is for, in the breakdown behind the Points chip
 const TRICK_WHY = { Bank: 'the ball came off a cushion', Kick: 'the cue ball hit a cushion first', Combo: 'potted by another ball', Tunnel: 'through the tunnel', Cannon: 'the cue ball hit two balls', Target: 'through a moving target', Quick: `shot in under ${QUICK_S} seconds` };
 // The shot's tally (22 Nov, shaped by the playtests: show the multiplier working on the shot, but keep the table
-// clear: only numbers). After the replay the base (100 a pot) comes up mid-table; each trick element's flat points
+// clear: one word per number). When the balls stop, the base (100 a pot) comes up in the clearest band of the table; each trick element's flat points
 // ("+200") come in one at a time and fly into it as the number rolls up; each multiplier (the golden pocket's x2, then
 // the streak, pulled down out of the streak meter) is applied last, onto the whole; and the shot's score flies into the header's Points, which only then counts up (ptsHold). What each
 // number was for is kept (logShot) and shown when the Points chip is tapped (showShotLog).
 let tally = null;
 function rollNum(el, from, to, ms, pre = '') {
   const t0 = performance.now();
-  const step = now => { const k = Math.min(1, (now - t0) / ms), e = 1 - (1 - k) ** 3; el.textContent = pre + fmtPts(from + (to - from) * e); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
+  // (k is clamped: the first frame's timestamp can come before t0, which made the number dip below `from`)
+  const step = now => { const k = clamp((now - t0) / ms, 0, 1), e = 1 - (1 - k) ** 3; el.textContent = pre + fmtPts(from + (to - from) * e); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
-// the number as a row of reels: each digit spins, then they stop left to right on `to`, a tick each (the chip, if any,
-// stays put beside it)
-function spinTo(n, chip, from, to, ms) {
+// the number as a row of reels: each digit spins, then they stop left to right on `to`, a soft tick as they spin
+// (the leading reel never shows a 0)
+function spinTo(n, from, to, ms) {
   const target = fmtPts(to), reels = [];
   n.textContent = '';
   for (const ch of target) {
     const sp = document.createElement('span');
     sp.textContent = ch;
-    if (/\d/.test(ch)) { sp.className = 'reel'; reels.push({ sp, ch }); }
+    if (/\d/.test(ch)) { sp.className = 'reel'; reels.push({ sp, ch, lead: !reels.length }); }
     n.appendChild(sp);
   }
-  if (chip) n.appendChild(chip);
   const t0 = performance.now(), stopAt = reels.map((_, k) => ms * 0.35 + ms * 0.65 * (k + 1) / reels.length);
   let lastTick = 0;
   const step = now => {
@@ -685,85 +688,100 @@ function spinTo(n, chip, from, to, ms) {
     reels.forEach((r, k) => {
       if (r.done) return;
       if (e >= stopAt[k]) { r.done = true; r.sp.textContent = r.ch; r.sp.classList.add('land'); return; }
-      spinning = true; r.sp.textContent = String(Math.floor(Math.random() * 10));
+      spinning = true; r.sp.textContent = String(r.lead ? 1 + Math.floor(Math.random() * 9) : Math.floor(Math.random() * 10));
     });
     if (spinning && e - lastTick > 70) { lastTick = e; tone(1800 + Math.random() * 300, 0.01, 0.008, 'triangle', 1, 0, 0); }
     if (spinning && n.isConnected) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
 }
+// A tap on the table or a pull of the cue finishes a running tally at once (23 Nov sweep: shooting through it gave
+// mixed signals, e.g. the meter cracking while the old tally still landed its streak): its points go straight in.
+function finishTally() { if (tally) endTally(); }
 function endTally() {
   if (!tally) return;
   tally.timers.forEach(clearTimeout); tally.el.remove(); tally = null;
+  $('iLie')?.classList.remove('flash');
   ptsHold = false;
   const el = $('ptsVal');
   if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
 }
+// Where the tally goes (23 Nov sweep: at a fixed 30% it covered balls on a quarter of holes, most on small phones):
+// the band of the table, between the top and the lower part where the cue is, that's furthest from any ball or
+// target, preferring the upper half. Returns the table y; the screen position comes from the view.
+function tallyBand() {
+  const things = [table.cue, ...table.balls].filter(b => !b.potted).map(b => b.y).concat(targets.filter(o => !o.hit).flatMap(o => [o.ay, o.by]));
+  let best = H * 0.3, bestScore = -1;
+  for (const f of [0.2, 0.26, 0.32, 0.38, 0.44, 0.5, 0.56, 0.62]) {
+    const y = H * f, clear = Math.min(...things.map(v => Math.abs(v - y)), 400), score = clear - (f > 0.45 ? 30 : 0);
+    if (score > bestScore) { bestScore = score; best = y; }
+  }
+  return best;
+}
 function showTally([baseLabel, base, baseWhy], items, muls, gain) {
   endTally();
   logShot([baseLabel, base, baseWhy], items, muls, gain);
-  const st = $('stage').getBoundingClientRect(), cx = st.left + st.width / 2, cy = st.top + st.height * 0.3;
+  const cr = canvas.getBoundingClientRect(), ty = tallyBand();
+  const cx = cr.left + view.ox + W / 2 * view.s, cy = cr.top + view.oy + ty * view.s;
   const el = document.createElement('div');
   el.id = 'tally'; el.style.left = cx + 'px'; el.style.top = cy + 'px';
-  el.innerHTML = `<div class="tn">${fmtPts(base)}</div><div class="tl">${baseLabel}</div>`;
+  el.innerHTML = `<div class="tn"><span class="tv">${fmtPts(base)}</span></div><div class="tl">${baseLabel}</div>`;
   document.body.appendChild(el);
   ptsHold = true;
-  const n = el.querySelector('.tn'), tl = el.querySelector('.tl'), timers = [];
-  tally = { el, timers };
+  const n = el.querySelector('.tv'), box = el.querySelector('.tn'), tl = el.querySelector('.tl'), timers = [];
+  tally = { el, timers, gain };
   const at = (ms, f) => timers.push(setTimeout(f, ms));
-  const pop = cls => { n.classList.remove('pop', 'smash', 'win'); void n.offsetWidth; n.classList.add(cls); };
-  tone(660, 0.1, 0.05, 'triangle', 1.5, 0, 0.3);
-  let t = 750, now = base;
-  const gap = items.length > 4 ? 650 : 820;
-  // each trick element: "+200 BANK" appears under the number, then flies up into it (one word says what it's for:
-  // 22 Nov playtest, the numbers alone didn't say why; full sentences were too much)
-  const addIn = (pts, label, cls, i, after) => {
+  const pop = cls => { box.classList.remove('pop', 'win'); void box.offsetWidth; box.classList.add(cls); };
+  const note = i => POT_SCALE[Math.min(POT_SCALE.length - 1, 3 + i)];   // the tally's steps climb the pot notes' scale
+  tone(note(0) / 2, 0.1, 0.04, 'triangle', 1, 0, 0.3);
+  // quicker after the sweep (about 2 s for a plain pot, 4-5 s for a big shot), and a tap or a pull finishes it
+  let t = 550, now = base;
+  const gap = items.length > 4 ? 380 : 450;
+  // each trick element: "+200 BANK" appears under the number, then flies up into it (one word says what it's for)
+  const addIn = (pts, label, i, after) => {
     const it = document.createElement('div');
-    at(t, () => { tl.classList.add('gone'); it.className = `ti ${cls}`; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small>`; el.appendChild(it); });
-    at(t + gap - 300, () => it.classList.add('in'));
-    at(t + gap - 120, () => { it.remove(); after(); pop('pop'); tone(1046.5 * Math.pow(2, i / 7), 0.12, 0.05, 'sine', 1, 0, 0.4); buzz(8); });
+    at(t, () => { tl.classList.add('gone'); it.className = 'ti'; it.innerHTML = `+${fmtPts(pts)} <small>${label}</small>`; el.appendChild(it); });
+    at(t + gap - 220, () => it.classList.add('in'));
+    at(t + gap - 60, () => { it.remove(); after(); pop('pop'); tone(note(i + 1), 0.12, 0.045, 'sine', 1, 0, 0.4); buzz(8); });
     t += gap;
   };
   // (every step's from and to are worked out now, not when its timer fires)
-  items.forEach(([label, pts], i) => { const from = now, to = now + pts; addIn(pts, label, '', i, () => rollNum(n, from, to, 200)); now = to; });
-  // each multiplier, slot-machine style (22 Nov playtest: the chip dropping out of the streak meter wasn't liked):
-  // "x2.5 STREAK" slams in beside the number (the streak meter flashes: that's where it comes from), the digits spin
-  // like reels and stop one by one, left to right, on the new total with a clunk, and the chip melts into the number
+  items.forEach(([label, pts], i) => { const from = now, to = now + pts; addIn(pts, label, i, () => rollNum(n, from, to, 180)); now = to; });
+  // each multiplier, slot-machine style: "x2.5 STREAK" slams in beside the number (the streak meter flashes: that's
+  // where it comes from), the digits spin like reels and stop left to right on the new total, and it lands with a
+  // tuned chime and a golden bloom
   muls.forEach(([label, m], i) => {
-    const chip = document.createElement('div'), to = i === muls.length - 1 ? gain : now * m, from = now;
-    t += 250;
+    const chip = document.createElement('span'), to = i === muls.length - 1 ? gain : now * m, from = now;
+    t += 150;
     at(t, () => {
       chip.className = `tx ${label === 'Streak' ? 'streak' : 'gold'}`; chip.innerHTML = `×${m}<small>${label}</small>`;
-      n.appendChild(chip);
+      box.appendChild(chip);
       if (label === 'Streak') { const sm = $('iLie'); sm.classList.remove('flash'); void sm.offsetWidth; sm.classList.add('flash'); }
       buzz(12);
     });
-    at(t + 300, () => spinTo(n, chip, from, to, 550));
-    at(t + 880, () => {
-      chip.classList.add('melt'); setTimeout(() => chip.remove(), 300);
-      // a bright rising chime (higher for a bigger multiplier) and a warm golden bloom that swells and settles: no thud
-      // or shake (22 Nov playtest)
-      pop('win'); if (label === 'Streak') n.classList.add('hot');
+    at(t + 250, () => spinTo(n, from, to, 480));
+    at(t + 760, () => {
+      chip.classList.add('melt'); setTimeout(() => chip.remove(), 280);
+      pop('win'); if (label === 'Streak') box.classList.add('hot');
       sfx.ding(m);
-      sparkle(W / 2, H * 0.3, '#ffe9a8', 30, 180); sparkle(W / 2, H * 0.3, '#ffd06a', 16, 120);
+      sparkle(W / 2, ty, '#ffe9a8', 30, 180); sparkle(W / 2, ty, '#ffd06a', 16, 120);
       buzz([12, 20, 12]);
     });
     now = to;
-    t += 1150;
+    t += 950;
   });
-  const total = gain;
   // then the shot's score flies into the header's Points
-  at(t + 450, () => {
-    const dst = $('ptsVal'), a = n.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
-    n.textContent = `+${fmtPts(total)}`;
-    n.style.transition = 'transform .55s cubic-bezier(.5,0,.8,.4), opacity .55s';
-    n.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
-    n.style.opacity = 0.7;
+  at(t + 300, () => {
+    const dst = $('ptsVal'), a = box.getBoundingClientRect(), b = dst ? dst.getBoundingClientRect() : a;
+    n.textContent = `+${fmtPts(gain)}`;
+    box.style.transition = 'transform .5s cubic-bezier(.5,0,.8,.4), opacity .5s';
+    box.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.35)`;
+    box.style.opacity = 0.7;
   });
-  at(t + 1000, () => {
+  at(t + 800, () => {
     endTally(); buzz(10);
-    // once per device: say where the explanation is
-    if (!ls('dailybreak:shotLogTip')) { ls('dailybreak:shotLogTip', '1'); $('ptsChip')?.classList.add('tip'); float(W / 2, H * 0.2, 'Tap Points to see how it added up', '#2f6b4f', 18, 3); }
+    // once per device, and not as a hole ends (it would sit over the next hole's banner): where the explanation is
+    if (phase === 'aim' && !ls('dailybreak:shotLogTip')) { ls('dailybreak:shotLogTip', '1'); $('ptsChip')?.classList.add('tip'); float(W / 2, H * 0.2, 'Tap Points to see how it added up', '#2f6b4f', 18, 3); }
   });
 }
 // Every scored shot this round, newest first, for the breakdown behind the Points chip.
@@ -817,10 +835,10 @@ function finishHole(picked) {
     // Trick scoring (22 Nov playtest): no stamp ("Trick clear!", "Cleared"): the tally already shows the points and
     // the stamp got in its way. Out of shots just says so. The next hole waits for the tally.
     if (picked) float(W / 2, H * 0.45, 'Out of shots', '#7a6a3a', 22, 1.8);
-    sfx.holed(!picked);
     const go = () => {
       if (round.level !== forLevel || phase !== 'holed') return;
       if (tally) return setTimeout(go, 200);
+      sfx.holed(!picked);   // once the tally has landed (it used to play over the tally's first note)
       if (forLevel + 1 >= HOLES) endRound(); else act();
     };
     setTimeout(go, picked ? 1500 : 700);
@@ -843,7 +861,7 @@ function endRound() {
   track('finish');
   try { localStorage.removeItem(runKey()); } catch {}
   round.done = true; round.points = hs.points; phase = 'over';
-  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak, ...(round.trick ? { trick: true } : {}) })); sendResult(); }
+  if (round.ranked) { ls(parKey(round.seed), JSON.stringify({ cards: round.cards, potted: round.potted, points: round.points, bestStreak: round.bestStreak, ...(round.trick ? { trick: true, shotLog: round.shotLog || [] } : {}) })); sendResult(); }
   const tot = parTotal(), strokesAll = round.cards.reduce((a, c) => a + c.strokes, 0);
   if (round.trick) { setTimeout(() => { if (phase === 'over') showFinal(false); }, 600); return; }   // straight to the card
   stamp = { text: 'Round over', sub: `${toPar(tot)} · ${strokesAll} strokes`, color: holeColor(Math.sign(tot) * Math.min(2, Math.abs(tot))), t: 0 };
@@ -854,7 +872,7 @@ function endRound() {
 // (22 Nov playtest: a line of emoji per hole was too much; now just the points and how you did against everyone)
 function trickShareText(r) {
   const rank = trickRankLine(r);
-  return `Daily Break ${isDailySeed(r.seed) && r.ranked !== false ? dayLabel(r.seed) : 'practice'} 🎱 ${fmtPts(r.points || 0)} points${rank ? `\n${rank}` : ''}\n${gameUrl()}`;
+  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} 🎱 ${fmtPts(r.points || 0)} points${rank ? `\n${rank}` : ''}\n${gameUrl()}`;
 }
 // how you did against today's players, from the server's tally (null until it has come back)
 function trickRankLine(r) {
@@ -864,6 +882,7 @@ function trickRankLine(r) {
   const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc < me ? n : 0), 0), same = (t.scores[me] || 0) - 1;
   if (others <= 0) return 'First to finish today';
   if (worse === others) return `${same > 0 ? 'Joint best' : 'Best'} of ${t.players.toLocaleString('en-US')} players today 🏆`;
+  if (!worse) return `One of ${t.players.toLocaleString('en-US')} players today`;   // (not "Beat 0%")
   return `Beat ${Math.round(100 * worse / others)}% of ${t.players.toLocaleString('en-US')} players today`;
 }
 function shareText(r = round) {
@@ -893,10 +912,10 @@ function showFinal(already) {
     <div id="share">${shareText()}</div>
     <div class="row">
       <button class="btn primary" data-copy>${canNativeShare() ? 'Share' : 'Copy'} result</button>
-      ${practiceLeft() > 0 ? '<button class="btn" data-random>Practice course</button>' : ''}
+      ${trickFlag ? '<button class="btn" data-trynew>New course</button>' : practiceLeft() > 0 ? '<button class="btn" data-random>Practice course</button>' : ''}
       ${!round.ranked && !trickFlag ? `<button class="btn" data-daily>Today's round</button>` : ''}
     </div>
-    ${statsHtml()}
+    ${statsHtml(true)}
     <div class="k mono" id="nextIn" style="margin-top:10px"></div>
     ${feedbackLink()}`;
     tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
@@ -942,7 +961,7 @@ function saveRun(nextLevel) {
   if (!round.ranked || !isDailySeed(round.seed) || round.done || ls(parKey(round.seed))) return;
   const fresh = nextLevel != null;
   ls(runKey(), JSON.stringify({
-    par: true, trick: round.trick, hole: fresh ? { pts: 0, tricks: [] } : thole, tg: fresh ? null : targets.map(o => o.hit ? 1 : 0), level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
+    par: true, trick: round.trick, log: round.shotLog || [], hole: fresh ? { pts: 0, tricks: [] } : thole, tg: fresh ? null : targets.map(o => o.hit ? 1 : 0), level: fresh ? nextLevel : round.level, cards: round.cards, potted: round.potted, bestStreak: round.bestStreak,
     points: hs.points, streak: hs.streak, strokes: fresh ? 0 : strokes, bonus: fresh ? 0 : holeBonus, gold: !fresh && goldUsed,
     cue: fresh ? null : [table.cue.x, table.cue.y], balls: fresh ? null : table.balls.map(b => [b.x, b.y, b.potted ? 1 : 0]),
   }));
@@ -952,7 +971,7 @@ function resumeRun() {
   let r; try { r = JSON.parse(ls(runKey())); } catch {}
   if (!r || !Number.isInteger(r.level) || !r.par) return false;   // (a lives-ladder run from before 12 Nov has no par flag)
   if (!!r.trick !== round.trick) return false;   // scored the other way (the switch came mid-round): start afresh
-  Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0 });
+  Object.assign(round, { cards: r.cards || [], potted: r.potted || 0, bestStreak: r.bestStreak || 0, shotLog: Array.isArray(r.log) ? r.log : [] });
   hs.points = shownPts = r.points || 0; hs.streak = r.streak || 0;
   startHole(r.level);
   if (r.balls && r.balls.length === table.balls.length) {

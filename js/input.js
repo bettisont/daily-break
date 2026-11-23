@@ -14,6 +14,7 @@ function toWorld(e) {
 let drag = null;
 stage.addEventListener('pointerdown', e => {
   ensureAudio();
+  finishTally();   // a tap finishes a running tally (and still aims, targets or hurries the balls as usual)
   if (phase === 'moving') { if (movingT > 0.8 && !(cine && cine.hold > 0)) ffwd = true; return; }   // tap to hurry the balls along
   if (phase === 'replay') { replay.T = replay.endT; return; }   // tap to skip the replay
   if (phase !== 'aim') return;
@@ -138,6 +139,7 @@ const pullEl = $('pull'), PULL_PX = 150, MIN_PULL = 0.04;
 let hold = null;
 function startHold(id, y0, p0 = 0) {
   if (phase !== 'aim' || hold) return;
+  finishTally();
   hold = { id, y0, kb: id == null };
   power = p0; swayT = Math.random() * 30;
   track('pull');
@@ -183,6 +185,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const s = e.key === 'ArrowRight' ? 1 : -1; stripOff += s * 6; turnAim(s * deg); }
   else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); if (!hold) setSpot(aim.spotY + (e.key === 'ArrowUp' ? -0.1 : 0.1)); }
   else if (e.key === 's') cycleSpin();
+  else if (e.key === 'p' && round?.trick) { finishTally(); showShotLog(); }   // the Points breakdown
   else if (e.key === 'Tab' || e.key === 'n') { e.preventDefault(); nextBall(); }
   else if (e.key === '+' || e.key === '=' || e.key === ']') { lastPower = power = clamp(lastPower + 0.05, 0.05, 1); updateUI(); }
   else if (e.key === '-' || e.key === '[') { lastPower = power = clamp(lastPower - 0.05, 0.05, 1); updateUI(); }

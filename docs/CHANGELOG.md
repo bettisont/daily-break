@@ -11,8 +11,8 @@ plays today's course (or `?seed=`) as an unranked round with the new scoring. It
 sends and tracks nothing. Decided in a grilling session (ADR 0001). Why: flair went unrewarded, too many players tied
 on par, and the trick replays are the best moment of a round.
 - **Points replace par** (`scoreTrick`, `trickDrop`, `TRICK_PTS` in `js/state.js`). A pot is 100. Each trick element
-  adds 200, and they stack: an extra ball in one shot, a bank (per banked ball), a kick, a combination (a potted ball
-  the cue ball didn't hit first, once a shot) and a tunnel. The first pot into the golden pocket doubles the shot. The
+  adds 200, and they stack: an extra ball in one shot, a bank (per banked ball), a combination (a potted ball the cue
+  ball didn't hit first, once a shot) and a tunnel; a kick adds 100 (it was 200 until the second tidy-up below). The first pot into the golden pocket doubles the shot. The
   whole shot is then multiplied by the streak: x1, x1.5, x2, x2.5, x3 for potting shots in a row, carried across holes.
   A miss or a foul resets it. (Clearing a hole first added 300 per ball; dropped the same day, see below.)
 - **Strokes are only a budget.** You pick up at par + 3, as before. A foul still costs a stroke, and the balls it pots
@@ -46,6 +46,27 @@ on par, and the trick replays are the best moment of a round.
   before anything drops. Kick halved to +100 (`partPts`). The multiplier lands with a bright rising chime
   (`sfx.ding`, higher for a bigger multiplier) and a golden bloom behind the number; the thud and the shake went.
   The intro and help describe trick scoring when it's on (`TRICK_INTRO`, `TRICK_HELP`).
+- **Fixes from a full UX sweep (23 Nov)**, after a subagent played 9 bot rounds and checked every shot against the
+  formula (all matched):
+  - The tally sits in the clearest band of the table (`tallyBand`), scales down on small phones, and puts the number
+    and its multiplier chip in one centred row. It's quicker: about 2 s for a plain pot, 4 to 5 s for a big shot. A
+    tap on the table or a pull of the cue finishes it at once (`finishTally`): shooting through it used to show the
+    old streak landing while the new miss cracked the meter.
+  - The Quick clock waits for the tally (it had been eating the 5 s), and the hole-2 spin demo no longer blocks it.
+  - Frame pacing is back to 30 fps idle and 15 behind a card: unhit targets and the x3 lamp flicker had held it at
+    about 55.
+  - Bugs: the rolling number dipped below its start on its first frame (`rollNum` clamps now); the 320 px header
+    overlapped (Points label hidden below 370 px, steady chip width); the trick result card showed par stats (now
+    points); a resumed round lost its breakdown (`shotLog` is saved); under `?trick` the card offers "New course",
+    which spends no practice round.
+  - Rules made consistent: the cue ball through a tunnel only counts before anything drops; crossing a target is a
+    quiet tick (the reward comes at the pot); no bang when the cue ball is already down.
+  - Off the table under trick scoring: the cat's lines, the tunnel labels after the first time, and "+1 stroke" (a
+    foul "costs a shot"). The info bar reads "4 shots left · 3 balls". Targets are sky blue, kept off sand,
+    bumpers and the cat.
+  - Sound: the bang has no low boom of its own (three thumps at once before); the hole jingle waits for the tally;
+    the tally's steps climb the pot notes' scale; the multiplier dings use tuned roots, so golden x2 then streak
+    x2.5 no longer clash. `P` opens the breakdown.
 - **No replays** under trick scoring: they held up the tally, which already shows what the shot did (playtest: "annoying").
   The live slow-motion push-in on a trick or the last ball stays. Par days keep their replays.
 - **No hole stamps** under trick scoring ("Trick clear!", "Cleared", "Round over"): they got in the way of the

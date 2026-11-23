@@ -295,7 +295,7 @@ function catAfterShot() {
   const c = table.cat, hit = table.shot?.catHit;
   if (!c || !hit) return;
   c.hits = (c.hits || 0) + 1;
-  const from = { x: c.x, y: c.y, rot: c.rot, sc: CAT_SC }, say = (txt, col) => float(clamp(c.x, 90, W - 90), clamp(c.y - 55, 40, H - 40), txt, col, 19, 1.8);
+  const from = { x: c.x, y: c.y, rot: c.rot, sc: CAT_SC }, say = (txt, col) => { if (!round.trick) float(clamp(c.x, 90, W - 90), clamp(c.y - 55, 40, H - 40), txt, col, 19, 1.8); };   // (no cat lines under trick scoring)
   meow();
   if (c.hits >= 2 || hit > 900) {
     say("The cat's had enough", '#b8553f');
@@ -1273,7 +1273,8 @@ function draw(t, dt) {
 const WARM_LAMP = glowSprite(256, [[0, 'rgba(255,170,70,.34)'], [0.5, 'rgba(255,150,60,.14)'], [1, 'rgba(255,140,50,0)']]);
 let streakLvl = 0;
 const streakTarget = () => round?.trick && hs ? (streakMult(hs.streak) - 1) * 2 : 0;   // 0 at x1 ... 4 at x3
-const streakGlowBusy = () => Math.abs(streakLvl - streakTarget()) > 0.01 || streakLvl > 3.5;
+// (only while it's changing: the x3 flicker and the targets no longer hold the frame rate at 60, 23 Nov sweep)
+const streakGlowBusy = () => Math.abs(streakLvl - streakTarget()) > 0.01;
 function drawLampWarmth(t, dt) {
   const want = streakTarget();
   streakLvl = want > streakLvl ? Math.min(want, streakLvl + dt * 3) : Math.max(want, streakLvl - dt * 8);
@@ -1285,21 +1286,19 @@ function drawLampWarmth(t, dt) {
   ctx.drawImage(WARM_LAMP, W / 2 - r, H / 2 - r, r * 2, r * 2);
   ctx.globalAlpha = 1;
 }
-// Trick scoring's moving targets: a faint track, and a gold ring sliding along it. In the replay they follow the
-// replay's clock, and one that was hit on this shot vanishes at the moment it was crossed.
+// Trick scoring's moving targets: a track, and a sky-blue ring sliding along it.
 function drawTargets(t) {
   if (!targets.length) return;
-  const clock = phase === 'replay' && replay ? shotClock0 + replay.T : tgtClock;
   ctx.save();
   for (const o of targets) {
-    if (o.hit && !(phase === 'replay' && o.hitClock != null && o.hitClock > clock && o.hitClock >= shotClock0)) continue;
-    ctx.strokeStyle = 'rgba(251,248,240,.22)'; ctx.lineWidth = 2; ctx.setLineDash([3, 9]); ctx.lineCap = 'round';
+    if (o.hit) continue;
+    ctx.strokeStyle = `rgba(${TGT_RGB},.38)`; ctx.lineWidth = 2; ctx.setLineDash([3, 9]); ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(o.ax, o.ay); ctx.lineTo(o.bx, o.by); ctx.stroke(); ctx.setLineDash([]);
-    const p = tgtPos(o, clock), k = 0.75 + 0.25 * Math.sin(t * 4);
-    ctx.fillStyle = `rgba(255,214,110,${0.14 + 0.08 * k})`; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(226,177,60,${0.75 + 0.25 * k})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.stroke();
+    const p = tgtPos(o, tgtClock), k = 0.75 + 0.25 * Math.sin(t * 4);
+    ctx.fillStyle = `rgba(${TGT_RGB},${0.12 + 0.08 * k})`; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(${TGT_RGB},${0.8 + 0.2 * k})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R, 0, TAU); ctx.stroke();
     ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, TGT_R * 0.45, 0, TAU); ctx.stroke();
-    ctx.fillStyle = 'rgba(226,177,60,.9)'; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(${TGT_RGB},.95)`; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, TAU); ctx.fill();
   }
   ctx.restore();
 }
@@ -1307,7 +1306,7 @@ function drawTargets(t) {
 // Quick (trick scoring): a gold ring round the cue ball that drains over QUICK_S seconds while you aim, with a little
 // bolt; it flashes for the last 1.5 s. (22 Nov: it replaced a bar across the top of the pull cue nobody noticed.)
 function drawQuickRing(t) {
-  if (!round?.trick || phase !== 'aim' || aimClock > QUICK_S || table.cue.potted) return;
+  if (!round?.trick || phase !== 'aim' || aimClock > QUICK_S || table.cue.potted || tally) return;
   const c = table.cue, f = clamp(1 - aimClock / QUICK_S, 0, 1), last = QUICK_S - aimClock < 1.5, r = R + 9;
   const a = last ? 0.55 + 0.45 * Math.abs(Math.sin(t * 9)) : 0.95;
   ctx.save(); ctx.lineCap = 'round';

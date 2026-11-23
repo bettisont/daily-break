@@ -16,7 +16,7 @@ function busy(now) {
   return phase !== 'aim' && phase !== 'over' || hold || drag || demo || spinDemo || cine || lip || zoom
     || now - lastInput < 1500 || fx.shake > 0.05 || fx.glow > 0 || banner || (stamp && stamp.t < 0.5) || trayFly.length
     || fx.particles.length || fx.rings.length || fx.floats.length || fx.sinks.length || fx.confetti.length || fx.flashes.length
-    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || streakGlowBusy() || targets.some(o => !o.hit) || (phase === 'aim' && round?.trick && aimClock <= QUICK_S) || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
+    || table?.pk.some(p => p.glow > 0 || p.wobble > 0) || streakGlowBusy() || tally || (phase === 'aim' && round?.trick && aimClock <= QUICK_S && !$('overlay').classList.contains('show')) || Math.abs(cam.k - 1) > 2e-4 || (hs && shownPts !== hs.points);
 }
 function frame(now) {
   requestAnimationFrame(frame);
@@ -144,8 +144,9 @@ function frame(now) {
   // trick scoring: targets slide at the table's pace between shots (tgtStep moves them on physics time while the balls
   // roll; they hold still through the replay), and the Quick clock runs while you aim, once the banner and card are gone
   if (phase !== 'moving' && phase !== 'replay') tgtClock += dt * PLAY;
-  if (phase === 'aim' && !banner && !$('overlay').classList.contains('show')) aimClock += dt;
-  if (demo || spinDemo) aimClock = QUICK_S + 1;   // no Quick while a lesson is showing
+  // (it waits for the last shot's tally: the tally used to eat the 5 s, 23 Nov sweep)
+  if (phase === 'aim' && !banner && !tally && !$('overlay').classList.contains('show')) aimClock += dt;
+  if (demo) aimClock = QUICK_S + 1;   // no Quick while the first shot's lesson is showing (the hole-2 spin demo is fine)
   if (follow) follow.t += dt;
   tickDemo(dt); tickSpinDemo(dt);
   // a drawing error must never stop the game: log it and carry on with the next frame
