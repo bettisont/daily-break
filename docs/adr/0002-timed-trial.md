@@ -1,6 +1,7 @@
 # 2. The daily game becomes a two-minute timed trial (on trial)
 
-Date: 23 Nov 2026. Status: accepted for a trial behind `?trick`; goes live once `RULES.TRICK_SCORE_FROM` has a date.
+Date: 23 Nov 2026. Status: accepted and live: `RULES.TRICK_SCORE_FROM` is 23 Nov 2026 (switched on mid-day, on purpose, with tilt
+removed from the same day).
 Builds on ADR 0001 (points replace par) and replaces its six holes with stroke budgets.
 
 ## Context

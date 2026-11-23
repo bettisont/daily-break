@@ -1,7 +1,9 @@
 # Daily Break - handoff
 
-A daily pool game for the browser, live at https://dailybreak.app. Six holes, scored like golf, the same for
-everyone each day; a round takes a few minutes and ends with a shareable emoji scorecard. Plain HTML, CSS and
+A daily pool game for the browser, live at https://dailybreak.app. Since 23 Nov 2026 the daily game is the timed
+run: two minutes of aiming time through an endless run of seeded tables, the same for everyone each day, scored in
+points with trick bonuses and a multiplier, in a night-time arcade look. (Before that: six holes scored like golf,
+the "par" game, which old dates and the code still keep.) Plain HTML, CSS and
 classic scripts, no framework and no build step to play: open `index.html` in a browser.
 
 This file is the current state, by topic. What changed when, and the experiments that were tried and dropped,
@@ -33,7 +35,7 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
   one stroke and the cue ball doesn't move. Never into an unused golden pocket.
 - **The timed trial** (on trial, 22-23 Nov; ADRs `docs/adr/0001-trick-points-replace-par.md` and
   `0002-timed-trial.md`). On for a round when `trickOn(seed)` holds: `?trick` in the URL, or `RULES.TRICK_SCORE_FROM`
-  (now `null`) set and the day reached. `?trick` opens today's tables (or `?seed=`) unranked: it saves, sends and
+  (`'2026-11-23'`: live since then) set and the day reached. `?trick` opens today's tables (or `?seed=`) unranked: it saves, sends and
   tracks nothing, and uses no practice. `round.trick` picks the branch everywhere; par is untouched.
   - **The run.** `TRIAL_S` (120) seconds of aiming time (`trialLeft`, counted down in `frame` only while `phase` is
     `aim` with no banner, tally or card up: never while the balls roll). Tables are `makeHole(seed, n)` for n = 0, 1,

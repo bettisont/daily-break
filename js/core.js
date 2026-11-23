@@ -19,8 +19,10 @@ const RULES = {
   NO_GATE_FROM: '2026-11-16',   // the one-way gate leaves the feature deck: holes 3-6 get sand and the cat
   TUNNELS_FROM: '2026-11-17',   // tunnels join the deck: sand, the cat and a tunnel
   SHOT_READ_FROM: '2026-11-17', // the strike's difficulty reads the whole shot: cut, banks, kicks, combinations
-  NO_TILT_FROM: '2026-11-25',   // no more tilted tables (the aim lines are straight but tilted balls curve: lines lied)
-  TRICK_SCORE_FROM: null,       // trick scoring replaces par (state.js, trickOn); null until the date is chosen. Try it with ?trick
+  NO_TILT_FROM: '2026-11-23',   // no more tilted tables (the aim lines are straight but tilted balls curve: lines lied).
+                                // Was 25 Nov; brought forward to go live with the timed run (23 Nov, mid-day, on purpose)
+  TRICK_SCORE_FROM: '2026-11-23', // the timed run replaces par as the daily game (state.js, trickOn). Switched on mid-day
+                                  // on 23 Nov, on purpose: anyone who'd played par today gets a fresh timed run
 };
 const isDailySeed = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 // is the rule that starts on day `from` on for this seed?

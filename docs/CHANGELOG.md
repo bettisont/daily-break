@@ -4,6 +4,15 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 23 Nov 2026 (afternoon): the timed run goes live as the daily game
+
+- `RULES.TRICK_SCORE_FROM` = 2026-11-23: from today the daily game is the timed run, for everyone, ranked
+  (`mode: 'trial'` results). Switched on mid-day on purpose (the owner's call: the new mode is the way forward and
+  the player count was small), against the usual day-ahead rule. Anyone who had played par today gets a fresh timed
+  run; a par round in progress restarts as a timed run; today's par results stay in today's par tally.
+- `RULES.NO_TILT_FROM` brought forward from 25 Nov to 23 Nov with it (the timed run's info bar doesn't show a tilt, so
+  tilted tables would have been hidden): the layouts of 23 and 24 Nov changed in the snapshot, nothing else.
+
 ## 23 Nov 2026: the timed trial replaces the six holes (behind ?trick)
 
 Decided in a second grilling session (ADR 0002). Still nothing changes for players: `TRICK_SCORE_FROM` is `null`.
