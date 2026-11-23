@@ -19,6 +19,7 @@ const RULES = {
   NO_GATE_FROM: '2026-11-16',   // the one-way gate leaves the feature deck: holes 3-6 get sand and the cat
   TUNNELS_FROM: '2026-11-17',   // tunnels join the deck: sand, the cat and a tunnel
   SHOT_READ_FROM: '2026-11-17', // the strike's difficulty reads the whole shot: cut, banks, kicks, combinations
+  NO_TILT_FROM: '2026-11-25',   // no more tilted tables (the aim lines are straight but tilted balls curve: lines lied)
   TRICK_SCORE_FROM: null,       // trick scoring replaces par (state.js, trickOn); null until the date is chosen. Try it with ?trick
 };
 const isDailySeed = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -323,7 +324,10 @@ function buildHole(seed, i, attempt) {
   let tilt = { x: 0, y: 0, mag: 0, dir: 0 };
   if (haz(0.1 + hz * 0.06)) {
     const dir = Math.floor(rnd() * 8), mag = 10 + rnd() * (6 + hz * 3), a = dir * Math.PI / 4;
-    tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
+    // From RULES.NO_TILT_FROM the table stays flat: the numbers are still drawn so everything else on the table is
+    // dealt as before (23 Nov review: the guide draws straight lines but a tilt curves the balls, by up to 45° on thin
+    // cuts, so on a tilted table the lines lied)
+    if (!ruleOn(seed, RULES.NO_TILT_FROM)) tilt = { x: Math.cos(a) * mag, y: Math.sin(a) * mag, mag, dir };
   }
   // obst is the gate, set by placeFeature (the key stays in place so the layouts, and their hashes, don't change)
   const h = { i, seed, closed, cue: { x: cue.x, y: cue.y }, balls, bumpers, patches, tilt, shape, obst: null };

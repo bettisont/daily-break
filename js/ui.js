@@ -25,7 +25,9 @@ function updateUI() {
     if (!tally) meterShown = roundMult(hs.mult);   // (held while a tally applies the old one)
     updateStreakMeter(meterShown);
   } else { $('iLie').innerHTML = `Score<b>${toPar(parTotal())}</b>`; $('iLie').classList.remove('max'); }
-  $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
+  // (tilted tables went on 25 Nov: the trial shows the tables cleared there instead)
+  if (round.trick) $('iTilt').innerHTML = `Cleared<b>${round.cards.length}</b>`;
+  else $('iTilt').innerHTML = `Tilt<b>${hole.tilt.mag ? `${TILT_ARROWS[hole.tilt.dir]} ${Math.max(1, Math.round(hole.tilt.mag / 12))}°` : 'Flat'}</b>`;
   const b = $('act'), labels = {};   // no button: a cleared level moves on and the result card opens by themselves
   b.classList.toggle('show', !!labels[phase]); b.textContent = labels[phase] || '';
   const aiming = phase === 'aim';
@@ -68,6 +70,19 @@ function showMultWhy(bits, down = false) {
   w.innerHTML = bits.map(b => `<span>${b}</span>`).join('');
   el.appendChild(w);
   setTimeout(() => w.remove(), 2600);
+}
+// The pace band (23 Nov review: a lit ring didn't say at what pace it pots, and half of lit aims missed at the
+// default pace): when the guide lights a pot, the pull cue's track shows the paces that drop it, as bands
+// (pace p sits p of the way down the track). Updated only when it changes.
+function setPaceBand(paces) {
+  const el = $('paceBand');
+  if (!el) return;
+  const segs = [];
+  for (const p of paces) { const a = Math.max(0, p - 0.05), b = Math.min(1, p + 0.05), l = segs[segs.length - 1]; if (l && a <= l[1] + 0.001) l[1] = b; else segs.push([a, b]); }
+  const key = segs.map(s => s.map(v => v.toFixed(2)).join('-')).join(',');
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.innerHTML = segs.map(([a, b]) => `<i style="top:${a * 100}%;height:${(b - a) * 100}%"></i>`).join('');
 }
 // a cause landing in the meter: it pulses and glows for a moment
 function meterGain() {

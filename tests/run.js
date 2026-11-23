@@ -5,7 +5,7 @@
 //            generator silently changes everyone's course, today's included. Run `npm run test:update` only when a
 //            change is meant to alter layouts, and never for today or any day already played.
 //   guide    sweeps the aim across every ball on sample days: whenever the guide lights a pocket, the ball the line
-//            follows really drops into it (a perfect strike at some guide pace).
+//            follows really drops into it (at some pace the guide tries, struck both perfectly and Perfect).
 //   fastsim  the guide's early-exit simulation (guidePotsAt) finds exactly the pots a full simulation does.
 //   smoke    a first visit: the intro card, "Let's play", one real shot through the pull cue, no errors.
 //   trial    the timed trial (?trick): a short run of real shots (perfect strikes at potting aims), each shot's points
@@ -86,8 +86,10 @@ const tests = {
               if (!guideSim.pks.length) continue;
               out.lit++;
               const P = guideSim.pks[0];
-              const real = GUIDE_PACES.some(pw => { const s = simulate(table, aim.angle, pw, aim.spin), b = s.shot.firstHit;
-                return b && !s.shot.scratch && s.shot.pots.some(q => q.ball === b && q.pocket === P); });
+              // (since 23 Nov the guide also tries paces in between its own, and only lights a pot that drops with a
+              // perfect-aim strike AND a Perfect one: both must hold at one of those paces)
+              const drops = s => { const b = s.shot.firstHit; return b && !s.shot.scratch && s.shot.pots.some(q => q.ball === b && q.pocket === P); };
+              const real = [...GUIDE_PACES, ...GUIDE_PACES_MID].some(pw => drops(simulate(table, aim.angle, pw, aim.spin)) && drops(simPerfect(table, aim.angle, pw, aim.spin)));
               if (!real || guideSim.pks.length > 1) out.bad.push(`${day} hole ${hi + 1} ball ${bi} ${d.toFixed(1)}°: lit pocket ${guideSim.pks} but the ball doesn't drop there`);
             }
           }

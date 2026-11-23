@@ -225,7 +225,8 @@ function lineUp() {
 // A shot never starts with a pot already lined up. If the starting aim (dead centre on the ball with the easiest
 // pot) would light a pocket's ring, turn it the smallest amount (0.5° steps, up to 10° either way) that still hits
 // that ball first but doesn't pot anything the guide would show (the same rule as the guide: guideShownPots).
-const guidePots = angle => GUIDE_PACES.some(pw => guideShownPots(table, angle, pw, aim.spin, aim.side).length > 0);
+// (the guide's early-exit sim, as the ring uses: the full one took up to 69 ms a shot on a desktop, 23 Nov review)
+const guidePots = angle => GUIDE_PACES.some(pw => guidePotsAt(table, angle, pw, aim.spin, GUIDE_KICK, GUIDE_CUSH, aim.side).length > 0);
 function startUnpotted() {
   if (!guidePots(aim.angle)) return;
   const target = table.balls[aim.bi], a0 = aim.angle, c = table.cue;
@@ -294,9 +295,12 @@ function nextBall() {
 let lastTick = 0;
 function setAngle(a) {
   if (phase !== 'aim') return;
-  const before = Math.round(aim.angle / TICK);
+  // the tick counts quarter-degrees from dead centre on the targeted ball, as the readout does (it ticked at absolute
+  // multiples of 0.25°, out of step with the numbers shown: 23 Nov review)
+  const fb = table.balls[aim.bi], base = fb ? Math.atan2(fb.y - table.cue.y, fb.x - table.cue.x) : 0, tick = a => Math.round(Math.atan2(Math.sin(a - base), Math.cos(a - base)) / TICK);
+  const before = tick(aim.angle);
   aim.angle = Math.atan2(Math.sin(a), Math.cos(a));
-  if (Math.round(aim.angle / TICK) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; sfx.tick(); buzz(2); }
+  if (tick(aim.angle) !== before && audio && audio.currentTime - lastTick > 0.03) { lastTick = audio.currentTime; sfx.tick(); buzz(2); }
   updateAimUI();
 }
 const turnAim = da => setAngle(aim.angle + da);
@@ -456,7 +460,8 @@ function contact(d) {
   if (Math.abs(ex) > 0.6 || Math.hypot(tip.x, tip.y) > 0.8 || over > 0.45) return { tip, quality: 'miscue', off: -Math.sign(ex || 1) * 4 * Math.PI / 180, spin: 0, side: 0, power: power * 0.35 };
   const pmax = PUSH_MAX + PUSH_EXTRA * strikeK(), base = GOOD_PUSH * Math.abs(ex) / dist;
   const off = -clamp(ex / dist * over * 6 * pmax / PUSH_MAX + Math.sign(ex) * base, -pmax, pmax) * Math.PI / 180;
-  const spin = lerp(aim.spin, spinFor(tip.y), clamp(over * 2.5, 0, 1)), sd = lerp(aim.side, sideFor(tip.x), clamp(over * 2.5, 0, 1));
+  // (a mis-hit never gives more spin than the spin ball lets you set, spinFor(±0.5): it could give ±0.95, 23 Nov review)
+  const SPIN_MAX = spinFor(-0.5), spin = clamp(lerp(aim.spin, spinFor(tip.y), clamp(over * 2.5, 0, 1)), -SPIN_MAX, SPIN_MAX), sd = clamp(lerp(aim.side, sideFor(tip.x), clamp(over * 2.5, 0, 1)), -SPIN_MAX, SPIN_MAX);
   return { tip, quality: over < r ? 'near' : 'off', off, spin, side: sd, power };
 }
 
@@ -524,7 +529,8 @@ function release() {
   const rescue = first ? null : scratchRescue(angle, ct);
   if (rescue) { ls('dailybreak:scratchSaved', '1'); ct.spin = spinFor(rescue.toY); }
   // Will this shot clear the rack? Then the last ball gets the slow-motion treatment.
-  const sim = simulate(table, angle, ct.power, ct.spin, null, ct.side), sp = sim.shot.pots;
+  // (a Perfect strike plays its own kinder pockets, so it's predicted as one: the slow-motion finish was sometimes wrong)
+  const sim = ct.quality === 'perfect' ? simPerfect(table, angle, ct.power, ct.spin, ct.side) : simulate(table, angle, ct.power, ct.spin, null, ct.side), sp = sim.shot.pots;
   cine = (round.level >= 2 && !sim.remaining() || trickKinds(sim.shot).length) && !sim.shot.scratch && sp.length ? { n: sp[sp.length - 1].ball.n, pocket: sp[sp.length - 1].pocket, hold: 0 } : null;
   strike = { angle, power: ct.power, spin: ct.spin, side: ct.side, t: 0, end: teach ? SHOOT_T + TEACH_T : SHOOT_T };
   // an off-centre strike (Clean included) pushes the line a little: show it bending from the aim to where it really goes

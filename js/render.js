@@ -556,20 +556,33 @@ const spinKind = s => s > 0.2 ? 0 : s < -0.2 ? 2 : 1;
 // The cue ball's first half second after it meets the first ball (or less, if it drops in a pocket).
 // Time, not distance, so a harder hit draws a longer line.
 const PATH_STEPS = 120;
+// (23 Nov review) With side set, the hint runs on past its half second to the next cushion (side shows off a
+// cushion, and it was invisible on a fifth of shots), and a scratch is looked for over the whole shot, not just the part
+// drawn: the X goes where the cue ball drops.
 function cuePath(angle, pw, spin, side = 0) {
   const s = cloneTable(table); s.shoot(angle, pw, spin, side);
-  const pts = []; let hitAt = -1, lx = s.cue.x, ly = s.cue.y;
+  const pts = []; let hitAt = -1, lx = s.cue.x, ly = s.cue.y, drawing = true, cush0 = -1, lastX = s.cue.x, lastY = s.cue.y;
   for (let n = 0; n < 9000 && s.moving(); n++) {
     s.step();
     if (s.cue.potted) break;
+    lastX = s.cue.x; lastY = s.cue.y;
     const jump = Math.hypot(s.cue.x - lx, s.cue.y - ly) > 4 * R; lx = s.cue.x; ly = s.cue.y;
-    if (s.cue.uN) continue;
+    if (s.cue.uN || !drawing) continue;
     if (jump && hitAt >= 0) pts.push(gapPt(s.cue.x, s.cue.y));
     if (hitAt < 0 && s.shot.firstHit) { hitAt = n; pts.push([s.cue.x, s.cue.y]); }
-    else if (hitAt >= 0) { if (n % 3 === 0) pts.push([s.cue.x, s.cue.y]); if (n - hitAt >= PATH_STEPS) break; }
+    else if (hitAt >= 0) {
+      if (n % 3 === 0) pts.push([s.cue.x, s.cue.y]);
+      if (n - hitAt >= PATH_STEPS) {
+        if (Math.abs(side) < 0.1 || n - hitAt >= PATH_STEPS * 3) drawing = false;
+        else if (cush0 < 0) cush0 = s.cue.cush || 0;
+        else if ((s.cue.cush || 0) > cush0) drawing = false;
+        if (!drawing) pts.push([s.cue.x, s.cue.y]);
+      }
+    }
   }
   const scratch = s.cue.potted && hitAt >= 0;
-  if (hitAt >= 0 && !s.cue.potted) pts.push([s.cue.x, s.cue.y]);
+  if (hitAt >= 0 && drawing && !s.cue.potted) pts.push([s.cue.x, s.cue.y]);
+  if (scratch) pts.push(gapPt(lastX, lastY));   // the X marks where it drops
   return { pts: hitAt >= 0 ? pts : [], scratch };
 }
 let spinCache = { key: '', paths: [] };
@@ -649,7 +662,7 @@ function tag(x, y, text, bg, fg, size = 11, below = false) {
 let tunAimWant = false, tunAimFrom = 0;
 function drawAim(t) {
   tunAimWant = false;
-  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) { guideLock.on = false; return; }
+  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) { guideLock.on = false; setPaceBand([]); return; }
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle);
   const fb = table.balls[aim.bi];
   drawSpinPaths();
@@ -695,9 +708,85 @@ function guideShownPots(t, angle, pw, spin, side = 0) {
   if (s.shot.scratch || !b || (s.shot.kickWalls || 0) > GUIDE_KICK) return [];
   return s.shot.pots.filter(q => q.ball === b && guideWalls(s, q.ball, q.pocket) <= GUIDE_CUSH).map(q => q.pocket);
 }
+// (23 Nov review) paces tried in between the guide's own when the line ends in a pocket but none of those pots: some
+// pots only drop at a pace between two of them, and the ring flickered on and off as the aim swept across them
+const GUIDE_PACES_MID = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+// The same shot struck Perfect (its pockets are a touch kinder: Table.step reads shot.perfect). The ring only lights
+// when the pot drops with an ordinary perfect-aim strike AND a Perfect one, so a Perfect strike never misses a lit pot
+// (it did on 2% of lit aims: the bigger pocket changes the rebound).
+function simPerfect(t, angle, pw, spin, side = 0) {
+  const s = cloneTable(t);
+  s.shoot(angle, pw, spin, side); s.shot.perfect = true;
+  for (let n = 0; n < 9000 && s.moving(); n++) s.step();
+  return s;
+}
+const potsPerfect = (angle, pw, spin, side, pocket) => guidePotsAt(table, angle, pw, spin, GUIDE_KICK, GUIDE_CUSH, side, true).includes(pocket);
+// The direction a ball really leaves a bumper or the cat in, from one simulation at your pace (pulling: the pull;
+// otherwise your last pace): the physics pushes a ball out along how far it sank in, which depends on pace, so the
+// mirror-angle line was off by a median 2-3° (up to 23°). Kept for the last aim.
+function bumperBounce(ball, bumper) {
+  const pw = hold ? power : (lastPower || 0.4), bi = table.balls.indexOf(ball), oi = table.bumps.indexOf(bumper);
+  const k = `${aim.angle}:${aim.spin}:${aim.side}:${pw.toFixed(2)}:${bi}:${oi}:${strokes}`;
+  if (guideSim.bounce?.k === k) return guideSim.bounce.d;
+  let d = null;
+  if (bi >= 0 && oi >= 0) {
+    const s = cloneTable(table); s.shoot(aim.angle, pw, aim.spin, aim.side);
+    const sb = s.balls[bi], bm = s.bumps[oi];
+    let near = false;
+    for (let n = 0; n < 3000 && s.moving() && !sb.potted; n++) {
+      s.step();
+      const dd = Math.hypot(sb.x - bm.x, sb.y - bm.y);
+      if (dd < bm.r + R + 1.5) near = true;
+      else if (near) { const l = Math.hypot(sb.vx, sb.vy); if (l > 1) d = [sb.vx / l, sb.vy / l]; break; }
+    }
+  }
+  guideSim.bounce = { k, d };
+  return d;
+}
 // a path point where the line jumps (the ball came out of a tunnel): move there without drawing
 const gapPt = (x, y) => Object.assign([x, y], { gap: true });
 const guideLock = { on: false, at: -9, fired: false };   // the aim on a pot, and when it last flared
+// The pockets the drawn object-ball path ends in or passes near (the guide only simulates when there's one): the same
+// geometry drawGuide draws (into a tunnel and out, one cushion), with no pockets lit yet.
+function guideCandidates(c, dx, dy, hit) {
+  const out = new Set(), was = guideSim.potsInto;
+  guideSim.potsInto = new Set();
+  try {
+    let h = hit, sx = c.x, sy = c.y;
+    if (h.tunnel != null) { const o = tunExit(tunMouths(hole)[1 - h.tunnel]); sx = o.x; sy = o.y; h = trace(table, sx, sy, dx, dy); }
+    if (!h.ball || !isFinite(h.t)) return out;
+    const gx = sx + dx * h.t, gy = sy + dy * h.t, b = h.ball, segs = [];
+    const end = guidePath(b.x, b.y, (b.x - gx) / (2 * R), (b.y - gy) / (2 * R), b, segs);
+    if (end != null) { out.add(end); out.ends = end; }
+    table.pk.forEach((p, i) => {
+      if (!table.openPocket(i)) return;
+      for (const [ax, ay, bx, by] of segs) {
+        const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1, u = clamp(((p.x - ax) * ex + (p.y - ay) * ey) / L2, 0, 1);
+        if (Math.hypot(ax + ex * u - p.x, ay + ey * u - p.y) < p.cap + 1.5 * R) { out.add(i); break; }
+      }
+    });
+  } finally { guideSim.potsInto = was; }
+  return out;
+}
+let guidePath = null;   // (set by drawGuide: its objPath, for guideCandidates)
+// Work through the current aim's paces (guideSim.res.todo), at least one and then as many as fit in GUIDE_BUDGET ms.
+// A pace adds the pockets the followed ball drops into, struck perfectly and Perfect. If none of the paces pots into
+// the pocket the line ends in, the in-between paces are tried too (some pots only drop between two guide paces).
+const GUIDE_BUDGET = 3;
+function stepGuide(sp, sd) {
+  const res = guideSim.res, t0 = performance.now();
+  if (!res) return;
+  while (res.todo.length && (performance.now() - t0 < GUIDE_BUDGET || res.todo.length === (res.mid ? GUIDE_PACES_MID : GUIDE_PACES).length)) {
+    const pw = res.todo.shift();
+    for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH, sd)) {
+      if (!potsPerfect(aim.angle, pw, sp, sd, i)) continue;
+      res.pots.add(i);
+      if (!res.paces.has(i)) res.paces.set(i, []);
+      const v = res.paces.get(i); v.push(pw); v.sort((a, b) => a - b);
+    }
+    if (!res.todo.length && !res.mid && res.ends != null && !res.pots.has(res.ends)) { res.mid = true; res.todo = [...GUIDE_PACES_MID]; }
+  }
+}
 function drawGuide(c, dx, dy, hit, t) {
   // kept subtle (GUIDE_A scales every line): a hint on the cloth, not the brightest thing on the table
   const dash = (ax, ay, bx, by, a) => { ctx.save(); ctx.setLineDash([5, 8]); ctx.strokeStyle = `rgba(251,248,240,${a * GUIDE_A})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore(); };
@@ -735,21 +824,6 @@ function drawGuide(c, dx, dy, hit, t) {
   // the line didn't go near while you aimed).
   // Each pace's sim stops as soon as its answer is settled (guidePotsAt), and the answers for the last few hundred aims
   // on this table are kept, so working the aim back and forth over the same spot doesn't simulate it again.
-  const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}:${sd.toFixed(2)}`;
-  if (guideSim.key !== key) {
-    // (kept only while the table is the same one with every ball where it was)
-    const at = [table.cue, ...table.balls].map(b => b.potted ? '-' : `${b.x},${b.y}`).join(';') + `;${table.gp}`;
-    if (guideSim.memoOf !== table || guideSim.memoAt !== at) { guideSim.memoOf = table; guideSim.memoAt = at; guideSim.memo = new Map(); }
-    const mkey = `${aim.angle}:${sp}:${sd}`;   // the exact inputs the sims see
-    let pots = guideSim.memo.get(mkey);
-    if (!pots) {
-      pots = new Set();
-      for (const pw of GUIDE_PACES) for (const i of guidePotsAt(table, aim.angle, pw, sp, GUIDE_KICK, GUIDE_CUSH, sd)) pots.add(i);
-      if (guideSim.memo.size >= 400) guideSim.memo.delete(guideSim.memo.keys().next().value);
-      guideSim.memo.set(mkey, pots);
-    }
-    guideSim.key = key; guideSim.potsInto = pots;
-  }
   // The ring and the bright line are one signal, decided once the line is drawn (finishGuide, below): they light
   // only when the pocket the line goes into is one the ball really drops into at some pace.
   guideSim.pks = [];
@@ -760,7 +834,7 @@ function drawGuide(c, dx, dy, hit, t) {
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(255,210,120,1)'; ctx.shadowBlur = (14 + 22 * flare) * view.s * view.dpr;
     ctx.strokeStyle = `rgba(255,246,222,${0.9 + 0.1 * flare})`; ctx.lineWidth = 3.5 + 4 * flare;
-    for (let n = 0; n < 2; n++) { ctx.beginPath(); for (const [ax, ay, bx, by] of segs) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); } ctx.stroke(); }
+    ctx.beginPath(); for (const [ax, ay, bx, by] of segs) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); } ctx.stroke();
     ctx.shadowBlur = 0;
     // the shimmer: one bright band travelling the whole path towards the pocket
     const lens = segs.map(([ax, ay, bx, by]) => Math.hypot(bx - ax, by - ay)), total = lens.reduce((x, y) => x + y, 0) || 1, at = ((t * 0.55) % 1) * total;
@@ -805,16 +879,25 @@ function drawGuide(c, dx, dy, hit, t) {
       const o = tunExit(tunMouths(hole)[1 - h.tunnel]);
       return objPath(o.x, o.y, ux, uy, skip, 0, depth + 1, leg, segs);
     }
+    // a line that stops in the jaws of a pocket the ball really drops into goes in (it ended ~3 px short on steep
+    // approaches to a corner, and those pots stayed dark: 23 Nov review)
+    const jp = [...guideSim.potsInto].find(i => jawOf(table, i, x, y));
+    if (jp != null) return jp;
     // a full line to the first thing it meets; off a cushion (or bumper) it carries on for one more leg, then stops
     if (leg > 0 || h.ball || h.tunnel != null) return null;
     let nx = h.nx, ny = h.ny;
     if (h.bumper) { const d = Math.hypot(x - h.bumper.x, y - h.bumper.y) || 1; nx = (x - h.bumper.x) / d; ny = (y - h.bumper.y) / d; }
     if (nx == null || table.pk.some(p => Math.hypot(p.x - x, p.y - y) < p.cap + R * 2.5)) return null;   // a bar, or a pocket's jaws
-    // off the cushion as the physics does it: the speed into it drops to e of itself, the speed along it is kept
+    // off the cushion as the physics does it: the speed into it drops to e of itself, the speed along it is kept;
+    // off a bumper or the cat, the way a simulation at your pace says it goes (bumperBounce)
     const k = ux * nx + uy * ny, e = h.bumper ? (h.bumper.cat ? CAT_E : BUMPER_E) : CUSHION_E;
-    const rx = ux - (1 + e) * k * nx, ry = uy - (1 + e) * k * ny, rl = Math.hypot(rx, ry) || 1;
+    let rx = ux - (1 + e) * k * nx, ry = uy - (1 + e) * k * ny;
+    const bd = h.bumper && skip ? bumperBounce(skip, h.bumper) : null;
+    if (bd) [rx, ry] = bd;
+    const rl = Math.hypot(rx, ry) || 1;
     return objPath(x + nx * 0.5, y + ny * 0.5, rx / rl, ry / rl, skip, 0, depth, leg + 1, segs);
   };
+  guidePath = (px, py, ux, uy, skip, segs) => objPath(px, py, ux, uy, skip, 0, 0, 0, segs);
   const objLine = (px, py, ux, uy, skip, from) => {
     const segs = [], end = objPath(px, py, ux, uy, skip, from, 0, 0, segs);
     if (end != null && guideSim.potsInto.has(end)) { guideSim.pks = [end]; onTargetPath(segs); return; }
@@ -838,7 +921,31 @@ function drawGuide(c, dx, dy, hit, t) {
       }
     }
     guideSim.pks.forEach(ringPocket);
+    setPaceBand(guideSim.pks.length ? guideSim.paces?.get(guideSim.pks[0]) || [] : []);
   };
+  const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}:${sd.toFixed(2)}`;
+  if (guideSim.key !== key) {
+    // (kept only while the table is the same one with every ball where it was)
+    const at = [table.cue, ...table.balls].map(b => b.potted ? '-' : `${b.x},${b.y}`).join(';') + `;${table.gp}`;
+    if (guideSim.memoOf !== table || guideSim.memoAt !== at) { guideSim.memoOf = table; guideSim.memoAt = at; guideSim.memo = new Map(); }
+    const mkey = `${aim.angle}:${sp}:${sd}`;   // the exact inputs the sims see
+    let res = guideSim.memo.get(mkey);
+    if (!res) {
+      // (23 Nov review: 9 sims every time the aim moved stuttered the guide to ~12 fps on a phone during fine aiming)
+      // The sims only run when the drawn object-ball path ends in, or passes close to, a pocket: most aims don't, and
+      // a pot the ring could light runs along the drawn path. The paces are tried nearest your pull first, a few each
+      // frame within GUIDE_BUDGET ms (stepGuide), so the ring lights as soon as one drops and the rest of the pace band
+      // fills in over the next frames.
+      const cands = guideCandidates(c, dx, dy, hit), pw0 = hold ? power : (lastPower || 0.4);
+      res = { pots: new Set(), paces: new Map(), cands, ends: cands.ends, todo: cands.size ? [...GUIDE_PACES].sort((x, y) => Math.abs(x - pw0) - Math.abs(y - pw0)) : [], mid: false };
+      if (guideSim.memo.size >= 400) guideSim.memo.delete(guideSim.memo.keys().next().value);
+      guideSim.memo.set(mkey, res);
+    }
+    guideSim.res = res;
+    guideSim.key = key;
+  }
+  stepGuide(sp, sd);
+  guideSim.potsInto = guideSim.res.pots; guideSim.paces = guideSim.res.paces;
   if (hit.tunnel != null) {
     // into a tunnel: the line stops at the mouth, the far end glows, and the line carries on out of it on the same
     // heading (the ball always leaves the far mouth heading the way it went in)
