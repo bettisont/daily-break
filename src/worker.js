@@ -13,9 +13,14 @@
 //                   so the result card can say "better than X% of today's players". With &mode=par:
 //                   { players, scores: { "<score to par>": count } }. With &mode=trial: { players, scores:
 //                   { "<points, rounded down to 100>": count } }.
+// POST /api/card?points=N&day=YYYY-MM-DD|practice  a timed run's share card for link previews (23 Nov): the body is
+//                   the PNG the game drew, exactly 1200x630 and at most 300 KB (checked from its header). Kept in the
+//                   ShareCards Durable Object for 30 days, with nothing about who sent it. Replies {id}.
+// GET  /r/<id>      a tiny page whose link preview (og:image) is that card; a person opening it goes on to the
+//                   game. GET /r/<id>.png is the card itself. An unknown or expired id redirects to the game.
 // Rate limits (Workers Rate Limiting, keyed on the client IP, which is never logged or stored here):
 //                   /api/result 5 per minute (else 429 {error: 'slow down'}), /api/event 30 per minute (else
-//                   429, no body). A real player sends one result and ~10 events a day. If the binding is
+//                   429, no body); /api/card 5 per minute. A real player sends one result and ~10 events a day. If the binding is
 //                   missing (local dev) or fails, the request is allowed.
 import { DurableObject } from 'cloudflare:workers';
 
@@ -63,6 +68,65 @@ export class DayCounts extends DurableObject {
     await this.ctx.storage.put(key, scores);
     return { players: Object.values(scores).reduce((a, b) => a + b, 0), scores };
   }
+}
+// Share cards (23 Nov): the images behind /r/<id> link previews. Meta ('m:' + id: when, points, day) and the image
+// ('i:' + id) are kept apart so the daily clean-up (alarm) reads only the small records. 30 days, then gone.
+const CARD_DAYS = 30, CARD_MAX = 300_000, CARD_W = 1200, CARD_H = 630;
+export class ShareCards extends DurableObject {
+  async put(id, img, meta) {
+    await this.ctx.storage.put({ ['i:' + id]: img, ['m:' + id]: { ...meta, at: Date.now() } });
+    if (!(await this.ctx.storage.getAlarm())) await this.ctx.storage.setAlarm(Date.now() + 864e5);
+  }
+  async meta(id) {
+    const m = await this.ctx.storage.get('m:' + id);
+    return m && Date.now() - m.at < CARD_DAYS * 864e5 ? m : null;
+  }
+  async image(id) { return (await this.meta(id)) ? this.ctx.storage.get('i:' + id) : null; }
+  async alarm() {
+    const old = [], cut = Date.now() - CARD_DAYS * 864e5;
+    for (const [k, m] of await this.ctx.storage.list({ prefix: 'm:' })) if (m.at < cut) old.push(k, 'i:' + k.slice(2));
+    for (let i = 0; i < old.length; i += 128) await this.ctx.storage.delete(old.slice(i, i + 128));
+    if ((await this.ctx.storage.list({ prefix: 'm:', limit: 1 })).size) await this.ctx.storage.setAlarm(Date.now() + 864e5);
+  }
+}
+const cards = env => env.CARDS.get(env.CARDS.idFromName('cards'));
+function newCardId() {
+  const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', b = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(b, x => abc[x % abc.length]).join('');
+}
+// a real PNG of exactly the card's size: the signature, then the IHDR chunk's width and height
+function isCardPng(buf) {
+  const b = new Uint8Array(buf), sig = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (b.length < 33 || sig.some((v, i) => b[i] !== v)) return false;
+  const dv = new DataView(buf);
+  return String.fromCharCode(...b.slice(12, 16)) === 'IHDR' && dv.getUint32(16) === CARD_W && dv.getUint32(20) === CARD_H;
+}
+async function saveCard(request, env, url) {
+  const points = Number(url.searchParams.get('points')), day = url.searchParams.get('day') || '';
+  if (!int(points, 0, TRIAL_MAX) || !(day === 'practice' || (DAY.test(day) && dayIsCurrent(day)))) return json({ error: 'bad card' }, 400);
+  if (Number(request.headers.get('content-length') || 0) > CARD_MAX) return json({ error: 'too big' }, 413);
+  const buf = await request.arrayBuffer();
+  if (buf.byteLength > CARD_MAX) return json({ error: 'too big' }, 413);
+  if (!isCardPng(buf)) return json({ error: 'not a card' }, 400);
+  const id = newCardId();
+  await cards(env).put(id, buf, { points, day });
+  return json({ id });
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+async function cardPage(env, id) {
+  const m = await cards(env).meta(id);
+  if (!m) return Response.redirect('https://' + HOST + '/', 302);
+  const pts = m.points.toLocaleString('en-US'), title = `${pts} points on Daily Break`, img = `https://${HOST}/r/${id}.png`;
+  const desc = 'A new two-minute pool run every day, the same tables for everyone. Can you beat it?';
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Daily Break">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}">
+<meta property="og:url" content="https://${HOST}/r/${id}"><meta property="og:image" content="${img}">
+<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="${CARD_W}"><meta property="og:image:height" content="${CARD_H}">
+<meta property="og:image:alt" content="${esc(title)}"><meta name="twitter:card" content="summary_large_image">
+<meta http-equiv="refresh" content="0;url=/"></head><body style="background:#120f24"><script>location.replace('/')</script></body></html>`;
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' } });
 }
 const STEPS = new Set(['open', 'opennew', 'openback', 'intro', 'pull', 'shot', 'clear1', 'level3', 'finish', 'left']);
 const WHERE = new Set(['intro', 'table', 'pulled']);
@@ -123,6 +187,18 @@ export default {
       if (request.method !== 'POST') return new Response('POST only', { status: 405, headers: { allow: 'POST' } });
       if (!(await allowed(env.EVENT_LIMIT, request))) return new Response(null, { status: 429 });
       return recordEvent(request, env);
+    }
+    if (url.pathname === '/api/card') {
+      if (request.method !== 'POST') return new Response('POST only', { status: 405, headers: { allow: 'POST' } });
+      if (!(await allowed(env.CARD_LIMIT, request))) return json({ error: 'slow down' }, 429);
+      return saveCard(request, env, url);
+    }
+    const share = url.pathname.match(/^\/r\/([A-Za-z0-9]{10})(\.png)?$/);
+    if (share) {
+      if (!share[2]) return cardPage(env, share[1]);
+      const img = await cards(env).image(share[1]);
+      if (!img) return new Response('not found', { status: 404 });
+      return new Response(img, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=2592000, immutable' } });
     }
     if (url.pathname === '/api/day') {
       const day = url.searchParams.get('day') || '';

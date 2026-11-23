@@ -11,6 +11,15 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **Link previews with your card** (playtest: the image should show when you just share the link): the game draws
+  a landscape 1200x630 copy of the card (`drawPreviewCard`) and uploads it once a run (`uploadPreview`, POST
+  /api/card, only on dailybreak.app); the share text then links to dailybreak.app/r/<id>, a tiny page whose og:image
+  is that card (chat apps show it; a person opening it goes on to the game). The worker keeps cards in a new
+  ShareCards Durable Object (migration v2) for 30 days (a daily alarm clears older ones), takes only PNGs of exactly
+  1200x630 up to 300 KB, 5 uploads a minute per IP (`CARD_LIMIT`), and stores nothing about the sender. Chosen over
+  drawing cards on the server (no image library or paid plan needed); the known risk is that someone could upload
+  any 1200x630 picture and get a dailybreak.app/r/ link that previews it, limited by the checks, the rate limit and
+  the expiry.
 - **Copy image** on the result card (`copyShareCard`), where the browser can put an image on the clipboard: the
   share card, to paste into any chat.
 - **A new share** (`trickShareText`, `multStrip`; the image card `shareCard` / `drawShareCard` in ui.js): the text

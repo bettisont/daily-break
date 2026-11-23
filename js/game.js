@@ -989,7 +989,7 @@ function trickShareText(r) {
   return [`DAILY BREAK · ${isDailySeed(r.seed) ? dayLabel(r.seed).toUpperCase() : 'PRACTICE'}`,
     `${fmtPts(r.points || 0)} points · ${n} table${n === 1 ? '' : 's'}`,
     `best ${fmtMult(r.bestMult || 1)}${best ? ` · best shot ${fmtPts(best.pts)}` : ''}`,
-    ...(strip ? [strip] : []), ...(rank ? [rank] : []), gameUrl()].join('\n');
+    ...(strip ? [strip] : []), ...(rank ? [rank] : []), r.shareId ? `${SITE_URL.replace(/\/$/, '')}/r/${r.shareId}` : gameUrl()].join('\n');
 }
 // each shot's multiplier as a bar, x1 lowest up to the run's own peak (at least x3, so a short run doesn't look
 // huge): runs reach x15, so a fixed scale would show most of a good run as full bars. A long run is squeezed to 24
