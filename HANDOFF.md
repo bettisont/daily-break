@@ -86,8 +86,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     the "Points" label hides under 370 px). Info bar: "Table 5 · 3 balls left", the multiplier meter,
     labelled "Mult" (`updateStreakMeter` shows `meterShown`, held while a tally applies the old value; when the tally
     lands, each cause in `multWhy` flies from the tally into it as a chip and it ticks up per chip (`meterGain`);
-    `showMultWhy` tags "½ miss" / "foul: reset" on a drop; full at x5; `crackStreakMeter` when it drains) and the tilt. The lamp warms with the multiplier
-    (`drawLampWarmth`). Between tables a short "Table N" banner.
+    `showMultWhy` tags "½ miss" / "foul: reset" on a drop; full at x5; `crackStreakMeter` when it drains) and the tilt. (No lamp warmth or meter glow since 23 Nov.)
+    Between tables a short "Table N" banner.
   - **Results.** `round.cards` holds one `{pts, tricks}` per cleared table; `round.bestMult`, `round.bestShot`. Card
     (`trickFinalHtml`): points, tables cleared and best multiplier, best shot, the rank line, "Practice run" (or "New
     run" under `?trick`: unlimited, `newRound(random, false)`, no practice used), and points stats (`statsHtml(true)`).
