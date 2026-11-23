@@ -47,8 +47,9 @@ const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 // shot limit and no way to skip. At zero you get one last shot. Scoring: a pot is 100, each trick element on the shot
 // adds 200 (an extra ball in one shot, a bank, a combination, a tunnel, a cannon, a target crossed before anything
 // drops) or 100 (a kick), the first pot into a table's golden pocket doubles the shot, and the shot is multiplied by
-// the multiplier (hs.mult). That starts at x1 and has no cap: each potting shot then adds 0.5 to it, each trick in it
-// 0.1 more and the golden pocket 0.2 (for the shots after it); a miss halves the part above x1, a foul resets it.
+// the multiplier (hs.mult). That starts at x1 and has no cap: each potting shot first adds 0.5 to it, each trick in it
+// 0.1 more and the golden pocket 0.2, and the shot is then multiplied by the new value; a miss halves the part above
+// x1, a foul resets it.
 // Why: flair went unrewarded under par, too many players tied, and a run against the clock suits trick shots better
 // than a stroke budget did. Tried behind ?trick first (unranked; sends and saves nothing); RULES.TRICK_SCORE_FROM
 // switches the daily game over once that date is set. (A six-hole version with stroke budgets came first, 22 Nov.)

@@ -11,8 +11,10 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   each day (`makeHole(seed, n)`, so tables 1-6 are the old holes). The clock stops while the balls roll, the score
   tallies and the next table deals in; at zero, one last shot. No shot limits, no skipping, and misses and fouls cost
   no time.
-- **One multiplier meter, no cap** (`hs.mult`): each potting shot adds 0.5, each trick 0.1, the golden pocket 0.2, for
-  the shots after it; a miss halves the part above x1, a foul resets it. It replaces the x1-x3 pot streak.
+- **One multiplier meter, no cap** (`hs.mult`): each potting shot adds 0.5, each trick 0.1, the golden pocket 0.2; a
+  miss halves the part above x1, a foul resets it. It replaces the x1-x3 pot streak. (Later the same day, after a
+  playtest: a shot raises the multiplier first and is then multiplied by the new value, so the first pot of a run
+  scores x1.5; the tally shows the causes flying into the meter, then the new value slamming in.)
 - **Quick is gone** (the clock rewards speed), with its ring.
 - **Screen**: the clock in the header (red with ticks for the last 10 s, then "Last shot"), "Table 5 · 3 balls left",
   the meter full at x5; "Time's up" card with points, tables cleared, best multiplier and best shot; share "Daily Break

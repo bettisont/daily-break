@@ -166,8 +166,9 @@ const tests = {
         r0();
         window.__shots++;
         const gain = hs.points - pts, round2 = v => Math.round(v * 100) / 100;
-        const want = foul || !pots ? 0 : Math.round((100 * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * (t.gold ? 2 : 1) * m);
+        // a potting shot raises the multiplier first and is multiplied by the new value (23 Nov)
         const wantM = foul ? 1 : !pots ? round2(1 + (m - 1) / 2) : round2(m + 0.5 + 0.1 * t.parts.length + (t.gold ? 0.2 : 0));
+        const want = foul || !pots ? 0 : Math.round((100 * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * (t.gold ? 2 : 1) * wantM);
         if (gain !== want || Math.abs(hs.mult - wantM) > 1e-9) window.__bad.push(`shot ${window.__shots}: +${gain} (want +${want}), x${hs.mult} (want x${wantM}), parts ${t.parts}, gold ${t.gold}, foul ${foul}`);
       };
       trialLeft = 5;

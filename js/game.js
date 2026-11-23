@@ -656,12 +656,13 @@ function breakStreak(foul) {
 function scoreTrick() {
   const t = tshot || { parts: [], gold: false };
   hs.streak++; round.bestStreak = Math.max(round.bestStreak, hs.streak);
-  // the shot is multiplied by the multiplier built by the shots before it; then this shot raises it for the next
-  const pots = shotLog.length, mult = roundMult(hs.mult), gold = t.gold ? 2 : 1;
-  const gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * gold * mult);
-  hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
+  // The shot raises the multiplier first, then is multiplied by the new value (23 Nov playtest: a good shot should
+  // benefit straight away from what it builds; it used to raise it only for the next shot)
+  const pots = shotLog.length, gold = t.gold ? 2 : 1, multFrom = roundMult(hs.mult);
   hs.mult = roundMult(hs.mult + MULT.pot + MULT.trick * t.parts.length + (t.gold ? MULT.gold : 0));
-  // why it rose, said quietly under the meter once the tally has landed (23 Nov playtest)
+  const mult = hs.mult, gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * gold * mult);
+  hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
+  // why it rose: each cause flies into the meter during the tally, before the new multiplier is applied
   const kinds = [...new Set(t.parts)], word = k => k === 'Extra' ? (t.balls >= 3 ? 'triple' : 'double') : k.toLowerCase();
   multWhy = [{ inc: MULT.pot, label: 'pot' }, ...kinds.map(k => { const c = t.parts.filter(p => p === k).length; return { inc: roundMult(MULT.trick * c), label: `${word(k)}${c > 1 && k !== 'Extra' ? 's' : ''}` }; }), ...(t.gold ? [{ inc: MULT.gold, label: 'golden' }] : [])];
   round.bestMult = Math.max(round.bestMult || 1, hs.mult);
@@ -670,8 +671,8 @@ function scoreTrick() {
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
   if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
-  const muls = [...(t.gold ? [['Golden', 2, 'into the golden pocket']] : []), ...(mult > 1 ? [['Mult', mult, 'your multiplier, built by the pots and tricks before this shot']] : [])];
-  showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots, pots === 1 ? '1 ball potted' : `${pots} balls potted`], items, muls, gain);
+  const muls = [...(t.gold ? [['Golden', 2, 'into the golden pocket']] : []), ['Mult', mult, `your multiplier: ${fmtMult(multFrom)} before this shot, raised by it to ${fmtMult(mult)}`]];
+  showTally([pots === 1 ? 'Pot' : `${pots} pots`, TRICK_PTS.pot * pots, pots === 1 ? '1 ball potted' : `${pots} balls potted`], items, muls, gain, multFrom);
 }
 // what each element is for, in the breakdown behind the Points chip
 const TRICK_WHY = { Bank: 'the ball came off a cushion', Kick: 'the cue ball hit a cushion first', Combo: 'potted by another ball', Tunnel: 'through the tunnel', Cannon: 'the cue ball hit two balls', Target: 'through a moving target' };
@@ -738,7 +739,7 @@ function tallyBand() {
   }
   return best;
 }
-function showTally([baseLabel, base, baseWhy], items, muls, gain) {
+function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = meterShown) {
   endTally();
   logShot([baseLabel, base, baseWhy], items, muls, gain);
   const cr = canvas.getBoundingClientRect(), ty = tallyBand();
@@ -767,10 +768,40 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
   };
   // (every step's from and to are worked out now, not when its timer fires)
   items.forEach(([label, pts], i) => { const from = now, to = now + pts; addIn(pts, label, i, () => rollNum(n, from, to, 180)); now = to; });
+  // Why the multiplier grows, one cause at a time (23 Nov playtest: it should be clear what raises it): each cause
+  // ("+0.5 POT", "+0.1 BANK", "+0.2 GOLDEN") pops up where the tally was and flies into the Mult meter, which ticks up
+  // as it lands (x2.5 -> x3.0 -> x3.1 -> x3.3) with a climbing note and a pulse.
+  const why = (multWhy || []).slice(); multWhy = null;
+  const causes = () => {
+  let mNow = multFrom;
+  why.forEach(({ inc, label }, j) => {
+    const chip = document.createElement('div');
+    const to = j === why.length - 1 ? roundMult(hs.mult) : roundMult(mNow + inc);
+    at(t, () => {
+      chip.className = `mchip${label === 'golden' ? ' gold' : label === 'pot' ? '' : ' trick'}`; chip.innerHTML = `+${inc} <small>${label}</small>`;
+      const r = box.getBoundingClientRect(); chip.style.left = `${r.left + r.width / 2}px`; chip.style.top = `${r.bottom + 26}px`;
+      document.body.appendChild(chip);
+      tone(note(j), 0.07, 0.03, 'triangle', 1, 0, 0.2);
+    });
+    at(t + 260, () => {
+      const m = $('smX'), a = chip.getBoundingClientRect(), b = m ? m.getBoundingClientRect() : a;
+      chip.classList.add('fly');
+      chip.style.transform = `translate(-50%,-50%) translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.5)`;
+    });
+    at(t + 560, () => {
+      chip.remove(); meterShown = to; updateStreakMeter(meterShown); meterGain();
+      tone(note(j + 2) * 2, 0.16, 0.05, 'sine', 1, 0, 0.5); tone(note(j + 2) * 3, 0.12, 0.02, 'sine', 1, 0.02, 0.5); buzz(8);
+    });
+    mNow = to;
+    t += 330;
+  });
+  t += 150;
+  };
   // each multiplier, slot-machine style: "x2.5 STREAK" slams in beside the number (the streak meter flashes: that's
   // where it comes from), the digits spin like reels and stop left to right on the new total, and it lands with a
   // tuned chime and a golden bloom
   muls.forEach(([label, m], i) => {
+    if (label === 'Mult') causes();   // the multiplier goes up first, then the new value is applied
     const chip = document.createElement('span'), to = i === muls.length - 1 ? gain : now * m, from = now;
     t += 150;
     at(t, () => {
@@ -804,33 +835,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain) {
     const pv = $('ptsVal'); if (pv) { pv.classList.remove('bump'); void pv.offsetWidth; pv.classList.add('bump'); }
   });
   t += 800;
-  // Then why the multiplier grows, one cause at a time (23 Nov playtest: it should be clear what raises it): each cause
-  // ("+0.5 POT", "+0.1 BANK", "+0.2 GOLDEN") pops up where the tally was and flies into the Mult meter, which ticks up
-  // as it lands (x2.5 -> x3.0 -> x3.1 -> x3.3) with a climbing note and a pulse.
-  const why = (multWhy || []).slice(); multWhy = null;
-  let mNow = meterShown;
-  why.forEach(({ inc, label }, j) => {
-    const chip = document.createElement('div');
-    const to = j === why.length - 1 ? roundMult(hs.mult) : roundMult(mNow + inc);
-    at(t, () => {
-      chip.className = `mchip${label === 'golden' ? ' gold' : label === 'pot' ? '' : ' trick'}`; chip.innerHTML = `+${inc} <small>${label}</small>`;
-      chip.style.left = el.style.left; chip.style.top = el.style.top;
-      document.body.appendChild(chip);
-      tone(note(j), 0.07, 0.03, 'triangle', 1, 0, 0.2);
-    });
-    at(t + 260, () => {
-      const m = $('smX'), a = chip.getBoundingClientRect(), b = m ? m.getBoundingClientRect() : a;
-      chip.classList.add('fly');
-      chip.style.transform = `translate(-50%,-50%) translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(.5)`;
-    });
-    at(t + 560, () => {
-      chip.remove(); meterShown = to; updateStreakMeter(meterShown); meterGain();
-      tone(note(j + 2) * 2, 0.16, 0.05, 'sine', 1, 0, 0.5); tone(note(j + 2) * 3, 0.12, 0.02, 'sine', 1, 0.02, 0.5); buzz(8);
-    });
-    mNow = to;
-    t += 330;
-  });
-  at(t + (why.length ? 420 : 0), () => {
+  at(t + 200, () => {
     endTally();
     // once per device, and not as a hole ends (it would sit over the next hole's banner): where the explanation is
     if (phase === 'aim' && !ls('dailybreak:shotLogTip')) { ls('dailybreak:shotLogTip', '1'); $('ptsChip')?.classList.add('tip'); float(W / 2, H * 0.2, 'Tap Points to see how it added up', '#2f6b4f', 18, 3); }

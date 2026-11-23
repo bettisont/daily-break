@@ -43,8 +43,9 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     reads "Last shot", `sfx.lastShot`); that shot plays out and scores, then `endWhenTallied` -> `endRound`. Last ten
     seconds: the chip turns red and `sfx.clockTick` ticks each second.
   - **Scoring** (`scoreTrick`, `TRICK_PTS`, `partPts`). A pot is 100; each trick element +200 (kick +100); the first
-    pot into a table's golden pocket doubles the shot; times `hs.mult`, the multiplier built by the shots before it.
-    Then the shot raises it: `MULT.pot` 0.5 + `MULT.trick` 0.1 per element + `MULT.gold` 0.2, no cap. `breakStreak`: a
+    pot into a table's golden pocket doubles the shot. The shot first raises `hs.mult` (`MULT.pot` 0.5 + `MULT.trick`
+    0.1 per element + `MULT.gold` 0.2, no cap) and is then multiplied by the new value (since 23 Nov; it used to raise
+    it only for the next shot). In the tally the causes fly into the meter before the new multiplier is applied. `breakStreak`: a
     miss halves the part above x1 (`roundMult(1 + (m - 1) / 2)`), a foul resets it to x1; a foul's pots score 0 and it
     costs no time. Clearing a table scores nothing extra. No tap-ins, no stroke back, no replays, no lessons.
   - **Tricks** are counted as each ball drops (`trickDrop`, into `tshot`), and that list is what gets scored: an extra

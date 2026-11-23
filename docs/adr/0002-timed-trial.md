@@ -15,8 +15,8 @@ is a golf idea. Playtests asked for a timed element and for chains of good shots
 - **The tables.** One seeded sequence per day, the same for everyone: table n is built like hole n (tables 1-6 are the
   old holes). Clear a table and the next comes. There's no shot limit and no skip.
 - **Scoring.** As ADR 0001, with Quick dropped (the clock rewards speed). The multiplier is one meter with no cap: each
-  potting shot adds 0.5, each trick 0.1 and the golden pocket 0.2, for the shots after it. A miss halves what's above
-  x1; a foul resets it. Misses and fouls cost no time.
+  potting shot adds 0.5, each trick 0.1 and the golden pocket 0.2, and the shot is then multiplied by the new value.
+  A miss halves what's above x1; a foul resets it. Misses and fouls cost no time.
 - **Runs.** One ranked run a day, unlimited practice runs, and a run resumes exactly after a reload.
 - **Results.** Points, tables cleared, best multiplier and best shot. The share text has the points, the tables and
   "Beat N% of today's players", with no player count.
