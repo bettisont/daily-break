@@ -295,7 +295,22 @@ function drawTableCat(t, dt) {
   const c = table?.cat;
   if (!c) return;
   const near = table.live().some(b => (b.vx || b.vy) && Math.hypot(b.x - c.x, b.y - c.y) < 230);
+  // the hop: up quickly as a moving ball comes within reach, down again once it has gone by; while up it's drawn over
+  // the balls (drawCatHop, after them), so the ball rolls underneath
+  const close = table.live().some(b => (b.vx || b.vy) && Math.hypot(b.x - c.x, b.y - c.y) < CAT_R + R + 45);
+  const was = c.hop || 0;
+  c.hop = close ? Math.min(1, was + dt * 9) : Math.max(0, was - dt * 4);
+  if (close && was === 0) { tone(700, 0.12, 0.03, 'triangle', 1.5, 0, 0.2); buzz(6); }   // a little "mrrp" as it springs
+  if (c.hop > 0.01) return;
   drawCatBody(c.x, c.y, c.rot, CAT_SC * (1 + catFlash * 0.1), t, near || catFlash > 0 || catStartle > 0.05, near ? catLook(c.x, c.y, c.rot, CAT_SC) : 0, catStartle);
+}
+function drawCatHop(t) {
+  const c = table?.cat;
+  if (!c || catAnim || !(c.hop > 0.01)) return;
+  const e = c.hop * c.hop * (3 - 2 * c.hop), lift = e * 34;
+  // its shadow stays on the felt, smaller and fainter the higher it goes
+  ctx.globalAlpha = 0.5 * (1 - e * 0.5); ctx.drawImage(SOFT_SHADOW, c.x - 46 * (1 - e * 0.3), c.y - 34 * (1 - e * 0.3), 92 * (1 - e * 0.3), 76 * (1 - e * 0.3)); ctx.globalAlpha = 1;
+  drawCatBody(c.x, c.y - lift, c.rot, CAT_SC * (1 + e * 0.18), t, true, catLook(c.x, c.y, c.rot, CAT_SC), 0);
 }
 function meow() { tone(560, 0.18, 0.05, 'triangle', 1.45, 0, 0.3); tone(810, 0.3, 0.045, 'triangle', 0.62, 0.14, 0.3); }
 function catSpotFree(t, x, y) {
@@ -1318,6 +1333,7 @@ function draw(t, dt) {
     for (const [b, k] of tunPop) { const n = k + dt / 0.38; if (n > 1.4) tunPop.delete(b); else tunPop.set(b, n); }
     for (const b of table.balls) if (!b.potted && !b.uN) drawLiveBall(b);
     if (!table.cue.potted && !table.cue.uN) drawLiveBall(table.cue);
+    drawCatHop(t);   // (a hopping cat is over the balls)
   }
   // the cue drives on through where the cue ball was, then eases back and fades
   if (follow && follow.t < 0.5) {

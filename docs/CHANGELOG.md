@@ -11,6 +11,19 @@ history under the commit named).
   screen's edges on pots is off.
 - **No flashing in the tally at all** (playtest: "still flashing"): the full-screen white flash on x3+ is gone (the
   shake stays), and the Mult meter doesn't flash its background; its number just grows for a moment.
+- **Catapult: +100 when a ball you pot rolled under the jumping cat** (playtest). The physics notes each ball that
+  passes under the hopping cat once a shot (`shot.catUnder`, only when the cat is out of the bumps, so course
+  generation never sees it); a pot by one of those scores +100 (`TRICK_PTS.catapult`), points only, once a shot.
+  CATAPULT! slams in by the pocket (after ROCKET! if both) with a meow; the tally shows "+100 CATAPULT".
+- **Rocket: +100 for a full-power pot** (playtest; named so it isn't mixed up with Cannon): a shot with the cue
+  pulled all the way back (`tshot.rocket`, power 1) that pots scores +100 (`TRICK_PTS.rocket`), points only like a
+  long pot (no multiplier rise). ROCKET! slams in by the pocket as the first ball drops (`slamWord`, split out of
+  `bigMoment`); the tally shows "+100 ROCKET". The trial test now tries full power every third shot and checks it.
+- **The cat hops over the balls** (playtest: it got in the way and was annoying). In play it is out of the physics
+  (`table.bumps`), so nothing hits it (no more "Only hit the cat" fouls or cat moves), and it springs up and is drawn
+  over a ball rolling by (`drawCatHop`, with a little "mrrp"). `cloneTable` keeps it out, so the aim guide's lines
+  pass through it too. Course generation builds its own tables with the cat solid, so where it sits and every
+  course are unchanged (layouts test). The help says so.
 - **A Perfect strike never rattles an object ball out for pace** (playtest: a perfect hit shouldn't be punished for
   power). Before, it allowed 15% more pace than an ordinary strike (`PERFECT_POCKET_PACE`, gone). The cue ball still
   rattles, since that saves a scratch. On 12 tables at full power: 73 shots rattled an object ball out; struck

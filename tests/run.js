@@ -157,19 +157,20 @@ const tests = {
     // every strike is perfect, so the shot goes where the test aims; each resolved shot is checked against the rules
     await p.evaluate(() => {
       contact = () => ({ tip: { x: aim.spotX, y: aim.spotY }, quality: 'perfect', off: 0, spin: aim.spin, side: aim.side, power });
-      window.__bad = []; window.__shots = 0; window.__movingClock = [];
+      window.__bad = []; window.__shots = 0; window.__movingClock = []; window.__rockets = 0;
       const r0 = resolveShot;
       resolveShot = () => {
         const s = table.shot, t = tshot, pts = hs.points, m = hs.mult;
         if (!s || !t) return r0();
         const foul = !s.firstHit || s.scratch, pots = s.pots.filter(q => !q.ball.isCue).length;
+        if (t.rocket && pots && !foul) window.__rockets++;
         r0();
         window.__shots++;
         const gain = hs.points - pts, round2 = v => Math.round(v * 100) / 100;
         // a potting shot raises the multiplier first and is multiplied by the new value (23 Nov)
         const wantM = foul ? 1 : !pots ? round2(1 + (m - 1) / 2) : round2(m + 0.5 + 0.1 * t.parts.length + (t.gold ? 0.2 : 0));
-        const want = foul || !pots ? 0 : Math.round((100 * pots + t.parts.reduce((a, k) => a + partPts(k), 0) + (t.long ? 150 : 0)) * (t.gold ? 2 : 1) * wantM);
-        if (gain !== want || Math.abs(hs.mult - wantM) > 1e-9) window.__bad.push(`shot ${window.__shots}: +${gain} (want +${want}), x${hs.mult} (want x${wantM}), parts ${t.parts}, gold ${t.gold}, long ${t.long}, foul ${foul}`);
+        const want = foul || !pots ? 0 : Math.round((100 * pots + t.parts.reduce((a, k) => a + partPts(k), 0) + (t.long ? 150 : 0) + (t.rocket ? 100 : 0) + (t.catapult ? 100 : 0)) * (t.gold ? 2 : 1) * wantM);
+        if (gain !== want || Math.abs(hs.mult - wantM) > 1e-9) window.__bad.push(`shot ${window.__shots}: +${gain} (want +${want}), x${hs.mult} (want x${wantM}), parts ${t.parts}, gold ${t.gold}, long ${t.long}, rocket ${t.rocket}, catapult ${t.catapult}, foul ${foul}`);
       };
       trialLeft = 5;
     });
@@ -178,20 +179,21 @@ const tests = {
       await p.waitForFunction(() => round.done || (phase === 'aim' && !banner && !tally), null, { timeout: 30000 });
       if (await p.evaluate(() => round.done)) break;
       await p.waitForTimeout(500);   // some aiming time off the clock
-      await p.evaluate(() => {
+      await p.evaluate(n => {
         const lines = allLines(table).filter(l => !l.blocked);
         let pick = null;
-        for (const l of lines) { for (const pw of [0.35, 0.5, 0.25, 0.65]) { const sim = simulate(table, l.angle, pw, 0, null, 0); if (!sim.shot.scratch && sim.shot.pots.length) { pick = { a: l.angle, pw }; break; } } if (pick) break; }
+        // every third shot tries full power first, so rockets (a full-power pot, +100) get scored too
+        for (const l of lines) { for (const pw of n % 3 === 2 ? [1, 0.35, 0.5, 0.25, 0.65] : [0.35, 0.5, 0.25, 0.65]) { const sim = simulate(table, l.angle, pw, 0, null, 0); if (!sim.shot.scratch && sim.shot.pots.length) { pick = { a: l.angle, pw }; break; } } if (pick) break; }
         if (!pick) pick = { a: aim.angle, pw: 0.5 };
         aim.angle = pick.a; power = pick.pw; release();
-      });
+      }, n);
       // while the balls roll the clock must not move
       const c0 = await p.evaluate(() => trialLeft); await p.waitForTimeout(900);
       const c1 = await p.evaluate(() => [trialLeft, phase]);
       if (c1[1] === 'moving' && c1[0] !== c0) await p.evaluate(([a, b]) => window.__movingClock.push(`${a} -> ${b}`), [c0, c1[0]]);
     }
     await p.waitForFunction(() => round.done, null, { timeout: 30000 });
-    const r = await p.evaluate(() => ({ bad: window.__bad, moving: window.__movingClock, shots: window.__shots, last: lastShot, points: round.points, hs: hs.points, logSum: (round.shotLog || []).reduce((a, x) => a + x.total, 0), tables: round.cards.length, share: shareText() }));
+    const r = await p.evaluate(() => ({ rockets: window.__rockets, bad: window.__bad, moving: window.__movingClock, shots: window.__shots, last: lastShot, points: round.points, hs: hs.points, logSum: (round.shotLog || []).reduce((a, x) => a + x.total, 0), tables: round.cards.length, share: shareText() }));
     if (p.errors.length) throw new Error('page errors: ' + p.errors.join(' | '));
     if (!r.shots) throw new Error('no shots were played');
     if (r.bad.length) throw new Error(`${r.bad.length} shot(s) scored against the rules:\n  ` + r.bad.join('\n  '));
@@ -199,7 +201,7 @@ const tests = {
     if (!r.last) throw new Error('the run ended without its last shot');
     if (r.points !== r.hs || (r.shots <= 30 && r.logSum !== r.points)) throw new Error(`points don't add up: round ${r.points}, total ${r.hs}, shots ${r.logSum}`);
     if (!/^Daily Break · .+\n[\d,]+ points$/m.test(r.share) || /[▁▂▃▄▅▆▇█]/.test(r.share)) throw new Error('share text (day, points): ' + r.share);
-    return `${r.shots} shots, ${r.tables} table(s) cleared, ${r.points.toLocaleString('en-US')} points: every shot scored by the rules, clock stopped while rolling`;
+    return `${r.shots} shots (${r.rockets} rocket${r.rockets === 1 ? '' : 's'}), ${r.tables} table(s) cleared, ${r.points.toLocaleString('en-US')} points: every shot scored by the rules, clock stopped while rolling`;
   },
 };
 

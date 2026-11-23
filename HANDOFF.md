@@ -45,7 +45,9 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     reads "Last shot", `sfx.lastShot`); that shot plays out and scores, then `endWhenTallied` -> `endRound`. Last ten
     seconds: the chip turns red and `sfx.clockTick` ticks each second.
   - **Scoring** (`scoreTrick`, `TRICK_PTS`, `partPts`). A pot is 100; each trick element +200 (kick +100); a long pot +150 once a shot (`t.long`: the potted ball started
-    at least `LONG_D`, 600, from its pocket; points only, no multiplier rise); the first
+    at least `LONG_D`, 600, from its pocket; points only, no multiplier rise); a rocket +100 (a full-power pot, `t.rocket`,
+    points only; ROCKET! slams in by the pocket); a catapult +100 (a potted ball that rolled under the hopping cat,
+    `shot.catUnder` from the physics, `t.catapult`); the first
     pot into a table's golden pocket doubles the shot. The shot first raises `hs.mult` (`MULT.pot` 0.5 + `MULT.trick`
     0.1 per element + `MULT.gold` 0.2, no cap) and is then multiplied by the new value (since 23 Nov; it used to raise
     it only for the next shot). In the tally the causes fly into the meter before the new multiplier is applied. `breakStreak`: a
@@ -286,6 +288,9 @@ cue down the right.
     turns its head (`catLook`). After a shot that hit it (`catAfterShot`), it meows and hops to a new seeded spot
     that blocks your best pot if it can (never all of them); a second hit, or one over 900, and it leaves for the rest
     of the hole. Not saved mid-hole: a reload puts it back.
+    Since 23 Nov it hops over the balls in play: `startHole` takes it out of `table.bumps` (so the moves above never
+    happen now), `cloneTable` keeps it out, and `drawTableCat`/`drawCatHop` lift it over a ball rolling by. Course
+    generation still places it with it solid, so courses are as before.
   - **Tunnel** (from 17 Nov; `h.tunnel = { a, b }`, each the middle of an opening on a cushion line with its normal).
     Two openings in facing straight outer cushions (`tunRails`, normals opposite), joined under the table: a ball that
     rolls into one (`tunLocal`, within `tunReach`: `TUN_HALF` 2.4 R, plus up to R more for an angled approach, the
