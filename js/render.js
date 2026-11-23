@@ -662,7 +662,7 @@ function tag(x, y, text, bg, fg, size = 11, below = false) {
 let tunAimWant = false, tunAimFrom = 0;
 function drawAim(t) {
   tunAimWant = false;
-  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) { guideLock.on = false; setPaceBand([]); return; }
+  if (phase !== 'aim' && !(phase === 'strike' && strike.t < 0)) { guideLock.on = false; return; }
   const c = table.cue, dx = Math.cos(aim.angle), dy = Math.sin(aim.angle);
   const fb = table.balls[aim.bi];
   drawSpinPaths();
@@ -958,7 +958,6 @@ function drawGuide(c, dx, dy, hit, t) {
       }
     }
     guideSim.pks.forEach(ringPocket);
-    setPaceBand(guideSim.pks.length ? guideSim.paces?.get(guideSim.pks[0]) || [] : []);
   };
   const key = `${aim.angle}:${strokes}:${round.level}:${sp.toFixed(2)}:${sd.toFixed(2)}`;
   if (guideSim.key !== key) {

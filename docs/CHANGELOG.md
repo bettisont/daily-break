@@ -52,9 +52,13 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   over frames: median 3.4 -> 0.5 ms a frame, p95 8.5 -> 4.5); the ring flickering across gaps between guide paces
   (in-between paces); a pot lighting that a Perfect strike would miss (it must drop both ways now); jaw pots staying
   dark; banks off shaped-table corners drawn up to 99° out; bumper and cat legs 2-3° out (now from a sim at your pace);
-  a lit ring not saying at what pace (green bands on the pull cue); side spin invisible in the half-second hint and
+  a lit ring not saying at what pace (green bands on the pull cue, taken out again after a playtest); side spin invisible in the half-second hint and
   late scratches unmarked; a mis-hit giving more spin than the spin ball allows; the slow-motion finish mispredicting
   Perfect strikes; the aim tick out of step with the readout; a cheaper lit line.
+- **A longer song** (playtest: the loop was repetitive): `ARC_SONG` is eight 4-bar sections (about a minute at
+  112 bpm), each with its own chords, hook, bass and drum feel (an intro groove, two hooks, a bouncing riff over
+  Dm-Am-E-Am, a half-time section with long notes, a breakdown with no kick and a soft pad, the hook an octave up), and
+  each time round it moves to a new key (`ARC_KEYS`), with small seeded variations in the hats.
 - **Why the multiplier moved**: the meter holds the old multiplier while a tally applies it (`meterShown`). Once the
   shot's points have landed, each cause of the rise ("+0.5 POT", "+0.1 BANK", "+0.2 GOLDEN"; `multWhy`) pops up where the
   tally was and flies into the Mult meter, which ticks up as each lands, with a climbing note and a pulse (`meterGain`).

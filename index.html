@@ -186,9 +186,6 @@
   #hint b{font:800 16px 'DM Sans',sans-serif;color:var(--ink);letter-spacing:0;margin-left:4px}
   /* the pull-back cue: drag down to load power, release on the gold spot to shoot */
   #pull{grid-column:2;grid-row:1/3;position:relative;border-radius:16px;overflow:hidden;touch-action:none;cursor:ns-resize;background:#2f3a31;box-shadow:inset 0 2px 8px rgba(0,0,0,.35),0 3px 0 #1d251f}
-  /* the paces that pot the lit shot, as green bands down the pull track (setPaceBand) */
-  #paceBand{position:absolute;inset:0;pointer-events:none;z-index:1}
-  #paceBand i{position:absolute;left:0;right:0;background:rgba(150,220,160,.32);border-top:1px solid rgba(170,235,180,.7);border-bottom:1px solid rgba(170,235,180,.7)}
   #pullFill{position:absolute;left:0;right:0;top:0;height:0;background:linear-gradient(180deg,#9fc495,#e3a07a 70%,#c4472f)}
   #pullCue{position:absolute;left:50%;top:0;width:14px;height:100%;margin-left:-7px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,#3b5ea6 0 6px,#fbf8f0 6px 16px,#f1e3c4 16px,#d6a86e 60%,#3b2418 61%,#3b2418);box-shadow:2px 3px 6px rgba(0,0,0,.35)}
   #pullLab{position:absolute;left:0;right:0;bottom:8px;text-align:center;font:800 11px 'DM Mono',monospace;letter-spacing:.06em;color:#fbf8f0;text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none;line-height:1.2}
@@ -251,7 +248,7 @@
     <div id="rowB">
       <div id="spinBall" title="Spin: drag the gold spot (up/down arrows; shift + left/right for side)"><div id="spinFace"><div class="f"><i style="top:7%">FOLLOW</i><i style="bottom:7%">DRAW</i><i class="sd" style="left:6%">L</i><i class="sd" style="right:6%">R</i><span id="spinDot"></span></div></div><div class="spinCol"><div id="spinTxt"></div><div id="hint" class="mono"></div></div></div>
     </div>
-    <div id="pull" class="pulse" title="Pull down, let go to shoot (or hold Space)"><div id="paceBand"></div><div id="pullFill"></div><div id="pullCue"></div><div id="pullLab"></div></div>
+    <div id="pull" class="pulse" title="Pull down, let go to shoot (or hold Space)"><div id="pullFill"></div><div id="pullCue"></div><div id="pullLab"></div></div>
     <button id="act">…</button>
   </div>
 </div>

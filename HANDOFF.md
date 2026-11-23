@@ -68,11 +68,12 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     chip or pressing P (`showShotLog`; a one-off tip, `dailybreak:shotLogTip`). Text on the table only for something
     going wrong (scratch, miscue, pushed off line, rattled out); a foul says "multiplier lost".
   - **Soundtrack** (`arcadeTick` every 30 ms schedules `arcadeStep` 16ths 0.15 s ahead on the audio clock, into
-    `arcadeBus`): an eight-bar chiptune song, hook A over Am-F-C-G and an answering B over F-G-Em-Am (`ARC_HOOK`,
-    `ARC_CHORDS`), a syncopated bass (`ARC_BASS`), swung off-beat 16ths, a fill into every fourth bar, a crash each
-    phrase. 112 bpm + 5 per multiplier step to x5, +8 under 30 s, +16 under 10 s; layers by multiplier (hats from x1.5,
-    16ths from x2; chord stabs from x2; snare from x3; the hook an octave up from x4 and in the last 10 s); a sweep up
-    or down when the multiplier changes. Only under the trial with the music on; `playChord` (the piano) skips it.
+    `arcadeBus`): `ARC_SONG`, eight 4-bar sections (about a minute), each picking chords (`ARC_PROG`), a hook
+    (`ARC_HOOKS`), a bass pattern (`ARC_BASSES`) and a drum feel (full, half time, or a breakdown with a pad); a new key
+    each time round (`ARC_KEYS`); swung off-beat 16ths; seeded hat variations. 112 bpm + 5 per multiplier step to x5,
+    +8 under 30 s, +16 under 10 s; layers by multiplier (hats from x1.5, 16ths from x2; chord stabs from x2; snare from
+    x3; the hook an octave up from x4 and in the last 10 s); a sweep up or down when the multiplier changes. Only under
+    the trial with the music on; `playChord` (the piano) skips it.
   - **Performance** (phones got hot, 23 Nov): `trialFps` paces the trial (60 for motion, 40 while aiming, 30 idle,
     15 behind a card); `draw` skips the cloud shadows and the film grain under the trial; `resize` caps the trial's
     canvas at 1.5x. Par keeps its pacing, layers and 2x.
@@ -142,8 +143,8 @@ cue down the right.
      (`finishGuide`). A line into a pocket the ball wouldn't drop into fades out 2.5 R short of it. Why: the ring and
      line used to be decided separately and rings flickered on pockets the line didn't go near (a second ball, an
      undrawn bank) while lines ran into side pockets without lighting.
-   - The ring doesn't depend on how hard you pull, but since 23 Nov the pull cue's track shows the paces that drop
-     the lit pot as green bands (`setPaceBand`). It never shows where balls stop.
+   - The ring doesn't depend on how hard you pull: judging pace is the player's job (a green band of potting paces on
+     the pull cue was tried on 23 Nov and taken out). It never shows where balls stop.
    - Since 23 Nov (an aim review): a pot lights only if it drops struck perfectly AND as a Perfect strike
      (`potsPerfect`, `guidePotsAt(..., perfect)`); the sims only run when the drawn path ends in or passes within
      cap + 1.5 R of a pocket (`guideCandidates`); paces are tried nearest your pull first, a few a frame within
