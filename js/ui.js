@@ -4,6 +4,29 @@
 
 /* ----- UI ----- */
 
+// Small line icons in place of emoji (23 Nov playtest: avoid the phone's own emoji where possible). Drawn in
+// currentColor at the text's size (.ic in index.html).
+const ICON = {
+  clock: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+  ball: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/>',
+  mult: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  pull: '<path d="M12 4v14M6 12l6 6 6-6"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  flag: '<path d="M6 21V4h11l-3 4 3 4H6"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
+  tilt: '<path d="M3 18L21 8M3 18h18"/>',
+  barrier: '<rect x="3" y="8" width="18" height="6" rx="1"/><path d="M7 14v6M17 14v6"/>',
+  tunnel: '<path d="M4 20v-8a8 8 0 0116 0v8M3 20h18"/>',
+  spark: '<path d="M12 3v5M12 16v5M3 12h5M16 12h5M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/>',
+  shape: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/>',
+  ffwd: '<path d="M3 6l8 6-8 6zM12 6l8 6-8 6z"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  sndAll: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9a4 4 0 010 6M19 6.5a8 8 0 010 11"/>',
+  sndFx: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9a4 4 0 010 6"/>',
+  sndOff: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>',
+};
+const ic = name => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg>`;
+
 // The header: the hole you're on, its par and your score (trick scoring: the hole and your points, which count up).
 function renderCard9() {
   if (round.trick) {
@@ -153,7 +176,7 @@ function spinDemoWanted() {
 }
 function startSpinDemo() {
   spinDemo = { t: 0, y0: aim.spotY };
-  $('spinFace').insertAdjacentHTML('beforeend', '<div id="spinHand">👆</div>');
+  $('spinFace').insertAdjacentHTML('beforeend', '<div id="spinHand"><i class="touch"></i></div>');
 }
 function stopSpinDemo() {
   if (!spinDemo) return;
@@ -208,7 +231,7 @@ let demo = null;
 function demoHand(on) {
   const el = $('pull');
   if (on && !demo) {
-    el.insertAdjacentHTML('beforeend', '<div id="demoHand">👆</div><div id="demoTip">Drag the cue down, then let go</div>');
+    el.insertAdjacentHTML('beforeend', '<div id="demoHand"><i class="touch"></i></div><div id="demoTip">Drag the cue down, then let go</div>');
     el.classList.add('demo'); demo = { t: 0 };
   } else if (!on && demo) {
     $('demoHand')?.remove(); $('demoTip')?.remove(); el.classList.remove('demo'); demo = null; updateMeter();
@@ -272,26 +295,26 @@ const TRICK_INTRO = `
     <div class="k mono">Daily Break · daily pool</div>
     <h2>Two minutes. Pot with style.</h2>
     <div class="howto">
-      <p>⏱️ You have <b>2 minutes</b> of aiming time: the clock stops while the balls roll. Clear a table and the next one deals in.</p>
-      <p>🎱 Every pot is 100 points. Tricks add more: a bank, a combination, two in one, a moving target…</p>
-      <p>📈 Each pot raises your <b>multiplier</b>, and tricks raise it faster. A miss halves it; a foul resets it.</p>
-      <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
+      <p>${ic('clock')}You have <b>2 minutes</b> of aiming time: the clock stops while the balls roll. Clear a table and the next one deals in.</p>
+      <p>${ic('ball')}Every pot is 100 points. Tricks add more: a bank, a combination, two in one, a moving target…</p>
+      <p>${ic('mult')}Each pot raises your <b>multiplier</b>, and tricks raise it faster. A miss halves it; a foul resets it.</p>
+      <p>${ic('pull')}Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
 const TRICK_HELP = `
-      <p>⏱️ <b>A two-minute run.</b> The clock (top left) counts only while you're aiming: it stops while the balls roll, the score adds up and the next table deals in. Clear a table and the next one comes: one ball, then two, then three, with new shapes and things in the way. When the clock runs out you get <b>one last shot</b>. Everyone plays the same tables each day.</p>
-      <p>🎱 <b>Points:</b> every pot is <b>100</b>. <b>Tricks</b> add to a shot that pots: <b>+200</b> each for a <b>bank</b> (the ball comes off a cushion), a <b>combination</b> (potted by another ball), a <b>cannon</b> (the cue ball hits two balls before one drops), <b>two or three in one</b>, a pot through a <b>tunnel</b>, or a ball rolling through a moving <b>target</b> ring before anything drops; <b>+100</b> for a <b>kick</b> (the cue ball hits a cushion first). The first pot into a table's <b>golden pocket</b> doubles the shot.</p>
-      <p>📈 <b>Multiplier:</b> every shot that pots raises it, by 0.5, plus 0.1 for each trick and 0.2 for the golden pocket, with no limit, and the shot is then multiplied by the new value. A <b>miss halves</b> what you've built above ×1; a <b>foul</b> (a scratch, or hitting nothing) resets it to ×1 and scores nothing.</p>
-      <p>ⓘ Tap <b>Points</b> at the top (or press P) to see how each shot added up.</p>`;
+      <p>${ic('clock')}<b>A two-minute run.</b> The clock (top left) counts only while you're aiming: it stops while the balls roll, the score adds up and the next table deals in. Clear a table and the next one comes: one ball, then two, then three, with new shapes and things in the way. When the clock runs out you get <b>one last shot</b>. Everyone plays the same tables each day.</p>
+      <p>${ic('ball')}<b>Points:</b> every pot is <b>100</b>. <b>Tricks</b> add to a shot that pots: <b>+200</b> each for a <b>bank</b> (the ball comes off a cushion), a <b>combination</b> (potted by another ball), a <b>cannon</b> (the cue ball hits two balls before one drops), <b>two or three in one</b>, a pot through a <b>tunnel</b>, or a ball rolling through a moving <b>target</b> ring before anything drops; <b>+100</b> for a <b>kick</b> (the cue ball hits a cushion first). The first pot into a table's <b>golden pocket</b> doubles the shot.</p>
+      <p>${ic('mult')}<b>Multiplier:</b> every shot that pots raises it, by 0.5, plus 0.1 for each trick and 0.2 for the golden pocket, with no limit, and the shot is then multiplied by the new value. A <b>miss halves</b> what you've built above ×1; a <b>foul</b> (a scratch, or hitting nothing) resets it to ×1 and scores nothing.</p>
+      <p>${ic('info')}Tap <b>Points</b> at the top (or press P) to see how each shot added up.</p>`;
 function showIntro() {
   if (round?.trick) { $('card').innerHTML = TRICK_INTRO; $('overlay').classList.add('show'); return; }
   $('card').innerHTML = `
     <div class="k mono">Daily Break · daily pool</div>
     <h2>Six holes. Fewest shots wins.</h2>
     <div class="howto">
-      <p>⛳ Pool scored like golf. Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: ${featureKeys(todayKey()).includes('gate') ? 'sand, a gate or the cat' : featureKeys(todayKey()).includes('tunnel') ? 'sand, the cat or a tunnel' : 'sand or the cat'}. Pot into the glowing golden pocket for a stroke back.</p>
-      <p>🎱 Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>
-      <p>👇 Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
+      <p>${ic('flag')}Pool scored like golf. Hole 1 has one ball, hole 2 two, then three a hole, with something in the way: ${featureKeys(todayKey()).includes('gate') ? 'sand, a gate or the cat' : featureKeys(todayKey()).includes('tunnel') ? 'sand, the cat or a tunnel' : 'sand or the cat'}. Pot into the glowing golden pocket for a stroke back.</p>
+      <p>${ic('ball')}Every shot is a stroke. Clear each hole in as few as you can; par is shown on each one.</p>
+      <p>${ic('pull')}Pull the cue down and let go to shoot. Tap <b>?</b> any time for the full guide.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>`;
   $('overlay').classList.add('show');
@@ -301,18 +324,18 @@ function showHelp() {
     <div class="k mono">How to play</div>
     <h2>${round?.trick ? 'Two minutes. Pot with style.' : 'Six holes. Fewest shots wins.'}</h2>
     <div class="howto">
-      ${round?.trick ? TRICK_HELP : ''}<p ${round?.trick ? 'hidden' : ''}>⛳ <b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3 (at most three balls a hole). Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>
+      ${round?.trick ? TRICK_HELP : ''}<p ${round?.trick ? 'hidden' : ''}>${ic('flag')}<b>Six holes, golf scoring.</b> Every shot is a stroke and a foul (scratch, or hitting nothing) adds one. Par is the number of balls, +1 from hole 3 (at most three balls a hole). Clear the balls to finish a hole, or you pick up at par + 3. A ball close to a pocket on a clear line glows green: tap it to tap in for one stroke. Lowest score wins.</p>
       <p>Each shot runs top to bottom through the controls:</p>
       <p>1 · <b>Target:</b> the cue starts lined up on the easiest ball. To go for a different ball, <b>tap it on the table</b>.</p>
       <p>2 · <b>Aim:</b> swipe the <b>aim strip</b> left or right; slow swipes are fine, fast swipes turn further. A tap near either end nudges a hair. You can also drag anywhere on the table to turn the cue. The dashed line shows where the cue ball goes and the solid line where the object ball goes; it lights up when the shot really goes in.</p>
       <p>3 · <b>Spin:</b> <b>drag the gold spot</b> on the little cue ball: up for <b>follow</b> (rolls on), middle for <b>stun</b> (stops), down for <b>draw</b> (comes back). It's the same spot you aim for when you shoot.</p>
       <p>4 · <b>Shoot:</b> pull the <b>cue</b> on the right down for power and <b>let go when the tip is on the gold spot</b>. Off-centre pushes the shot off line; long shots wobble more. Push it back up to cancel. While you pull, a line shows where the cue ball heads after contact.</p>
-      ${round?.trick ? '' : '<p>🏅 Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>'}
-      <p>⛰️ From hole 3 the table can <b>tilt</b>, and brass <b>bumpers</b> or a closed pocket can appear.</p>
-      <p>🚧 From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${featureKeys(round?.seed).includes('tunnel') ? '<p>🕳️ Some holes have a <b>tunnel</b> instead: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}${round?.trick ? '' : '<p>✨ From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. Trick shots (two in one, a bank, a combination or a kick) get an instant replay.</p>'}
-      <p>🔷 From hole 3 the <b>table changes shape</b> from hole to hole: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
-      <p>⏩ Tap the table while the balls are rolling to speed them up.</p>
-      <p>📅 Everyone plays the same holes each day. One ranked round per day, plus up to 3 practice rounds on random courses.</p>
+      ${round?.trick ? '' : '<p>' + ic('star') + 'Points break ties: each pot is 100, banks and combos add 50, and pots in a row build a streak up to ×3.</p>'}
+      <p>${ic('tilt')}From hole 3 the table can <b>tilt</b>, and brass <b>bumpers</b> or a closed pocket can appear.</p>
+      <p>${ic('barrier')}From hole 3 every hole has one thing in the way of the obvious shots: a <b>sand bunker</b> (balls slow right down in sand), ${featureKeys(round?.seed).includes('gate') ? 'a <b>one-way gate</b> (it swings open for a ball going the way its arrows point, and is solid the other way), ' : ''}or <b>the cat</b> napping on the felt: it soaks up a hit, and if you hit it, it moves, often into your way. Hit it twice and it gives up and leaves.</p>${featureKeys(round?.seed).includes('tunnel') ? '<p>' + ic('tunnel') + 'Some holes have a <b>tunnel</b> instead: two openings in facing cushions, joined under the table. A ball that rolls into one comes back in through the other, heading the same way, a little slower. You never have to use it, but there is always a pot through it, and the aim line follows the ball through.</p>' : ''}${round?.trick ? '' : '<p>' + ic('spark') + 'From hole 2 one pocket is <b>golden</b>: your first pot into it takes a stroke off the hole. Trick shots (two in one, a bank, a combination or a kick) get an instant replay.</p>'}
+      <p>${ic('shape')}From hole 3 the <b>table changes shape</b> from hole to hole: hexagon, octagon, L-shape, hourglass, oval, one with an island in the middle, or the classic.</p>
+      <p>${ic('ffwd')}Tap the table while the balls are rolling to speed them up.</p>
+      <p>${ic('cal')}Everyone plays the same holes each day. One ranked round per day, plus up to 3 practice rounds on random courses.</p>
     </div>
     <div class="row"><button class="btn primary" data-close>Let's play</button></div>
     ${feedbackLink()}`;
@@ -320,7 +343,7 @@ function showHelp() {
   if (round?.trick) {
     const howto = $('card').querySelector('.howto');
     howto.innerHTML = howto.innerHTML.replace(/From hole 3 every hole/g, 'From table 3 every table').replace(/From hole 3/g, 'From table 3').replace(/from hole to hole/g, 'from table to table')
-      .replace(/<p>📅[^<]*<\/p>/, '<p>📅 Everyone plays the same tables each day. One ranked run a day, plus as many practice runs as you like.</p>');
+      .replace('Everyone plays the same holes each day. One ranked round per day, plus up to 3 practice rounds on random courses.', 'Everyone plays the same tables each day. One ranked run a day, plus as many practice runs as you like.');
   }
   $('overlay').classList.add('show');
 }

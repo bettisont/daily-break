@@ -1002,7 +1002,7 @@ function drawGimmes(t) {
     ctx.strokeStyle = `rgba(120,210,140,${0.9 * (1 - k)})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(b.x, b.y, R + 4 + k * 14, 0, TAU); ctx.stroke();
     ctx.font = "700 16px 'DM Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const txt = 'Tap in ⛳', tw = ctx.measureText(txt).width + 18, lx = clamp(b.x, tw / 2 + 4, W - tw / 2 - 4), ly = b.y - R - 22 < 16 ? b.y + R + 22 : b.y - R - 22;
+    const txt = 'Tap in', tw = ctx.measureText(txt).width + 18, lx = clamp(b.x, tw / 2 + 4, W - tw / 2 - 4), ly = b.y - R - 22 < 16 ? b.y + R + 22 : b.y - R - 22;
     ctx.fillStyle = 'rgba(47,107,79,.94)'; ctx.beginPath(); ctx.roundRect(lx - tw / 2, ly - 13, tw, 26, 13); ctx.fill();
     ctx.fillStyle = '#f4efe2'; ctx.fillText(txt, lx, ly + 0.5);
   }

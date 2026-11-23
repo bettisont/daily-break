@@ -74,7 +74,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     Drums go to `arcadeBus`; synths through `arcPump` (ducked under each kick) and `arcSynth`, a low-pass that opens
     with the multiplier (`arcCut`: about 700 Hz at x1, wide open by x4); the arp and lead feed a dotted-8th echo
     (`arcEcho`, kept in time as the tempo moves). Layers: kick, rolling bass, pad and off-beat hats always; arp from
-    x1.5; clap and 16th hats from x2; lead from x3; open hat from x4; a swell into every fourth bar. Multiplier up: the
+    x1.5; clap and 16th hats from x2; lead from x3; open hat from x4; a swell into every fourth bar; a snare
+    (`arcSnare`) under the clap from x2.5, ghost notes from x3, a roll into every 4th bar from x3.5, every 2nd from x4.5. Multiplier up: the
     filter jumps open and settles back. Down: the drums drop out until the next bar but one (`ARC.dropTo`) and the
     filter dips. Each run starts from the top. Only under the trial with the music on; `playChord` skips it.
   - **Tally pace**: `TALLY_PACE` (0.6) scales every step of `showTally` and the moves between them (the `.mchip.fly`
@@ -83,6 +84,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     to its new value in tenths.
   - **Lettering**: `newRound` puts `trial` on the body; under it (index.html) numbers and big words are Bungee (one
     weight: always 400) and small labels Chakra Petch, as is the canvas "Table N" banner. The par game is unchanged.
+  - **Icons, not emoji**: `ICON` / `ic(name)` (ui.js) draw small line icons in currentColor (`.ic`); the demos'
+    pointer is a `.touch` dot. Emoji are left only in the par share card (⛳ and the coloured squares).
   - **Time call-outs** (`timeCall`, `TIME_CALLS`): "90 seconds", "1 minute left", "30 seconds", "10 seconds!" (red)
     and "Last shot!" drop in under the info bar with `sfx.timeCall`, hold and fade (`#timeCall`, 2 s, no taps).
   - **Performance** (phones got hot, 23 Nov): `trialFps` paces the trial (60 for motion, 40 while aiming, 30 idle,

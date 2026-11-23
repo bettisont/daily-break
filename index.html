@@ -230,6 +230,13 @@
   .howto{text-align:left;font-size:14px;color:#4c574a}
   .howto p{margin:9px 0}
   .howto b{color:var(--ink)}
+  /* line icons in place of emoji (ICON, ic() in ui.js) */
+  .ic{width:1.15em;height:1.15em;vertical-align:-.22em;margin-right:5px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .howto .ic{color:#2f6b4f}
+  #snd .ic{width:18px;height:18px;margin:0;vertical-align:middle}
+  /* the demos' touch point (in place of a pointing-hand emoji): where a fingertip would be in the old 44px box */
+  .touch{position:absolute;left:17px;top:6px;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:rgba(251,248,240,.9);border:3px solid #2f3a31;box-sizing:border-box}
+  .touch::after{content:'';position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(251,248,240,.6)}   /* (still: a looping ring would keep the page busy) */
   .stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;margin:14px auto 0;max-width:340px;background:var(--panel)}
   .stats div{padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px}
   .stats div + div{border-left:1px solid var(--line)}
@@ -253,7 +260,7 @@
     <div class="titles"><h1>Daily Break</h1><span class="mono" id="course"></span></div>
     <div id="card9"></div>
     <div class="btns">
-      <button class="round" id="snd" title="Sound: all / effects only / off">🔊</button>
+      <button class="round" id="snd" title="Sound: all / effects only / off"></button>
       <button class="round" id="help" title="How to play">?</button>
     </div>
   </header>

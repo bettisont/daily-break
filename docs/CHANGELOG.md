@@ -35,6 +35,11 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **A snare that builds with the multiplier**: under the clap from x2.5, ghost notes from x3, a 16th-note roll into
+  every fourth bar from x3.5 and every second bar from x4.5 (`arcSnare`).
+- **No phone emoji where it can be helped**: line icons (`ICON`, `ic()` in ui.js) in the intro and help, and for the
+  sound button; a touch dot instead of the pointing hand in the demos; no ⏱️ in the trial's share text, no 🏆 on the
+  rank line, no ⛳ on "Tap in". The par game's share card keeps its ⛳ and coloured squares (they're the card).
 - **No fire emoji** anywhere (the Mult meter, the help, the par game's "N in a row"); the help uses 📈 and 🏅.
 - **Fix: the tip on the strike dial sped up or slowed down while the cue was pulled.** Its sway phase was time x rate,
   and the rate rises with the pull (the pull is part of the shot's difficulty), so the whole phase jumped: up to 6x

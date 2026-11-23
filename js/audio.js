@@ -101,7 +101,8 @@ function playChord() {
 // - the tempo rises with the multiplier (112 bpm at x1, 6 more per step, 136 from x5), and a low-pass filter over the
 //   synths opens with it (about 700 Hz at x1, wide open by x4);
 // - layers come in by multiplier: kick, rolling 16th bass, pad and off-beat hats from the start; an arpeggio from
-//   x1.5; a clap and 16th hats from x2; a sparse lead from x3; an open hat from x4;
+//   x1.5; a clap and 16th hats from x2; a sparse lead from x3; an open hat from x4; and a snare that builds (from
+//   x2.5 under the clap, ghost notes from x3, a roll into every fourth bar from x3.5, into every second bar from x4.5);
 // - the multiplier going up gives the filter a push and a breath of air; going down drops the drums out until the
 //   next bar but one (the Lumines-style "burst"), with the filter pulled low, and they come back on the downbeat;
 // - the pad and bass duck under every kick (sidechain pump), and a reverse-cymbal swell leads into every fourth bar.
@@ -153,6 +154,12 @@ function arcSwell(t, dur, vol) {
   src.buffer = noiseBuf; f.type = 'highpass'; f.frequency.setValueAtTime(800, t); f.frequency.exponentialRampToValueAtTime(7000, t + dur);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.95); g.gain.linearRampToValueAtTime(0, t + dur);
   src.connect(f).connect(g).connect(arcadeBus); src.start(t, Math.random() * 2, dur + 0.05);
+}
+// a snare: a crack of band-passed noise, a bright snap and a short tonal body
+function arcSnare(t, vol) {
+  const d = t - audio.currentTime;
+  noise(0.15, vol, 1900, 'bandpass', d, 0.9, arcadeBus); noise(0.06, vol * 0.6, 5200, 'highpass', d, 0.7, arcadeBus);
+  tone(200, 0.07, vol * 0.7, 'triangle', 0.75, d, 0, arcadeBus);
 }
 const arcCut = m => Math.min(9000, 700 * Math.pow(2.2, m - 1));
 function arcadeTick() {
@@ -207,11 +214,16 @@ function arcadeStep(st, t, m, s16) {
   if (i % 4 === 2) noise(0.04, 0.03, 8500, 'highpass', t - audio.currentTime, 0.7, B);
   else if (hat16 && i % 2) noise(0.025, 0.012, 9500, 'highpass', t - audio.currentTime, 0.7, B);
   if (m >= 4 && i % 4 === 2) noise(0.22, 0.018, 7000, 'highpass', t - audio.currentTime, 0.5, B);
-  // clap on 2 and 4 from x2
-  if (m >= 2 && (i === 4 || i === 12)) {
+  // the snare roll: the last beat of every fourth bar from x3.5, every second bar from x4.5, rising in 16ths
+  const roll = i >= 12 && ((m >= 3.5 && bar === 3) || (m >= 4.5 && bar % 2 === 1));
+  // clap on 2 and 4 from x2, with a snare under it from x2.5
+  if (m >= 2 && (i === 4 || i === 12) && !roll) {
     const d = t - audio.currentTime;
     noise(0.16, 0.08, 1500, 'bandpass', d, 1.2, B); noise(0.05, 0.05, 1100, 'bandpass', d + 0.012, 1.5, B);
+    if (m >= 2.5) arcSnare(t, 0.07);
   }
+  if (m >= 3 && !roll && (i === 7 || i === 10 || (m >= 4 && i === 15))) arcSnare(t, 0.02);   // ghost notes
+  if (roll) arcSnare(t, 0.035 + 0.015 * (i - 12));
   // a reverse-cymbal swell into every fourth bar
   if (i === 8 && bar === 3) arcSwell(t, s16 * 8, 0.035);
 }

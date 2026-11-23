@@ -222,7 +222,7 @@ addEventListener('keydown', e => {
 });
 function setSoundBtns() {
   const st = muted ? 'off' : musicOn ? 'all' : 'fx';
-  $('snd').textContent = { all: '🔊', fx: '🔉', off: '🔇' }[st];
+  $('snd').innerHTML = ic({ all: 'sndAll', fx: 'sndFx', off: 'sndOff' }[st]);
   $('snd').title = { all: 'Sound: music and effects', fx: 'Sound: effects only', off: 'Sound: off' }[st];
 }
 $('snd').onclick = () => {

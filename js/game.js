@@ -545,14 +545,14 @@ function release() {
     strike.spinLesson = rescue;
     strike.t = zoom.t = -SPIN_T;
     aim.spotY = rescue.fromY; aim.spin = spinFor(rescue.fromY);
-    $('spinFace').insertAdjacentHTML('beforeend', '<div id="spinHand">👆</div>');
+    $('spinFace').insertAdjacentHTML('beforeend', '<div id="spinHand"><i class="touch"></i></div>');
   }
   // first shot, and their line wouldn't have potted it: show the aim strip putting it right before the strike
   if (first && !round.trick && Math.abs(Math.atan2(Math.sin(angle - own), Math.cos(angle - own))) > 0.2 * Math.PI / 180) {
     strike.lesson = { from: own, to: angle, strip: stripOff };
     strike.t = zoom.t = -AIM_T;
     aim.angle = own;
-    $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand">👆</div>');
+    $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand"><i class="touch"></i></div>');
   }
   shotLog = [];
   tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false } : null;
@@ -961,7 +961,7 @@ function endRound() {
 // (22 Nov playtest: a line of emoji per hole was too much; now just the points and how you did against everyone)
 function trickShareText(r) {
   const rank = trickRankLine(r), n = tablesCleared(r);
-  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} ⏱️ ${fmtPts(r.points || 0)} points · ${n} table${n === 1 ? '' : 's'}${rank ? `\n${rank}` : ''}\n${gameUrl()}`;
+  return `Daily Break ${isDailySeed(r.seed) ? dayLabel(r.seed) : 'practice'} · ${fmtPts(r.points || 0)} points · ${n} table${n === 1 ? '' : 's'}${rank ? `\n${rank}` : ''}\n${gameUrl()}`;
 }
 const tablesCleared = r => (r.cards || []).length;
 // how you did against today's players, from the server's tally (null until it has come back)
@@ -972,7 +972,7 @@ function trickRankLine(r) {
   const worse = Object.entries(t.scores).reduce((a, [sc, n]) => a + (+sc < me ? n : 0), 0), same = (t.scores[me] || 0) - 1;
   if (others <= 0) return 'First to finish today';
   // (no player count: 23 Nov)
-  if (worse === others) return `${same > 0 ? 'Joint best' : 'Best'} score today so far 🏆`;
+  if (worse === others) return `${same > 0 ? 'Joint best' : 'Best'} score today so far`;
   if (!worse) return null;   // (not "Beat 0%")
   return `Beat ${Math.round(100 * worse / others)}% of today's players`;
 }
@@ -1121,7 +1121,7 @@ function fillRank() {
     if ($('share')) $('share').textContent = shareText();
     return;
   }
-  const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far 🏆' : 'Best round today so far 🏆') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
+  const line = others <= 0 ? "You're the first to finish today's round" : worse === others ? (same > 0 ? 'Joint best today so far' : 'Best round today so far') : `Better than ${Math.round(100 * worse / others)}% of today's players`;
   el.innerHTML = `<b>${line}</b>`; el.hidden = false;   // no player count shown (Tim, 11 Nov)
 }
 function loadRank() {
