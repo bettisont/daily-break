@@ -45,7 +45,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     reads "Last shot", `sfx.lastShot`); that shot plays out and scores, then `endWhenTallied` -> `endRound`. Last ten
     seconds: the chip turns red and `sfx.clockTick` ticks each second.
   - **Scoring** (`scoreTrick`, `TRICK_PTS`, `partPts`). A pot is 100; each trick element +200 (kick +100); a long pot +150 once a shot (`t.long`: the potted ball started
-    at least `LONG_D`, 600, from its pocket; points only, no multiplier rise); the first
+    at least `LONG_D`, 600, from its pocket; points only, no multiplier rise); a rocket +100 (a full-power pot, `t.rocket`,
+    points only; ROCKET! slams in by the pocket); the first
     pot into a table's golden pocket doubles the shot. The shot first raises `hs.mult` (`MULT.pot` 0.5 + `MULT.trick`
     0.1 per element + `MULT.gold` 0.2, no cap) and is then multiplied by the new value (since 23 Nov; it used to raise
     it only for the next shot). In the tally the causes fly into the meter before the new multiplier is applied. `breakStreak`: a

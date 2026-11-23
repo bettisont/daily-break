@@ -126,6 +126,12 @@ function trickDrop(b, pocket, tx, ty) {
   const gold = pocket === hole.gold && !goldUsed && !t.gold;
   if (gold) t.gold = true;   // (its +2 makes the bang bigger; no chime of its own)
   if (!table.cue.potted) trickBang(tx, ty, shotQ(t));   // (the cue ball already down means a foul: no bang)
+  // a full-power pot: ROCKET! slams in over the table by the pocket as the first ball drops (before the tally, so the
+  // two don't overlap)
+  if (t.rocket && t.balls === 1 && !table.cue.potted) {
+    const cr = canvas.getBoundingClientRect(), px = clamp(tx, W * 0.25, W * 0.75), py = clamp(ty + (ty < H / 2 ? 130 : -130), H * 0.15, H * 0.85);
+    slamWord('ROCKET!', 2, { getBoundingClientRect: () => { const x = cr.left + view.ox + px * view.s, y = cr.top + view.oy + py * view.s - 46; return { left: x, width: 0, bottom: y }; } });
+  }
 }
 // Cannon: the cue ball touches two object balls before anything drops (trickDrop checks at each pot). Contacts after
 // a pot don't count (22 Nov playtest: the white wandering into a ball after the pot was scored as a cannon).
@@ -564,7 +570,7 @@ function release() {
     $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand"><i class="touch"></i></div>');
   }
   shotLog = [];
-  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false, long: false, from: new Map(table.balls.filter(b => !b.potted).map(b => [b, { x: b.x, y: b.y }])) } : null;
+  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false, long: false, rocket: ct.power >= 0.999, from: new Map(table.balls.filter(b => !b.potted).map(b => [b, { x: b.x, y: b.y }])) } : null;
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
@@ -675,7 +681,7 @@ function scoreTrick() {
   // benefit straight away from what it builds; it used to raise it only for the next shot)
   const pots = shotLog.length, gold = t.gold ? 2 : 1, multFrom = roundMult(hs.mult);
   hs.mult = roundMult(hs.mult + MULT.pot + MULT.trick * t.parts.length + (t.gold ? MULT.gold : 0));
-  const mult = hs.mult, gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0) + (t.long ? TRICK_PTS.long : 0)) * gold * mult);
+  const mult = hs.mult, gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0) + (t.long ? TRICK_PTS.long : 0) + (t.rocket ? TRICK_PTS.rocket : 0)) * gold * mult);
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   // why it rose: each cause flies into the meter during the tally, before the new multiplier is applied
   const kinds = [...new Set(t.parts)], word = k => k === 'Extra' ? (t.balls >= 3 ? 'triple' : 'double') : k.toLowerCase();
@@ -685,6 +691,7 @@ function scoreTrick() {
   if (!round.bestShot || gain > round.bestShot.pts) round.bestShot = { pts: gain, table: round.level + 1 };
   if (t.gold) goldUsed = true;
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
+  if (t.rocket) items.push(['Rocket', TRICK_PTS.rocket, 'a full-power shot that potted']);
   if (t.long) items.push(['Long', TRICK_PTS.long, 'a long pot: the ball started over 60% of the table from its pocket']);
   if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
@@ -886,10 +893,13 @@ const BIG_WORDS = [[6000, 'INSANE', 3], [2500, 'HUGE', 2], [1000, 'NICE', 1]];
 function bigMoment(m, gain, box) {
   if (m >= 3) fx.shake = Math.max(fx.shake, Math.min(9, 2 + m * 1.2));   // (the white flash with it went: 23 Nov playtest)
   const big = BIG_WORDS.find(([at]) => gain >= at);
-  if (!big) return;
-  const [, word, lvl] = big, r = box.getBoundingClientRect(), el = document.createElement('div');
+  if (big) slamWord(big[1], big[2], box);
+}
+// a word slammed in under the tally (or near the top of the table before it's up), gone in about a second
+function slamWord(word, lvl, box = document.querySelector('#tally .tn')) {
+  const el = document.createElement('div'), cr = canvas.getBoundingClientRect(), r = box?.getBoundingClientRect();
   el.className = `bigword l${lvl}`; el.textContent = word;
-  el.style.left = `${r.left + r.width / 2}px`; el.style.top = `${r.bottom + 46}px`;
+  el.style.left = `${r ? r.left + r.width / 2 : cr.left + cr.width / 2}px`; el.style.top = `${r ? r.bottom + 46 : cr.top + cr.height * 0.3}px`;
   document.body.appendChild(el);
   setTimeout(() => { sfx.slam(lvl); buzz(lvl >= 2 ? [25, 30, 40] : 20); }, 40);
   setTimeout(() => el.remove(), 1100);
