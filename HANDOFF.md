@@ -42,7 +42,8 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     (`finishHole` waits for the tally, then `act`). No shot limit, no skip. At zero `lastShot` is set (the clock chip
     reads "Last shot", `sfx.lastShot`); that shot plays out and scores, then `endWhenTallied` -> `endRound`. Last ten
     seconds: the chip turns red and `sfx.clockTick` ticks each second.
-  - **Scoring** (`scoreTrick`, `TRICK_PTS`, `partPts`). A pot is 100; each trick element +200 (kick +100); the first
+  - **Scoring** (`scoreTrick`, `TRICK_PTS`, `partPts`). A pot is 100; each trick element +200 (kick +100); a long pot +150 once a shot (`t.long`: the potted ball started
+    at least `LONG_D`, 600, from its pocket; points only, no multiplier rise); the first
     pot into a table's golden pocket doubles the shot. The shot first raises `hs.mult` (`MULT.pot` 0.5 + `MULT.trick`
     0.1 per element + `MULT.gold` 0.2, no cap) and is then multiplied by the new value (since 23 Nov; it used to raise
     it only for the next shot). In the tally the causes fly into the meter before the new multiplier is applied. `breakStreak`: a
@@ -87,6 +88,10 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     `drawCatEyes`. The table's colours come from `tpal()` (`TABLE_DAY` / `TABLE_NIGHT`); `drawPlant`, `drawBanner`,
     the floats, the vignette and `tgtRGB()` switch too. The HUD's night colours are a block at the end of the CSS
     under `body.trial` (variables redefined, `--hard` for the offset shadow).
+  - **Big moments** (`bigMoment`, from the tally's multiplier landing): from x3 a screen shake and a 70 ms white
+    `#flash`; a shot of 1,000+ / 2,500+ / 6,000+ gets NICE / HUGE / INSANE slammed in under the tally (`BIG_WORDS`,
+    `.bigword`, `sfx.slam`). **Result card** (`trickFinalHtml`): the score counts up, then badges pop in (best
+    multiplier, tables, best shot).
   - **Lettering**: `newRound` puts `trial` on the body; under it (index.html) numbers and big words are Bungee (one
     weight: always 400) and small labels Chakra Petch, as is the canvas "Table N" banner. The par game is unchanged.
   - **Icons, not emoji**: `ICON` / `ic(name)` (ui.js) draw small line icons in currentColor (`.ic`); the demos'

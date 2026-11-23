@@ -53,7 +53,10 @@ const streakMult = n => n < 1 ? 1 : Math.min(3, 1 + 0.5 * (n - 1));
 // Why: flair went unrewarded under par, too many players tied, and a run against the clock suits trick shots better
 // than a stroke budget did. Tried behind ?trick first (unranked; sends and saves nothing); RULES.TRICK_SCORE_FROM
 // switches the daily game over once that date is set. (A six-hole version with stroke budgets came first, 22 Nov.)
-const TRICK_PTS = { pot: 100, part: 200 };
+// long: a flat bonus for a long pot (23 Nov playtest), when the ball started at least LONG_D (60% of the table's
+// length) from the pocket it went into. Points only: it doesn't raise the multiplier, but the shot's multiplier
+// applies to it like the rest.
+const TRICK_PTS = { pot: 100, part: 200, long: 150 }, LONG_D = 600;
 const TRIAL_S = 120;
 const MULT = { pot: 0.5, trick: 0.1, gold: 0.2 };
 const roundMult = m => Math.round(m * 100) / 100;

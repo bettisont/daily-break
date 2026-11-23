@@ -319,6 +319,8 @@ const sfx = {
     [1, 1.25, 1.5, 2].forEach((r, i) => { tone(base * r, 0.55 + 0.12 * i, 0.045, 'triangle', 1, i * 0.05, 0.6); tone(base * r * 2, 0.4, 0.014, 'sine', 1, i * 0.05 + 0.012, 0.7); });
     noise(0.45, 0.03, 7000, 'highpass', 0.08, 0.5);
   },
+  // a big word slamming in (NICE / HUGE / INSANE): a punchy low hit and a crack, bigger each level
+  slam(lvl) { tone(110 - lvl * 15, 0.3, 0.2 + 0.06 * lvl, 'sine', 0.5, 0, 0.1); noise(0.18 + 0.06 * lvl, 0.25 + 0.08 * lvl, 2200, 'bandpass', 0, 0.8); if (lvl >= 2) tone(880, 0.25, 0.04, 'square', 0.5, 0.02, 0.3); },
   fizzle() { noise(0.45, 0.16, 2500, 'highpass', 0, 0.5); tone(700, 0.4, 0.05, 'triangle', 0.4, 0, 0.3); },
   chime() { tone(1318.5, 0.25, 0.07, 'sine', 1, 0, 0.5); tone(1975.5, 0.35, 0.05, 'sine', 1, 0.06, 0.5); },
 };

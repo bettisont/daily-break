@@ -93,7 +93,7 @@ function onEvent(type, e) {
 // bang that grows with how good the shot is so far (trickBang).
 function trickPart(kind) { tshot.parts.push(kind); tshot.has[kind] = true; }
 // how good is this shot so far: one for each trick element and each ball after the first, two for the golden pocket
-const shotQ = t => t.parts.length + (t.gold ? 2 : 0);
+const shotQ = t => t.parts.length + (t.gold ? 2 : 0) + (t.long ? 1 : 0);
 function trickBang(x, y, q) {
   const k = Math.min(q, 6);
   if (k <= 0) return;
@@ -120,6 +120,9 @@ function trickDrop(b, pocket, tx, ty) {
   // targets crossed before anything dropped count now that something has
   for (const o of t.tgt) if (!o.hit) { o.hit = true; o.hitClock = o.pendClock; got.push('Target'); }
   got.forEach(trickPart);
+  // a long pot: the ball started at least LONG_D from the pocket it dropped into (once a shot; flat points only)
+  const f = t.from?.get(b), pk = table.pk[pocket];
+  if (!t.long && f && pk && Math.hypot(f.x - pk.x, f.y - pk.y) >= LONG_D) t.long = true;
   const gold = pocket === hole.gold && !goldUsed && !t.gold;
   if (gold) t.gold = true;   // (its +2 makes the bang bigger; no chime of its own)
   if (!table.cue.potted) trickBang(tx, ty, shotQ(t));   // (the cue ball already down means a foul: no bang)
@@ -556,7 +559,7 @@ function release() {
     $('strip').insertAdjacentHTML('beforeend', '<div id="aimHand"><i class="touch"></i></div>');
   }
   shotLog = [];
-  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false } : null;
+  tshot = round.trick ? { parts: [], has: {}, balls: 0, tun: new Set(), cueHits: new Set(), tgt: [], gold: false, long: false, from: new Map(table.balls.filter(b => !b.potted).map(b => [b, { x: b.x, y: b.y }])) } : null;
   strokes++;
   strokeStart = { x: c.x, y: c.y };
   marks.push({ x: c.x, y: c.y, n: strokes });
@@ -666,7 +669,7 @@ function scoreTrick() {
   // benefit straight away from what it builds; it used to raise it only for the next shot)
   const pots = shotLog.length, gold = t.gold ? 2 : 1, multFrom = roundMult(hs.mult);
   hs.mult = roundMult(hs.mult + MULT.pot + MULT.trick * t.parts.length + (t.gold ? MULT.gold : 0));
-  const mult = hs.mult, gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0)) * gold * mult);
+  const mult = hs.mult, gain = Math.round((TRICK_PTS.pot * pots + t.parts.reduce((a, k) => a + partPts(k), 0) + (t.long ? TRICK_PTS.long : 0)) * gold * mult);
   hs.points += gain; thole.pts += gain; thole.tricks.push(...t.parts);
   // why it rose: each cause flies into the meter during the tally, before the new multiplier is applied
   const kinds = [...new Set(t.parts)], word = k => k === 'Extra' ? (t.balls >= 3 ? 'triple' : 'double') : k.toLowerCase();
@@ -675,6 +678,7 @@ function scoreTrick() {
   if (!round.bestShot || gain > round.bestShot.pts) round.bestShot = { pts: gain, table: round.level + 1 };
   if (t.gold) goldUsed = true;
   const n = k => t.parts.filter(p => p === k).length, items = [], ex = n('Extra');
+  if (t.long) items.push(['Long', TRICK_PTS.long, 'a long pot: the ball started over 60% of the table from its pocket']);
   if (ex) items.push([ex === 1 ? 'Double' : ex === 2 ? 'Triple' : `${ex + 1} in one`, TRICK_PTS.part * ex, `${ex + 1} balls in one shot`]);
   for (const k of ['Bank', 'Kick', 'Combo', 'Tunnel', 'Cannon', 'Target']) if (n(k)) items.push([`${k}${n(k) > 1 ? ` ×${n(k)}` : ''}`, partPts(k) * n(k), TRICK_WHY[k]]);
   const muls = [...(t.gold ? [['Golden', 2, 'into the golden pocket']] : []), ['Mult', mult, `your multiplier: ${fmtMult(multFrom)} before this shot, raised by it to ${fmtMult(mult)}`]];
@@ -841,7 +845,7 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
     at(t + 250, () => spinTo(n, from, to, 480 * TALLY_PACE));
     at(t + 760, () => {
       chip.classList.add('melt'); setTimeout(() => chip.remove(), 280);
-      pop('win'); if (label === 'Mult') box.classList.add('hot');
+      pop('win'); if (label === 'Mult') { box.classList.add('hot'); bigMoment(m, gain, box); }
       sfx.ding(m);
       sparkle(W / 2, ty, '#ffe9a8', 30, 180); sparkle(W / 2, ty, '#ffd06a', 16, 120);
       buzz([12, 20, 12]);
@@ -868,6 +872,24 @@ function showTally([baseLabel, base, baseWhy], items, muls, gain, multFrom = met
     // once per device, and not as a hole ends (it would sit over the next hole's banner): where the explanation is
     if (phase === 'aim' && !ls('dailybreak:shotLogTip')) { ls('dailybreak:shotLogTip', '1'); $('ptsChip')?.classList.add('tip'); float(W / 2, H * 0.2, 'Tap Points to see how it added up', '#2f6b4f', 18, 3); }
   });
+}
+// Big moments (23 Nov playtest: more punch, arcade style). As the multiplier lands on a shot: from x3 the screen
+// shakes and flashes white for a frame or two; and a big shot gets a word slammed in under the tally: NICE from
+// 1,000 points, HUGE from 2,500, INSANE from 6,000. Short and out of the way: gone in about a second.
+const BIG_WORDS = [[6000, 'INSANE', 3], [2500, 'HUGE', 2], [1000, 'NICE', 1]];
+function bigMoment(m, gain, box) {
+  if (m >= 3) {
+    fx.shake = Math.max(fx.shake, Math.min(9, 2 + m * 1.2));
+    const f = document.createElement('div'); f.id = 'flash'; document.body.appendChild(f); setTimeout(() => f.remove(), 70);
+  }
+  const big = BIG_WORDS.find(([at]) => gain >= at);
+  if (!big) return;
+  const [, word, lvl] = big, r = box.getBoundingClientRect(), el = document.createElement('div');
+  el.className = `bigword l${lvl}`; el.textContent = word;
+  el.style.left = `${r.left + r.width / 2}px`; el.style.top = `${r.bottom + 46}px`;
+  document.body.appendChild(el);
+  setTimeout(() => { sfx.slam(lvl); buzz(lvl >= 2 ? [25, 30, 40] : 20); }, 40);
+  setTimeout(() => el.remove(), 1100);
 }
 // Every scored shot this round, newest first, for the breakdown behind the Points chip.
 function logShot([baseLabel, base, baseWhy], items, muls, gain) {
@@ -990,10 +1012,13 @@ function trickFinalHtml(already) {
   return `
     <div class="k mono">${round.ranked ? courseName(round.seed) : trickFlag ? 'Timed trial test · not ranked' : 'Practice · not ranked'}</div>
     <h2>${already ? "Today's run is in" : "Time's up"}</h2>
+    <div class="big" id="finalPts">${fmtPts(round.points || 0)}</div>
     <div class="k mono">points</div>
-    <div class="big">${fmtPts(round.points || 0)}</div>
-    <div class="k mono">${n} table${n === 1 ? '' : 's'} cleared${(round.bestMult || 1) > 1 ? ` · best ${fmtMult(round.bestMult)}` : ''}</div>
-    ${best ? `<div class="k mono" style="margin-top:4px">best shot ${fmtPts(best.pts)} on table ${best.table}</div>` : ''}`;
+    <div class="badges">
+      <span class="bdg mult"><small>best</small>${fmtMult(round.bestMult || 1)}</span>
+      <span class="bdg tbl"><small>tables</small>${n}</span>
+      ${best ? `<span class="bdg shot"><small>best shot</small>${fmtPts(best.pts)}</span>` : ''}
+    </div>`;
 }
 function showFinal(already) {
   if (round.trick) {
@@ -1011,6 +1036,8 @@ function showFinal(already) {
     tickNext(); clearInterval(tickNext.t); tickNext.t = setInterval(tickNext, 1000);
     if (round.ranked) loadRank();
     $('overlay').classList.add('show');
+    // the score counts up as the card arrives, the badges pop in after it (not when coming back to it)
+    if (!already) { rollNum($('finalPts'), 0, round.points || 0, 900); $('card').querySelector('.badges')?.classList.add('pop'); }
     phase = 'over'; updateUI();
     return;
   }

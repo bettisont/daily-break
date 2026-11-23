@@ -35,6 +35,14 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   cloud shadows (two full-screen layers a frame); the canvas at up to 1.5x instead of 2x (44% fewer pixels, still
   sharp on a phone). For everyone: the x3 meter glow is still instead of looping, and the clock bar moves by a
   transform about 10 times a second instead of being restyled every frame.
+- **Long pots score +150** (playtest: a flat bonus for long shots): once a shot, when a potted ball started at least
+  600 (60% of the table's length) from the pocket it went into (`LONG_D`, `t.long`). Points only, like a flat trick
+  bonus under the shot's multiplier, but it doesn't raise the multiplier. In the tally as "+150 LONG"; the trial test
+  checks it.
+- **Big moments**: from x3 the multiplier landing shakes the screen and flashes white for a frame; a shot worth 1,000+
+  / 2,500+ / 6,000+ slams in NICE / HUGE / INSANE under the tally for about a second, with a hit sound.
+- **A punchier result card**: the score bigger (64px, counting up), and badges for the best multiplier, tables
+  cleared and best shot popping in after it.
 - **The trial plays at night** (playtest: make the look match the pace and the new lettering; options 1-3 of the
   proposal). The room after dark: painted as by day, then darkened in the scenery cache, least round the table; the
   cat and turntable are still shapes (the cat's eyes catch the light when it wakes); plants are silhouettes; no window
