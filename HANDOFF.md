@@ -152,6 +152,9 @@ cue down the right.
      shaped table's corner bounces radially (`trace`); a leg off a bumper or the cat comes from a sim at your pace
      (`bumperBounce`). The spin hint runs on to the next cushion when side is set and marks a scratch anywhere in the
      shot. A mis-hit's spin is capped at what the spin ball allows.
+   - A line into a pocket that doesn't light (once every pace is tried) shows why (`missWhy`): one sim at your pace
+     (0.05 steps) draws the ball's real path faint amber, with a label (the white goes in too, catches the jaw, runs
+     out of pace, misses left/right, goes in another pocket).
    - The moment the aim lands on a pot (`guideLock`) the line and ring flare for 0.6 s with a few sparkles, at most
      once a second so a sweep sets off one burst. No sound.
    - Cushions are counted the guide's own way (`guideWalls`, from each ball's `wallPts`): every contact, except

@@ -43,6 +43,9 @@ Decided in a second grilling session (ADR 0002). Still nothing changes for playe
   lines, and a tilt curved the balls up to 45° off them on thin cuts. The tilt's random numbers are still drawn, so
   everything else on a table is dealt as before; 56 future courses (and two practice seeds) changed in the snapshot,
   nothing on or before 24 Nov. The trial's third info cell shows tables cleared instead of the tilt.
+- **Why a line isn't lit** (playtest: "it should be clearer why this isn't lit up"; `missWhy`): when the drawn line goes
+  into a pocket but no pace drops it, the ball's real path at your pace is drawn faint amber and a small label says why:
+  "The white goes in too", "Catches the jaw", "Runs out of pace", "Misses left/right" or "Goes in another pocket".
 - **Aim guide review** (a subagent measured it: the object-ball line was already exact on flat tables, 0.000° over
   13,685 samples). Fixed: the guide's cost while fine-aiming (sims only near a pocket, nearest pace first, spread
   over frames: median 3.4 -> 0.5 ms a frame, p95 8.5 -> 4.5); the ring flickering across gaps between guide paces

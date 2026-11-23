@@ -769,6 +769,45 @@ function guideCandidates(c, dx, dy, hit) {
   return out;
 }
 let guidePath = null;   // (set by drawGuide: its objPath, for guideCandidates)
+// Why a line into a pocket isn't lit (23 Nov playtest: "it should be clearer why this isn't lit up"). One simulation at
+// your pace (the pull while you pull, else your last pace) follows the ball the line follows, and says what happens:
+// the white goes in too, it catches the jaw, it runs out of pace, it misses left or right, or it drops somewhere else.
+// Its real path comes back too, drawn faint amber. Kept for the aim and pace.
+function missWhy(pocket, ball) {
+  // (the pace in 0.05 steps, so pulling doesn't re-run it every frame)
+  const pw = Math.max(0.05, Math.round((hold ? power : (lastPower || 0.4)) * 20) / 20), k = `${guideSim.key}:${pw}:${pocket}`;
+  if (guideSim.why?.k === k) return guideSim.why.v;
+  const bi = table.balls.indexOf(ball), p = table.pk[pocket];
+  let v = null;
+  if (bi >= 0) {
+    const s = cloneTable(table); s.shoot(aim.angle, pw, aim.spin, aim.side);
+    const sb = s.balls[bi], pts = [[sb.x, sb.y]];
+    let minD = Infinity, minAt = null;
+    for (let n = 0; n < 9000 && s.moving(); n++) {
+      s.step();
+      if (sb.potted || sb.uN) continue;
+      if (n % 3 === 0 && pts.length < 500) pts.push([sb.x, sb.y]);
+      const d = Math.hypot(sb.x - p.x, sb.y - p.y);
+      if (d < minD) { minD = d; minAt = [sb.x, sb.y]; }
+    }
+    if (!sb.potted) pts.push([sb.x, sb.y]);
+    const pot = s.shot.pots.find(q => q.ball === sb);
+    let label;
+    if (pot && s.shot.scratch) label = 'The white goes in too';
+    else if (pot && pot.pocket === pocket) label = 'Only just: a cleaner line';   // (drops plain, not as a Perfect strike)
+    else if (pot) label = 'Goes in another pocket';
+    else if (minD < p.cap + 2.2 * R) label = 'Catches the jaw';
+    else if (!sb.vx && !sb.vy && Math.hypot(sb.x - p.x, sb.y - p.y) - minD < R) label = 'Runs out of pace';
+    else {
+      // which side of the pocket it passed, as you look down the line from the ball
+      const ux = p.x - ball.x, uy = p.y - ball.y, side = (minAt[0] - p.x) * uy - (minAt[1] - p.y) * ux;
+      label = side > 0 ? 'Misses left' : 'Misses right';
+    }
+    v = { pts, label };
+  }
+  guideSim.why = { k, v };
+  return v;
+}
 // Work through the current aim's paces (guideSim.res.todo), at least one and then as many as fit in GUIDE_BUDGET ms.
 // A pace adds the pockets the followed ball drops into, struck perfectly and Perfect. If none of the paces pots into
 // the pocket the line ends in, the in-between paces are tried too (some pots only drop between two guide paces).
@@ -902,7 +941,20 @@ function drawGuide(c, dx, dy, hit, t) {
     const segs = [], end = objPath(px, py, ux, uy, skip, from, 0, 0, segs);
     if (end != null && guideSim.potsInto.has(end)) { guideSim.pks = [end]; onTargetPath(segs); return; }
     // The line points into a pocket the ball doesn't actually drop into (it clips the jaws, or a bank comes off the
-    // cushion a little differently): fade it out short of the pocket, so it never looks like it goes in unlit.
+    // cushion a little differently): fade it out short of the pocket, so it never looks like it goes in unlit; once
+    // every pace has been tried, show where it really goes and why (missWhy)
+    if (end != null && segs.length && !guideSim.res?.todo.length) {
+      const w = missWhy(end, skip);
+      if (w) {
+        ctx.save(); ctx.setLineDash([2, 6]); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,180,90,.6)'; ctx.lineWidth = 2;
+        ctx.beginPath(); w.pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.restore();
+        const [, , bx, by] = segs[segs.length - 1], lx = clamp(bx + (W / 2 - bx) * 0.18, 70, W - 70), ly = clamp(by + (H / 2 - by) * 0.12, 30, H - 30);
+        ctx.save(); ctx.font = "700 14px 'DM Sans', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(w.label).width + 16;
+        ctx.fillStyle = 'rgba(60,40,20,.72)'; ctx.beginPath(); ctx.roundRect(lx - tw / 2, ly - 12, tw, 24, 12); ctx.fill();
+        ctx.fillStyle = '#ffd8a8'; ctx.fillText(w.label, lx, ly + 0.5); ctx.restore();
+      }
+    }
     if (end != null && segs.length) {
       const [ax, ay, bx, by] = segs[segs.length - 1], L = Math.hypot(bx - ax, by - ay), k = Math.max(0, L - 2.5 * R) / (L || 1);
       segs[segs.length - 1] = [ax, ay, ax + (bx - ax) * k, ay + (by - ay) * k, segs[segs.length - 1][4], true];
