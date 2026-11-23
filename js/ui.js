@@ -298,6 +298,17 @@ async function prepShareCard() {
     shareCard.url = URL.createObjectURL(blob);
   } catch (e) { console.error('share card', e); }
 }
+// "Copy image": the card onto the clipboard, to paste into any chat (23 Nov playtest). Where the browser can put an
+// image there (Safari and Chrome can; the card is made beforehand, so the copy happens inside the tap).
+const canCopyImage = () => !!(window.ClipboardItem && navigator.clipboard?.write);
+async function copyShareCard(b) {
+  const done = t => { b.textContent = t; setTimeout(() => { b.textContent = 'Copy image'; }, 1800); };
+  try {
+    const blob = shareCard.file || new Promise((res, rej) => prepShareCard().then(() => shareCard.file ? res(shareCard.file) : rej(new Error('no card'))));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    done('Copied!');
+  } catch (e) { console.error('copy image', e); done('Couldn’t copy'); }
+}
 function saveShareCard(b) {
   if (!shareCard.url) { b.textContent = 'One moment…'; prepShareCard().then(() => { b.textContent = 'Save image'; if (shareCard.url) saveShareCard(b); }); return; }
   const a = document.createElement('a'); a.href = shareCard.url; a.download = shareCard.file.name; document.body.appendChild(a); a.click(); a.remove();
@@ -431,6 +442,7 @@ $('card').addEventListener('click', e => {
   if ('close' in b.dataset) { if (!ls('dailybreak:seenHelp')) track('intro'); ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
   else if ('copy' in b.dataset) shareResult(b);
   else if ('saveimg' in b.dataset) saveShareCard(b);
+  else if ('copyimg' in b.dataset) copyShareCard(b);
   else if ('trynew' in b.dataset) { $('overlay').classList.remove('show'); newRound(Math.random().toString(36).slice(2, 8), false); }   // ?trick: another course, no practice used
   else if ('random' in b.dataset) startPractice(Math.random().toString(36).slice(2, 8));   // a fresh random course
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
