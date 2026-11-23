@@ -98,6 +98,9 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
     weight: always 400) and small labels Chakra Petch, as is the canvas "Table N" banner. The par game is unchanged.
   - **Icons, not emoji**: `ICON` / `ic(name)` (ui.js) draw small line icons in currentColor (`.ic`); the demos'
     pointer is a `.touch` dot. Emoji are left only in the par share card (⛳ and the coloured squares).
+  - **Share**: `trickShareText` (score and tables, best multiplier and best shot, `multStrip` of `round.multLog`, the
+    rank, the link) and an image card (`prepShareCard` draws it with `drawShareCard` when the result shows and when
+    the rank arrives; `shareResult` attaches it via `navigator.share({ files })` on phones; "Save image" elsewhere).
   - **Time call-outs** (`timeCall`, `TIME_CALLS`): "90 seconds", "1 minute left", "30 seconds", "10 seconds!" (red)
     and "Last shot!" drop in under the info bar with `sfx.timeCall`, hold and fade (`#timeCall`, 2 s, no taps).
   - **Performance** (phones got hot, 23 Nov): `trialFps` paces the trial (60 for motion, 40 while aiming, 30 idle,

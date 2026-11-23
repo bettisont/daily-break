@@ -283,10 +283,82 @@ function todaysResult() {
 // The link in the share text is always the plain site, so friends land in today's real game.
 const SITE_URL = 'https://dailybreak.app/';   // keep in step with the meta tags and HOST in src/worker.js
 function gameUrl() { return location.protocol.startsWith('http') ? location.origin + location.pathname : SITE_URL; }
+// The timed run's share card (23 Nov): a 1080x1350 image in the night arcade look: the date, the score, badges for
+// the best multiplier, tables and best shot, the multiplier strip as bars, the rank and the address. Drawn on a
+// canvas once the result card is up (and again when the rank comes in), kept as a File for the share sheet.
+const shareCard = { file: null, url: null };
+async function prepShareCard() {
+  if (!round?.trick || !round.done && phase !== 'over') return;
+  try {
+    await Promise.all(['400 120px Bungee', "700 40px 'Chakra Petch'"].map(f => document.fonts.load(f)));
+    const c = drawShareCard(round), blob = await new Promise(res => c.toBlob(res, 'image/png'));
+    if (!blob) return;
+    if (shareCard.url) URL.revokeObjectURL(shareCard.url);
+    shareCard.file = new File([blob], `daily-break-${round.seed}.png`, { type: 'image/png' });
+    shareCard.url = URL.createObjectURL(blob);
+  } catch (e) { console.error('share card', e); }
+}
+function saveShareCard(b) {
+  if (!shareCard.url) { b.textContent = 'One moment…'; prepShareCard().then(() => { b.textContent = 'Save image'; if (shareCard.url) saveShareCard(b); }); return; }
+  const a = document.createElement('a'); a.href = shareCard.url; a.download = shareCard.file.name; document.body.appendChild(a); a.click(); a.remove();
+}
+function drawShareCard(r) {
+  const Wc = 1080, Hc = 1350, c = document.createElement('canvas'); c.width = Wc; c.height = Hc;
+  const g = c.getContext('2d'), DISP = 'Bungee, sans-serif', LAB = "'Chakra Petch', monospace";
+  const PINK = '#ff3d8b', CYAN = '#35e0e8', AMBER = '#ffc94a', PURPLE = '#7b5cff', INK = '#f4efff', HARD = '#05040c';
+  g.fillStyle = '#120f24'; g.fillRect(0, 0, Wc, Hc);
+  // a faint table: the felt's blue and its neon trim, framing the card
+  g.fillStyle = '#16294a'; g.beginPath(); g.roundRect(70, 70, Wc - 140, Hc - 140, 48); g.fill();
+  g.lineWidth = 8; g.strokeStyle = PINK; g.stroke();
+  g.lineWidth = 4; g.strokeStyle = CYAN; g.beginPath(); g.roundRect(100, 100, Wc - 200, Hc - 200, 32); g.stroke();
+  g.fillStyle = '#05040c'; for (const [x, y] of [[70, 70], [Wc - 70, 70], [70, Hc - 70], [Wc - 70, Hc - 70], [70, Hc / 2], [Wc - 70, Hc / 2]]) { g.beginPath(); g.arc(x, y, 34, 0, Math.PI * 2); g.fill(); g.lineWidth = 5; g.strokeStyle = PINK; g.stroke(); }
+  const text = (s, x, y, font, col, align = 'center', shadow = 0) => {
+    g.font = font; g.textAlign = align; g.textBaseline = 'alphabetic';
+    if (shadow) { g.fillStyle = HARD; g.fillText(s, x + shadow, y + shadow); }
+    g.fillStyle = col; g.fillText(s, x, y);
+  };
+  const fit = (s, font, size, maxW) => { g.font = `${font.replace('SZ', size)}`; while (g.measureText(s).width > maxW && size > 20) { size -= 4; g.font = font.replace('SZ', size); } return font.replace('SZ', size); };
+  text('DAILY BREAK', Wc / 2, 230, `400 84px ${DISP}`, PINK, 'center', 6);
+  text(isDailySeed(r.seed) ? dayLabel(r.seed).toUpperCase() : 'PRACTICE RUN', Wc / 2, 290, `700 40px ${LAB}`, CYAN);
+  const pts = fmtPts(r.points || 0);
+  text(pts, Wc / 2, 500, fit(pts, `400 SZpx ${DISP}`, 190, Wc - 260), AMBER, 'center', 10);
+  text('POINTS', Wc / 2, 560, `700 38px ${LAB}`, INK);
+  // badges: best multiplier, tables, best shot
+  const best = r.bestShot, n = tablesCleared(r), badges = [['BEST', fmtMult(r.bestMult || 1), PINK, '#fff'], ['TABLES', String(n), PURPLE, '#fff'], ...(best ? [['BEST SHOT', fmtPts(best.pts), AMBER, '#120f24']] : [])];
+  const bw = 250, gap = 26, bx0 = Wc / 2 - (badges.length * bw + (badges.length - 1) * gap) / 2;
+  badges.forEach(([lab, val, bg, fg], k) => {
+    const x = bx0 + k * (bw + gap), y = 620;
+    g.fillStyle = HARD; g.beginPath(); g.roundRect(x + 8, y + 8, bw, 150, 26); g.fill();
+    g.fillStyle = bg; g.beginPath(); g.roundRect(x, y, bw, 150, 26); g.fill();
+    text(lab, x + bw / 2, y + 50, `700 30px ${LAB}`, fg);
+    text(val, x + bw / 2, y + 122, fit(val, `400 SZpx ${DISP}`, 64, bw - 30), fg);
+  });
+  // the multiplier strip as bars, amber at x1 to pink at the top
+  const log = Array.isArray(r.multLog) ? r.multLog : [], bars = multStrip(log, 30);
+  if (bars) {
+    const lv = [...bars].map(ch => STRIP_BARS.indexOf(ch)), x0 = 170, w = Wc - 340, bwid = Math.min(46, w / lv.length), bgap = bwid * 0.22, top = 860, h = 190;
+    const sx = x0 + (w - lv.length * bwid) / 2;
+    lv.forEach((l, k) => {
+      const bh = 18 + (h - 18) * l / 7, x = sx + k * bwid, y = top + h - bh;
+      g.fillStyle = l >= 6 ? PINK : l >= 3 ? '#ff7a5c' : AMBER; g.beginPath(); g.roundRect(x, y, bwid - bgap, bh, 6); g.fill();
+    });
+    text('MULTIPLIER, SHOT BY SHOT', Wc / 2, top + h + 50, `700 28px ${LAB}`, '#9d94c2');
+  }
+  const rank = trickRankLine(r);
+  if (rank) text(rank.toUpperCase(), Wc / 2, 1175, fit(rank.toUpperCase(), `700 SZpx ${LAB}`, 44, Wc - 280), CYAN);
+  text('DAILYBREAK.APP', Wc / 2, 1240, `400 40px ${DISP}`, INK);
+  return c;
+}
 const canNativeShare = () => !!navigator.share && matchMedia('(pointer: coarse)').matches;
 async function shareResult(b) {
   const text = shareText();
-  if (canNativeShare()) { try { await navigator.share({ text }); } catch {} return; }
+  if (canNativeShare()) {
+    // the timed run: the image card goes with the text when the phone can share files (it's made beforehand, so the
+    // share starts inside the tap: iOS refuses one that waits on anything)
+    const file = round?.trick && shareCard.file;
+    try { await navigator.share(file && navigator.canShare?.({ files: [file] }) ? { text, files: [file] } : { text }); } catch {}
+    return;
+  }
   try { await navigator.clipboard.writeText(text); b.textContent = 'Copied!'; }
   catch { b.textContent = 'Select the text to copy'; }
 }
@@ -358,6 +430,7 @@ $('card').addEventListener('click', e => {
   ensureAudio(); sfx.click();
   if ('close' in b.dataset) { if (!ls('dailybreak:seenHelp')) track('intro'); ls('dailybreak:seenHelp', '1'); $('overlay').classList.remove('show'); if (phase === 'over') showFinal(!!round.done); }
   else if ('copy' in b.dataset) shareResult(b);
+  else if ('saveimg' in b.dataset) saveShareCard(b);
   else if ('trynew' in b.dataset) { $('overlay').classList.remove('show'); newRound(Math.random().toString(36).slice(2, 8), false); }   // ?trick: another course, no practice used
   else if ('random' in b.dataset) startPractice(Math.random().toString(36).slice(2, 8));   // a fresh random course
   else if ('daily' in b.dataset) { $('overlay').classList.remove('show'); newRound(todayKey(), true); }
