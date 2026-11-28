@@ -8,10 +8,12 @@
 //            follows really drops into it (at some pace the guide tries, struck both perfectly and Perfect).
 //   fastsim  the guide's early-exit simulation (guidePotsAt) finds exactly the pots a full simulation does.
 //   smoke    a first visit: the intro card, "Let's play", one real shot through the pull cue, no errors.
+//   banks    on the oval (from RULES.SMOOTH_JOINS_FROM), the cue ball's first bounce off a cushion goes the way the aim
+//            line's trace draws it, at every angle and three paces (it was up to 60° off at the oval's joins, 28 Nov).
 //   trial    the timed trial (?trick): a short run of real shots (perfect strikes at potting aims), each shot's points
 //            and multiplier checked against the rules from the table's own record of the shot, the clock only
 //            running while aiming, and the run ending with a last shot and points that add up.
-// Usage: node tests/run.js [--update] [--only layouts,guide,fastsim,smoke,trial]
+// Usage: node tests/run.js [--update] [--only layouts,guide,fastsim,banks,smoke,trial]
 const { execFileSync } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
@@ -19,8 +21,9 @@ const { chromium } = require('playwright');
 const ROOT = path.join(__dirname, '..'), DIST = path.join(ROOT, 'dist'), SNAP = path.join(__dirname, 'layouts.json');
 const LAYOUT_FROM = '2026-11-12', LAYOUT_TO = '2027-01-31', PRACTICE = ['practice-a', 'k3v9q', 'Zz1'];
 const GUIDE_DAYS = ['2026-11-15', '2026-11-17', '2026-11-24'];
+const BANK_DAYS = ['2026-12-04', '2026-12-05', '2026-12-06', '2026-12-07'];   // (oval holes, after SMOOTH_JOINS_FROM)
 const args = process.argv.slice(2), update = args.includes('--update');
-const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : ['layouts', 'guide', 'fastsim', 'smoke', 'trial'];
+const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : ['layouts', 'guide', 'fastsim', 'banks', 'smoke', 'trial'];
 const SEEN = { 'dailybreak:seenHelp': '1', 'dailybreak:tappedBall': '1', 'dailybreak:spinDemo': '1' };
 
 const days = (from, to) => { const out = []; for (let d = new Date(from + 'T12:00:00Z'); d <= new Date(to + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10)); return out; };
@@ -133,6 +136,45 @@ const tests = {
     if (!r.pots) throw new Error('no pots found: the check is not exercising anything');
     if (r.bad.length) throw new Error(`${r.bad.length} aim(s) where the fast guide sim disagrees with the full one:\n  ` + r.bad.slice(0, 10).join('\n  '));
     return `${r.n} aims (${r.pots} with pots) identical to the full simulation`;
+  },
+
+  async banks(browser, base) {
+    const p = await page(browser, base, SEEN);
+    await p.waitForFunction(() => typeof phase !== 'undefined' && phase === 'aim');
+    const r = await p.evaluate(days => {
+      let n = 0; const bad = [];
+      for (const day of days) {
+        newRound(day, false);
+        for (let hi = 0; hi < HOLES; hi++) {
+          startHole(hi); phase = 'aim';
+          if (hole.shape?.key !== 'oval') continue;
+          const c = table.cue;
+          for (let k = 0; k < 360; k++) {
+            const a = k / 360 * TAU, dx = Math.cos(a), dy = Math.sin(a), h = trace(table, c.x, c.y, dx, dy);
+            if (!h.wall || h.nx == null) continue;
+            const x = c.x + dx * h.t, y = c.y + dy * h.t;
+            if (table.pk.some(q => Math.hypot(q.x - x, q.y - y) < q.cap + 2.5 * R)) continue;   // (a pocket's jaws)
+            // the bank as the guide draws it (objPath): the speed into the cushion drops to e of itself
+            const kk = dx * h.nx + dy * h.ny, want = Math.atan2(dy - (1 + CUSHION_E) * kk * h.ny, dx - (1 + CUSHION_E) * kk * h.nx);
+            for (const pw of [0.3, 0.7, 1]) {
+              const s = cloneTable(table); s.shoot(a, pw, 0, 0);
+              for (let i = 0; i < 4000 && s.moving() && !s.cue.potted && !s.shot.firstHit; i++) {
+                s.step();
+                if (!s.cue.wallPts.length) continue;
+                const da = want - Math.atan2(s.cue.vy, s.cue.vx), e = Math.abs(Math.atan2(Math.sin(da), Math.cos(da))) * 180 / Math.PI;
+                n++; if (e > 1) bad.push(`${day} hole ${hi + 1} ${k}° pace ${pw}: came off ${e.toFixed(1)}° from the drawn bank`);
+                break;
+              }
+            }
+          }
+        }
+      }
+      return { n, bad };
+    }, BANK_DAYS);
+    if (p.errors.length) throw new Error('page errors: ' + p.errors.join(' | '));
+    if (r.n < 500) throw new Error(`only ${r.n} bounces checked: BANK_DAYS need oval holes`);
+    if (r.bad.length) throw new Error(`${r.bad.length} bounce(s) off the oval's cushions away from the aim line:\n  ` + r.bad.slice(0, 10).join('\n  '));
+    return `${r.n} first bounces off the oval, all within 1° of the drawn bank`;
   },
 
   async smoke(browser, base) {

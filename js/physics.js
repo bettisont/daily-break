@@ -141,7 +141,8 @@ class Table {
       let hitWall = false;
       if (this.hole.shape) {
         // any shape: push the ball off the nearest point of each cushion it overlaps and bounce off that normal
-        for (const g of this.hole.shape.segs) {
+        if (ruleOn(this.hole.seed, RULES.SMOOTH_JOINS_FROM)) hitWall = this.shapeCushions(b, sp);
+        else for (const g of this.hole.shape.segs) {
           const ex = g.bx - g.ax, ey = g.by - g.ay, u = clamp(((b.x - g.ax) * ex + (b.y - g.ay) * ey) / g.l2, 0, 1);
           const cx = g.ax + ex * u, cy = g.ay + ey * u, dx = b.x - cx, dy = b.y - cy, d2 = dx * dx + dy * dy;
           if (d2 >= R * R) continue;
@@ -162,6 +163,47 @@ class Table {
       if (hitWall) b.wallPts = [...(b.wallPts || []), [b.x, b.y]];   // every cushion contact and where (for the guide)
       if (hitWall && sp > 30) { if (s) s.cushions++; this.ev('cushion', { speed: sp, x: b.x, y: b.y }); }
     }
+  }
+
+  // A shaped table's cushions, from RULES.SMOOTH_JOINS_FROM (30 Nov). Before, each cushion the ball overlapped pushed
+  // it off its nearest point, in cushion order. Where two cushions meet at an outward corner (a join: the oval is 56 of
+  // them) a fast ball sinks a few px past the join in one step, and came off the end point of one cushion radially, or
+  // off both cushions in turn: up to 60° from the bank the aim line drew (28 Nov report). Now, at a join, each cushion
+  // is its straight line, carried on a ball's width past the join, and the ball bounces first off the one it reached
+  // first (longest ago, going back along its path; what trace finds), then off another only if it's still heading into
+  // it. Only a corner that sticks into the felt (segCaps) still has a rounded end the ball comes off radially.
+  // Returns whether it bounced off anything.
+  shapeCushions(b, sp) {
+    const s = this.shot, segs = this.hole.shape.segs, caps = segCaps(this.hole.shape), touch = [];
+    // where the ball is against cushion n, if it is: the normal, how far in, and how long since it reached it
+    const contact = n => {
+      const g = segs[n], ex = g.bx - g.ax, ey = g.by - g.ay, u = ((b.x - g.ax) * ex + (b.y - g.ay) * ey) / g.l2;
+      let nx = g.nx, ny = g.ny, d;
+      if ((u < 0 && caps[n][0]) || (u > 1 && caps[n][1])) {   // a rounded end
+        const cx = u < 0 ? g.ax : g.bx, cy = u < 0 ? g.ay : g.by;
+        d = Math.hypot(b.x - cx, b.y - cy);
+        if (d) { nx = (b.x - cx) / d; ny = (b.y - cy) / d; }
+      } else {
+        const ext = (R + 2) / Math.sqrt(g.l2);
+        if (u < -ext || u > 1 + ext) return null;
+        d = (b.x - g.ax) * nx + (b.y - g.ay) * ny;
+        if (d <= -R) return null;   // (the far side of the line: not this cushion)
+      }
+      if (d >= R) return null;
+      const vn = b.vx * nx + b.vy * ny;
+      return { n, nx, ny, d, back: vn < 0 ? (R - d) / -vn : 0 };
+    };
+    for (let n = 0; n < segs.length; n++) { const c = contact(n); if (c) touch.push(c); }
+    if (touch.length > 1) touch.sort((p, q) => q.back - p.back);
+    let hit = false;
+    for (const t0 of touch) {
+      const c = t0 === touch[0] ? t0 : contact(t0.n);   // (the first push may have cleared the others)
+      if (!c) continue;
+      b.x += c.nx * (R - c.d); b.y += c.ny * (R - c.d);
+      const vn = b.vx * c.nx + b.vy * c.ny;
+      if (vn < 0) { b.vx -= (1 + CUSHION_E) * vn * c.nx; b.vy -= (1 + CUSHION_E) * vn * c.ny; hit = true; if (s && s.side && b === this.cue) this.english(c.nx, c.ny, vn, sp); }
+    }
+    return hit;
   }
 
   // Side spin (16 Nov): the cue ball grips the cushion and comes off bent towards the side it was struck on (right
@@ -235,6 +277,28 @@ class Table {
       }
     }
   }
+}
+
+// For each cushion of a shape, whether each end (a, b) is a corner that sticks into the felt (the inside of the L,
+// an island's corners, a cushion with no neighbour): only there can a ball touch the end itself. At an outward corner
+// (two cushions meeting with the felt inside the angle) the ball always meets one of the two cushions along its
+// length. Kept off the shape object, which is part of every hole's layout. (Table.shapeCushions)
+const SEG_CAPS = new WeakMap();
+function segCaps(sh) {
+  let caps = SEG_CAPS.get(sh);
+  if (caps) return caps;
+  const same = (x1, y1, x2, y2) => Math.abs(x1 - x2) < 1e-6 && Math.abs(y1 - y2) < 1e-6;
+  // the end (x, y) of cushion g is rounded unless the cushion joined to it there runs on round the felt (its far end
+  // on the felt side of g: an outward corner)
+  const capAt = (g, x, y) => {
+    const h = sh.segs.find(o => o !== g && (same(o.ax, o.ay, x, y) || same(o.bx, o.by, x, y)));
+    if (!h) return true;
+    const [ox, oy] = same(h.ax, h.ay, x, y) ? [h.bx, h.by] : [h.ax, h.ay];
+    return (ox - x) * g.nx + (oy - y) * g.ny <= 0;
+  };
+  caps = sh.segs.map(g => [capAt(g, g.ax, g.ay), capAt(g, g.bx, g.by)]);
+  SEG_CAPS.set(sh, caps);
+  return caps;
 }
 
 function cloneTable(t) {
