@@ -4,6 +4,16 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 28 Nov 2026: no more getting stuck zoomed in
+
+- **The page can't be zoomed, and snaps back if it is** (report with a screenshot: the phone zoomed in mid-run and
+  wouldn't zoom back out, which ruined the run). iOS ignores the viewport's maximum-scale, so a pinch or double-tap on
+  anything that isn't a control (the header, the shot text) zoomed the page. Then the table, aim strip, spin ball and
+  cue filled the screen, and they are all touch-action:none, so the pinch back out went to them and the page stayed
+  stuck. Now `html{touch-action:pan-x pan-y}`, Safari's gesture events and two-finger moves are cancelled, double-taps
+  outside buttons don't zoom, and a zoomed page re-sets its viewport to go back to 1x (`unzoom`, js/input.js).
+  Play-only: no physics or courses touched.
+
 ## 28 Nov 2026: the oval's bank lines tell the truth (from 30 Nov)
 
 - **Banks off the oval go where the aim line says** (report: "the aim line doesn't work properly on the oval"). The
