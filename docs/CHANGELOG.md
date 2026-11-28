@@ -4,6 +4,29 @@ Newest first. One entry per dated change: what changed, why, and the key numbers
 `HANDOFF.md`; this is the history, including things that were tried and taken out (most are still in the git
 history under the commit named).
 
+## 28 Nov 2026: no more getting stuck zoomed in
+
+- **The page can't be zoomed, and snaps back if it is** (report with a screenshot: the phone zoomed in mid-run and
+  wouldn't zoom back out, which ruined the run). iOS ignores the viewport's maximum-scale, so a pinch or double-tap on
+  anything that isn't a control (the header, the shot text) zoomed the page. Then the table, aim strip, spin ball and
+  cue filled the screen, and they are all touch-action:none, so the pinch back out went to them and the page stayed
+  stuck. Now `html{touch-action:pan-x pan-y}`, Safari's gesture events and two-finger moves are cancelled, double-taps
+  outside buttons don't zoom, and a zoomed page re-sets its viewport to go back to 1x (`unzoom`, js/input.js).
+  Play-only: no physics or courses touched.
+
+## 28 Nov 2026: the oval's bank lines tell the truth (from 30 Nov)
+
+- **Banks off the oval go where the aim line says** (report: "the aim line doesn't work properly on the oval"). The
+  oval is 56 short straight cushions. A ball moves up to ~11 px a physics step, so near a join it sank past the end of
+  one cushion and the physics bounced it off that cushion's end point (radially) or off both cushions in turn. 1 bounce
+  in 5 came off more than 1° from the drawn bank, 1 in 10 more than 30°, up to 60°+. Now each cushion near a join is
+  its straight line carried a ball's width past the join, and the ball bounces off the one it reached first, as the
+  aim line's trace does (`Table.shapeCushions`, `segCaps`). Measured on 14 December days, first bounces more than 1°
+  off the drawn bank: oval 820 of 3,878 -> 0; also better on the other shapes (island 160 -> 123, hourglass 52 -> 27,
+  L 40 -> 20, octagon 9 -> 2, hexagon 4 -> 4; what's left there is at corners that stick into the felt and the island).
+- Gated by `RULES.SMOOTH_JOINS_FROM` (30 Nov) so today's and earlier days play as they were; practice gets it at once.
+  No course changed: the layouts snapshot (12 Nov - 31 Jan) is identical. New test `banks`.
+
 ## 23 Nov 2026 (afternoon): the timed run goes live as the daily game
 
 - **No golden flashes in the timed run** (playtest, after going live: annoying): the tally's landing is just a punch

@@ -41,6 +41,8 @@
   :root{--paper:#ece5d3;--panel:#f5f0e4;--card:#fbf8f0;--ink:#2d3a30;--muted:#7d8577;--line:#d9d0bb;--green:#2f6b4f;--green-dark:#1f4a36;--hi:#dde7d0;--gold:#b88a2e;--red:#b8553f;--hatch:#e8bcb0}
   *{box-sizing:border-box}
   html,body{height:100%}
+  /* no page zoom (28 Nov: iOS ignores maximum-scale, and once zoomed in the controls swallow the pinch back out): scroll only */
+  html{touch-action:pan-x pan-y}
   body{margin:0;background:var(--paper);color:var(--ink);font:500 15px/1.35 'DM Sans',system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
   #app{height:100vh;height:100dvh;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
   header,#info,#controls{width:min(100%,640px);margin-inline:auto}

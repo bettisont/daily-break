@@ -140,6 +140,11 @@ upcoming day. Gate the change behind a date in `RULES` (`js/core.js`) instead, s
   - `TUNNELS_FROM` 2026-11-17: the deck is sand, the cat and a tunnel (`featureKeys`).
   - `NO_TILT_FROM` 2026-11-25: no tilted tables (`buildHole` still draws the tilt's numbers so everything else is dealt
     as before; only the tilt is zeroed). The guide draws straight lines, and a tilt curved the balls up to 45° off them.
+  - `SMOOTH_JOINS_FROM` 2026-11-30: a shaped table's cushions bounce a ball off the cushion it reached first
+    (`Table.shapeCushions`). At a join between two cushions (the oval has 56) a fast ball sinks a few px past the join
+    in one step, and used to come off the end of the neighbouring cushion, or off both, up to 60° from the bank the aim
+    line draws. Only corners that stick into the felt (`segCaps`: the L's and hourglass's inside corners, the island)
+    still have rounded ends. No course changed (the layouts snapshot is identical); the `banks` test checks the oval.
   - Folded in and always on (the old branches are deleted): par scoring and table shapes (12 Nov), spread-out racks
     (13 Nov), the short round with features and golden pockets (14 Nov). So 12-13 Nov no longer regenerate as they
     were played, and an old `?seed=` date opens a par practice round.

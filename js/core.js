@@ -23,6 +23,9 @@ const RULES = {
                                 // Was 25 Nov; brought forward to go live with the timed run (23 Nov, mid-day, on purpose)
   TRICK_SCORE_FROM: '2026-11-23', // the timed run replaces par as the daily game (state.js, trickOn). Switched on mid-day
                                   // on 23 Nov, on purpose: anyone who'd played par today gets a fresh timed run
+  SMOOTH_JOINS_FROM: '2026-11-30', // a ball meeting a shaped table's cushion near a join, where two cushions meet at an
+                                   // outward corner (the oval's 56 joins above all), bounces off the cushion itself,
+                                   // not off the end of its neighbour (it came off up to 60° away from the aim line)
 };
 const isDailySeed = s => /^\d{4}-\d{2}-\d{2}$/.test(s);
 // is the rule that starts on day `from` on for this seed?

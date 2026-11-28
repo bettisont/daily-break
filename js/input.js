@@ -250,3 +250,27 @@ addEventListener('resize', resize);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
 
 
+
+// No page zoom (28 Nov report: "my phone zooms in and I can't zoom back out, and it ruins the run"). iOS ignores the
+// viewport's maximum-scale, so a pinch or a double-tap on anything that isn't a control (the header, the shot text)
+// zoomed the page in, and then the table, strip, spin ball and cue filled the screen: all touch-action:none, so they
+// took the pinch back out as aiming and the page stayed stuck. So: no pinch (Safari's gesture events, and any
+// two-finger move outside a control) and no double-tap zoom, and if the page is zoomed anyway it snaps back.
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+let lastTouchEnd = 0;   // (older iOS: a second tap within 300 ms is a double-tap zoom unless its touchend is cancelled)
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 300 && e.cancelable && !e.target.closest('button,a,[data-close]')) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
+// zoomed in anyway (an old browser, an accessibility zoom): re-set the viewport, which makes iOS go back to 1x
+function unzoom() {
+  const vv = window.visualViewport;
+  if (!vv || vv.scale <= 1.01) return;
+  const m = document.querySelector('meta[name=viewport]'), c = 'width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover';
+  m.content = c + ',user-scalable=no';
+  setTimeout(() => { m.content = c; }, 300);
+}
+window.visualViewport?.addEventListener('resize', () => setTimeout(unzoom, 400));
